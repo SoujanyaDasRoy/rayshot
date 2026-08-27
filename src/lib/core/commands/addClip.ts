@@ -1,7 +1,6 @@
 import { Command } from './base';
 import type { Project, Sequence, Track, Clip, MediaAsset } from '$lib/types/project';
 import { projectStore } from '$lib/stores/project.svelte';
-import { timelineStore } from '$lib/stores/timeline.svelte';
 import { get } from 'svelte/store';
 
 interface AddClipCommandData {
