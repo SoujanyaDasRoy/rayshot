@@ -23,3 +23,4 @@ describe('SceneDetector', () => {
 		expect(diff).toBeCloseTo(1.0, 1);
 	});
 });
+

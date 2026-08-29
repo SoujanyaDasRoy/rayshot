@@ -30,3 +30,4 @@ describe('SilenceDetector', () => {
 		expect(detectSilenceFromPeaks([], 10)).toEqual([]);
 	});
 });
+
