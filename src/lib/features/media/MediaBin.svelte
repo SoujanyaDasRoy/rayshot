@@ -1227,40 +1227,95 @@
 				</div>
 			</div>
 
-		<!-- DRAWER CONTENT 4: EFFECTS & FILTERS DRAWER -->
+		<!-- DRAWER CONTENT 4: EFFECTS & FILTERS DRAWER (Stitch Filters_and_Effects 1:1) -->
 		{:else if activePillar === 'effects'}
-			<div class="drawer-content-box">
-				<div class="drawer-section-intro">
-					<span class="intro-headline">Visual Effects & LUTs</span>
-					<span class="intro-subtext">Select a timeline clip then click Apply to grade footage</span>
+			<div class="flex flex-col h-full bg-surface-container text-on-surface">
+				<!-- Header -->
+				<div class="p-3 flex items-center justify-between border-b border-outline-variant">
+					<span class="text-sm font-semibold">Effects</span>
+					<span class="material-symbols-outlined text-on-surface-variant text-sm cursor-pointer hover:text-on-surface">search</span>
 				</div>
-
-				<div class="drawer-scroll-container">
-					<div class="presets-vertical-list">
-						{#each effectPresets as preset (preset.id)}
-							<div class="preset-card effect-preset-card">
-								<div class="effect-banner" style="background: {preset.gradient};">
-									<div class="effect-swatch" style="filter: {preset.cssFilter};">
-										<span class="swatch-text">LUT</span>
-									</div>
-									<span class="effect-tag">{preset.tag}</span>
+				<!-- Tabs: Video | Body -->
+				<div class="flex p-1.5 gap-1 border-b border-outline-variant bg-surface-container-low text-xs">
+					<button type="button" class="flex-1 py-1.5 bg-surface-container-highest rounded font-medium text-on-surface">Video</button>
+					<button type="button" class="flex-1 py-1.5 rounded font-medium text-on-surface-variant hover:bg-surface-container-high transition-colors">Body</button>
+				</div>
+				<!-- Scrollable Content -->
+				<div class="flex-1 overflow-y-auto p-3 flex flex-col gap-4 text-xs">
+					<div>
+						<div class="text-[10px] font-bold text-on-surface-variant mb-2 uppercase tracking-widest">Trending</div>
+						<div class="grid grid-cols-2 gap-2">
+							<!-- Glitch Card -->
+							<button
+								type="button"
+								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-outline-variant hover:border-primary transition-all text-left"
+								onclick={() => handleApplyEffect(effectPresets[0])}
+							>
+								<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity bg-[#1c1b1b] flex items-center justify-center text-primary font-bold text-[10px]">
+									⚡ GLITCH
 								</div>
+								<div class="absolute bottom-1 left-1.5 text-[9px] bg-black/70 px-1 rounded backdrop-blur-sm">Glitch</div>
+							</button>
 
-								<div class="preset-details-row">
-									<div class="preset-info-text">
-										<span class="preset-name">{preset.name}</span>
-										<span class="preset-desc">{preset.description}</span>
-									</div>
-									<button
-										class="preset-apply-btn"
-										onclick={() => handleApplyEffect(preset)}
-										title="Apply effect to selected timeline clip"
-									>
-										Apply
-									</button>
+							<!-- Lens Blur Card -->
+							<button
+								type="button"
+								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-outline-variant hover:border-primary transition-all text-left"
+								onclick={() => handleApplyEffect(effectPresets[4])}
+							>
+								<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity bg-[#2a2a2a] flex items-center justify-center text-secondary font-bold text-[10px]">
+									🔍 LENS BLUR
 								</div>
-							</div>
-						{/each}
+								<div class="absolute bottom-1 left-1.5 text-[9px] bg-black/70 px-1 rounded backdrop-blur-sm">Lens Blur</div>
+							</button>
+
+							<!-- VHS Retro Card -->
+							<button
+								type="button"
+								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-outline-variant hover:border-primary transition-all text-left"
+								onclick={() => handleApplyEffect(effectPresets[2])}
+							>
+								<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity bg-[#353534] flex items-center justify-center text-tertiary font-bold text-[10px]">
+									📼 VHS RETRO
+								</div>
+								<div class="absolute bottom-1 left-1.5 text-[9px] bg-black/70 px-1 rounded backdrop-blur-sm">VHS Retro</div>
+							</button>
+
+							<!-- Cyber Color Active Selection Card -->
+							<button
+								type="button"
+								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-primary ring-1 ring-primary transition-all text-left shadow-lg shadow-primary/20"
+								onclick={() => handleApplyEffect(effectPresets[1])}
+							>
+								<div class="w-full h-full bg-gradient-to-tr from-secondary/40 to-primary/40 flex items-center justify-center font-bold text-[10px] text-white">
+									✨ CYBER COLOR
+								</div>
+								<div class="absolute bottom-1 left-1.5 text-[9px] bg-black/70 px-1 rounded backdrop-blur-sm text-primary font-bold">Cyber Color</div>
+							</button>
+						</div>
+					</div>
+
+					<div>
+						<div class="text-[10px] font-bold text-on-surface-variant mb-2 uppercase tracking-widest flex items-center justify-between">
+							<span>Basic</span>
+							<span class="material-symbols-outlined text-[14px]">expand_less</span>
+						</div>
+						<div class="grid grid-cols-2 gap-2">
+							<button
+								type="button"
+								class="h-14 bg-surface-container-high border border-outline-variant rounded-md flex items-center justify-center text-xs font-medium text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface cursor-pointer transition-colors"
+								onclick={() => handleApplyEffect(effectPresets[0])}
+							>
+								Sharpen
+							</button>
+							<button
+								type="button"
+								class="h-14 bg-surface-container-high border border-outline-variant rounded-md flex items-center justify-center text-xs font-medium text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface cursor-pointer transition-colors"
+								onclick={() => handleApplyEffect(effectPresets[1])}
+							>
+								Glow
+							</button>
+						</div>
 					</div>
 				</div>
 			</div>
