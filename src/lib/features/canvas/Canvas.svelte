@@ -1,224 +1,423 @@
-<script>
-  import { playbackStore, playbackActions } from '$lib/stores/playback.svelte.ts';
-  import { timelineStore } from '$lib/stores/timeline.svelte.ts';
-  import { projectStore } from '$lib/stores/project.svelte.ts';
-  import { derived } from 'svelte/store';
-  import { onMount, onDestroy } from 'svelte';
+<script lang="ts">
+	import { playbackStore } from '$lib/stores/playback.svelte';
+	import { projectStore } from '$lib/stores/project.svelte';
+	import { derived } from 'svelte/store';
+	import { onDestroy } from 'svelte';
+	import type { Clip, MediaAsset } from '$lib/types/project';
+	import { audioEngine } from '$lib/core/audioEngine';
 
-  // Helper function to find clip at a specific time
-  function findClipAtTime(project, sequenceId, time) {
-    if (!project || !sequenceId) return null;
+	interface LayerClipInfo {
+		clip: Clip;
+		asset: MediaAsset;
+		sourceTime: number;
+		trackOrder: number;
+	}
 
-    const sequence = project.sequences.find(s => s.id === sequenceId);
-    if (!sequence) return null;
+	const activeSequence = derived(projectStore, ($project) => {
+		if (!$project || !$project.activeSequenceId) return null;
+		return $project.sequences.find((s) => s.id === $project.activeSequenceId) ?? null;
+	});
 
-    // We need to check tracks from top to bottom (assuming order in array is top to bottom)
-    // For now, we'll just return the first clip we find that contains the time
-    // In a proper implementation, we'd check all tracks and return the topmost visible clip
-    for (const track of sequence.tracks) {
-      for (const clipId of track.clipInstances) {
-        const clip = project.clips.get(clipId);
-        if (clip) {
-          // Check if time falls within this clip's timeline range
-          if (time >= clip.timelineStart && time < clip.timelineStart + clip.timelineDuration) {
-            // Found a clip that contains this time
-            const mediaAsset = project.assets.get(clip.mediaAssetId);
-            if (mediaAsset && mediaAsset.type === 'video') {
-              return { clip, mediaAsset };
-            }
-          }
-        }
-      }
-    }
+	function getSourceTime(clip: Clip, timelineTime: number): number {
+		const timelineOffset = timelineTime - clip.timelineStart;
+		const sourceDuration = clip.sourceOut - clip.sourceIn;
+		const timelineDuration = clip.timelineDuration;
+		if (timelineDuration <= 0) return clip.sourceIn;
+		return clip.sourceIn + (timelineOffset / timelineDuration) * sourceDuration;
+	}
 
-    return null;
-  }
+	const activeLayers = derived(
+		[projectStore, playbackStore],
+		([$project, $playback]) => {
+			if (!$project || !$project.activeSequenceId) return [];
+			const sequence = $project.sequences.find((s) => s.id === $project.activeSequenceId);
+			if (!sequence) return [];
 
-  // Calculate the corresponding time in the source media based on timeline time
-  function getSourceTime(clip, timelineTime) {
-    // Convert timeline time to source media time
-    // sourceIn + (timelineTime - timelineStart) * (sourceDuration / timelineDuration)
-    // But we need to be careful about the clip's sourceIn/Out and timelineStart/timelineDuration
+			const time = $playback.currentTime;
+			const layers: LayerClipInfo[] = [];
 
-    const timelineOffset = timelineTime - clip.timelineStart;
-    const sourceDuration = clip.sourceOut - clip.sourceIn;
-    const timelineDuration = clip.timelineDuration;
+			for (let i = 0; i < sequence.tracks.length; i++) {
+				const track = sequence.tracks[i];
+				for (const clipId of track.clipInstances) {
+					const clip = $project.clips.get(clipId);
+					if (!clip) continue;
+					if (time >= clip.timelineStart && time < clip.timelineStart + clip.timelineDuration) {
+						const asset = $project.assets.get(clip.mediaAssetId);
+						if (asset) {
+							layers.push({
+								clip,
+								asset,
+								sourceTime: getSourceTime(clip, time),
+								trackOrder: track.order ?? i
+							});
+						}
+					}
+				}
+			}
 
-    // Avoid division by zero
-    if (timelineDuration <= 0) return clip.sourceIn;
+			// Sort by track order ascending: higher track order overlays lower track order
+			layers.sort((a, b) => a.trackOrder - b.trackOrder);
+			return layers;
+		}
+	);
 
-    const sourceTime = clip.sourceIn + (timelineOffset / timelineDuration) * sourceDuration;
-    return sourceTime;
-  }
+	const visualLayers = derived(activeLayers, ($layers) =>
+		$layers.filter((l) => l.asset.type === 'video' || l.asset.type === 'image')
+	);
 
-  // Derive the current media to display based on playback time and project state
-  const currentMedia = derived(
-    [projectStore, playbackStore, timelineStore],
-    ([$project, $playback, $timeline]) => {
-      if (!$project || !$project.activeSequenceId) return null;
+	const audioLayers = derived(activeLayers, ($layers) =>
+		$layers.filter((l) => l.asset.type === 'audio' || (l.asset.type === 'video' && !l.clip.audioParameters?.mute))
+	);
 
-      const clipInfo = findClipAtTime(
-        $project,
-        $project.activeSequenceId,
-        $playback.currentTime
-      );
+	// Map of assetId -> objectUrl
+	let objectUrls = $state<Map<string, string>>(new Map());
+	const mediaElements = new Map<string, HTMLMediaElement>();
 
-      if (!clipInfo) return null;
+	$effect(() => {
+		const layers = $activeLayers;
+		const currentMap = new Map(objectUrls);
+		const activeAssetIds = new Set<string>();
 
-      const { clip, mediaAsset } = clipInfo;
+		for (const l of layers) {
+			activeAssetIds.add(l.asset.id);
+			if (!currentMap.has(l.asset.id) && l.asset.sourceBlob) {
+				try {
+					const url = URL.createObjectURL(l.asset.sourceBlob);
+					currentMap.set(l.asset.id, url);
+				} catch (e) {
+					console.error('Failed to create object URL for asset:', l.asset.id, e);
+				}
+			}
+		}
 
-      // Calculate the current time in the source media
-      const sourceTime = getSourceTime(clip, $playback.currentTime);
+		// Revoke unused URLs
+		for (const [assetId, url] of currentMap) {
+			if (!activeAssetIds.has(assetId)) {
+				URL.revokeObjectURL(url);
+				currentMap.delete(assetId);
+			}
+		}
 
-      return {
-        ...clipInfo,
-        sourceTime
-      };
-    }
-  );
+		objectUrls = currentMap;
+	});
 
-  let videoRef = null;
+	function syncElement(el: HTMLMediaElement, clip: Clip, sourceTime: number) {
+		if (!el) return;
+		const targetTime = sourceTime;
+		if (Math.abs(el.currentTime - targetTime) > 0.15 || !$playbackStore.isPlaying) {
+			try {
+				el.currentTime = targetTime;
+			} catch (_) {}
+		}
+		el.playbackRate = ($playbackStore.playbackSpeed || 1) * (clip.playbackRate || 1);
+		el.volume = $playbackStore.isMuted
+			? 0
+			: ($playbackStore.masterVolume ?? 1) * (clip.audioParameters?.mute ? 0 : (clip.audioParameters?.volume ?? 1));
 
-  // Update video source when currentMedia changes
-  function updateVideoSource() {
-    if (!videoRef) return;
-    if ($currentMedia) {
-      videoRef.src = $currentMedia.mediaAsset.source;
-    } else {
-      videoRef.src = '';
-    }
-  }
+		if ($playbackStore.isPlaying && el.paused) {
+			el.play().catch(() => {});
+		} else if (!$playbackStore.isPlaying && !el.paused) {
+			el.pause();
+		}
+	}
 
-  // Update video currentTime when currentMedia.sourceTime changes
-  function updateVideoCurrentTime() {
-    if (!videoRef || !$currentMedia) return;
-    // Only update if the difference is significant to avoid excessive updates
-    if (Math.abs(videoRef.currentTime - $currentMedia.sourceTime) > 0.1) {
-      videoRef.currentTime = $currentMedia.sourceTime;
-    }
-  }
+	function mediaSync(node: HTMLMediaElement, params: { clip: Clip; sourceTime: number }) {
+		mediaElements.set(params.clip.id, node);
+		syncElement(node, params.clip, params.sourceTime);
 
-  // Handle video timeupdate to keep playback store in sync
-  function handleTimeUpdate(event) {
-    const video = event.target;
-    const sourceTime = video.currentTime;
+		// Register with audio engine mixing graph (initializes AudioContext on first user gesture)
+		audioEngine.init();
+		audioEngine.registerClip(
+			params.clip.id,
+			node,
+			params.clip.audioParameters?.volume ?? 1,
+			0 // pan center
+		);
 
-    // Convert source time back to timeline time
-    if ($currentMedia) {
-      const { clip } = $currentMedia;
-      const sourceDuration = clip.sourceOut - clip.sourceIn;
-      const timelineDuration = clip.timelineDuration;
+		return {
+			update(newParams: { clip: Clip; sourceTime: number }) {
+				syncElement(node, newParams.clip, newParams.sourceTime);
+			},
+			destroy() {
+				node.pause();
+				mediaElements.delete(params.clip.id);
+				audioEngine.unregisterClip(params.clip.id);
+			}
+		};
+	}
 
-      if (sourceDuration > 0 && timelineDuration > 0) {
-        const timelineOffset = ((sourceTime - clip.sourceIn) / sourceDuration) * timelineDuration;
-        const timelineTime = clip.timelineStart + timelineOffset;
+	// Reactive sync whenever playbackStore state changes
+	$effect(() => {
+		const isPlaying = $playbackStore.isPlaying;
+		const playbackSpeed = $playbackStore.playbackSpeed;
+		const isMuted = $playbackStore.isMuted;
+		const masterVolume = $playbackStore.masterVolume;
+		const currentTime = $playbackStore.currentTime;
+		const layers = $activeLayers;
 
-        // Only update if the difference is significant (to avoid excessive updates)
-        if (Math.abs(timelineTime - $playbackStore.currentTime) > 0.1) {
-          playbackActions.setCurrentTime(timelineTime);
-        }
-      }
-    }
-  }
+		// Update audio engine master state
+		if (audioEngine.isInitialized) {
+			audioEngine.setMasterVolume(masterVolume);
+			audioEngine.setMuted(isMuted);
+			if (isPlaying) audioEngine.resume(); else audioEngine.suspend();
+		}
 
-  // Handle video seek (when user clicks on the seek bar)
-  function handleSeek(event) {
-    const video = event.target;
-    const sourceTime = video.currentTime;
+		for (const layer of layers) {
+			const el = mediaElements.get(layer.clip.id);
+			if (el) {
+				syncElement(el, layer.clip, layer.sourceTime);
+			}
+		}
+	});
 
-    // Convert source time back to timeline time and update playback
-    if ($currentMedia) {
-      const { clip } = $currentMedia;
-      const sourceDuration = clip.sourceOut - clip.sourceIn;
-      const timelineDuration = clip.timelineDuration;
+	onDestroy(() => {
+		for (const url of objectUrls.values()) {
+			URL.revokeObjectURL(url);
+		}
+		mediaElements.clear();
+	});
 
-      if (sourceDuration > 0 && timelineDuration > 0) {
-        const timelineOffset = ((sourceTime - clip.sourceIn) / sourceDuration) * timelineDuration;
-        const timelineTime = clip.timelineStart + timelineOffset;
+	function getLayerTransform(clip: Clip): string {
+		const x = clip.transform?.x ?? 0;
+		const y = clip.transform?.y ?? 0;
+		const scale = clip.transform?.scale ?? 1;
+		const rotation = clip.transform?.rotation ?? 0;
+		return `translate(${x}px, ${y}px) scale(${scale}) rotate(${rotation}deg)`;
+	}
 
-        playbackActions.setCurrentTime(timelineTime);
-      }
-    }
-  }
+	function getLayerFilter(clip: Clip): string {
+		const filterParts: string[] = [];
+		if (clip.filters) {
+			if (clip.filters.brightness !== undefined && clip.filters.brightness !== 0) {
+				filterParts.push(`brightness(${100 + Number(clip.filters.brightness)}%)`);
+			}
+			if (clip.filters.contrast !== undefined && clip.filters.contrast !== 0) {
+				filterParts.push(`contrast(${100 + Number(clip.filters.contrast)}%)`);
+			}
+			if (clip.filters.saturate !== undefined && clip.filters.saturate !== 0) {
+				filterParts.push(`saturate(${100 + Number(clip.filters.saturate)}%)`);
+			}
+			if (clip.filters.lut && clip.filters.lut !== 'none') {
+				// Inline fast LUT lookup
+				const lutFilters: Record<string, string> = {
+					teal_orange: 'contrast(1.18) saturate(1.25) hue-rotate(-8deg) sepia(0.12)',
+					vintage_film: 'sepia(0.28) contrast(0.95) brightness(1.04) saturate(0.85)',
+					cinema_noir: 'grayscale(1) contrast(1.35) brightness(0.92)',
+					golden_hour: 'sepia(0.2) saturate(1.3) hue-rotate(-5deg) brightness(1.05)',
+					cyber_matrix: 'saturate(1.6) hue-rotate(18deg) contrast(1.22)'
+				};
+				if (lutFilters[clip.filters.lut]) {
+					filterParts.push(lutFilters[clip.filters.lut]);
+				}
+			}
+			if (clip.filters.blur !== undefined && clip.filters.blur !== 0) {
+				filterParts.push(`blur(${Number(clip.filters.blur)}px)`);
+			}
+			if (clip.filters.grayscale !== undefined && clip.filters.grayscale !== 0) {
+				filterParts.push(`grayscale(${Number(clip.filters.grayscale)}%)`);
+			}
+			if (clip.filters.sepia !== undefined && clip.filters.sepia !== 0) {
+				filterParts.push(`sepia(${Number(clip.filters.sepia)}%)`);
+			}
+			if (clip.filters.hueRotate !== undefined && clip.filters.hueRotate !== 0) {
+				filterParts.push(`hue-rotate(${Number(clip.filters.hueRotate)}deg)`);
+			}
+		}
+		return filterParts.length > 0 ? filterParts.join(' ') : 'none';
+	}
 
-  // Handle video play/pause events
-  function handlePlay() {
-    playbackActions.setPlaybackState(true);
-  }
-
-  function handlePause() {
-    playbackActions.setPlaybackState(false);
-  }
-
-  // Handle video ended
-  function handleEnded() {
-    playbackActions.setPlaybackState(false);
-  }
-
-  onMount(() => {
-    updateVideoSource();
-  });
-
-  // We'll use a $: effect to run when $currentMedia changes
-  // Actually, we can use the derived store's update? We'll create a separate effect.
-  // Since we are using Svelte, we can use the $: syntax for reactive statements.
-  // However, we have to be careful not to run updateVideoSource too often.
-  // We'll do:
-  $: updateVideoSource();
-
-  // Also, when $currentMedia.sourceTime changes, we update the video's currentTime
-  $: if ($currentMedia) updateVideoCurrentTime();
+	function getLayerOpacity(clip: Clip): number {
+		return clip.filters?.opacity ?? (clip.filters?.alpha ?? 1);
+	}
 </script>
 
-<div class="canvas-container">
-  {#if $currentMedia}
-    <video
-      bind:this={videoRef}
-      class="preview-video"
-      src={$currentMedia.mediaAsset.source}
-      muted
-      on:timeupdate={handleTimeUpdate}
-      on:seeked={handleSeek}
-      on:play={handlePlay}
-      on:pause={handlePause}
-      on:ended={handleEnded}
-    >
-      Your browser does not support the video tag.
-    </video>
-  {:else}
-    <div class="placeholder">
-      No video clip at current time
-    </div>
-  {/if}
+<div class="video-canvas-stage" role="region" aria-label="Video Canvas Stage">
+	<!-- 16:9 Viewport Stage Frame -->
+	<div class="stage-viewport-16-9">
+		{#if $visualLayers.length > 0}
+			{#each $visualLayers as layer (layer.clip.id)}
+				{@const url = objectUrls.get(layer.asset.id)}
+				<div
+					class="canvas-layer"
+					style="transform: {getLayerTransform(layer.clip)}; filter: {getLayerFilter(layer.clip)}; opacity: {getLayerOpacity(layer.clip)}; z-index: {layer.trackOrder};"
+				>
+					{#if layer.asset.type === 'video' && url}
+						<video
+							use:mediaSync={{ clip: layer.clip, sourceTime: layer.sourceTime }}
+							class="canvas-media-element"
+							src={url}
+							playsinline
+							muted={$playbackStore.isMuted || layer.clip.audioParameters?.mute}
+						>
+							<track kind="captions" />
+						</video>
+					{:else if layer.asset.type === 'image' && url}
+						<img
+							class="canvas-media-element"
+							src={url}
+							alt={layer.asset.filename}
+						/>
+					{/if}
+				</div>
+			{/each}
+		{:else if $audioLayers.length > 0}
+			<div class="audio-stage-visualizer">
+				<div class="audio-pulse-ring">
+					<span class="audio-icon">🎵</span>
+				</div>
+				<div class="audio-meta">
+					<span class="audio-track-name">{$audioLayers[0].asset.filename}</span>
+					<span class="audio-track-status font-mono">Audio Active</span>
+				</div>
+			</div>
+		{:else}
+			<div class="empty-stage-state">
+				<div class="empty-stage-icon">🎬</div>
+				<div class="empty-stage-heading">16:9 Viewport</div>
+				<div class="empty-stage-subtext font-mono">
+					{$activeSequence ? `${$activeSequence.resolution.width} × ${$activeSequence.resolution.height}` : '1920 × 1080'} • {$activeSequence?.frameRate ?? 30} FPS
+				</div>
+			</div>
+		{/if}
+
+		<!-- Background audio playback for pure audio clips -->
+		{#each $audioLayers as audioLayer (audioLayer.clip.id)}
+			{@const audioUrl = objectUrls.get(audioLayer.asset.id)}
+			{#if audioUrl && audioLayer.asset.type === 'audio'}
+				<audio
+					use:mediaSync={{ clip: audioLayer.clip, sourceTime: audioLayer.sourceTime }}
+					src={audioUrl}
+				></audio>
+			{/if}
+		{/each}
+	</div>
 </div>
 
 <style>
-  .canvas-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    background-color: #000;
-    overflow: hidden;
-  }
+	.video-canvas-stage {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+		height: 100%;
+		background: #090a0d;
+		padding: 12px;
+		box-sizing: border-box;
+		overflow: hidden;
+		position: relative;
+	}
 
-  .preview-video {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-    background-color: #000;
-  }
+	.stage-viewport-16-9 {
+		position: relative;
+		aspect-ratio: 16 / 9;
+		width: 100%;
+		max-width: 100%;
+		max-height: 100%;
+		background: #000000;
+		border: 1px solid #1a1d28;
+		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9), 0 0 0 1px #232738;
+		border-radius: 6px;
+		overflow: hidden;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
 
-  .placeholder {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: #666;
-    font-family: sans-serif;
-    text-align: center;
-  }
+	.canvas-layer {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		pointer-events: none;
+		transform-origin: center center;
+	}
+
+	.canvas-media-element {
+		max-width: 100%;
+		max-height: 100%;
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		display: block;
+		user-select: none;
+	}
+
+	.audio-stage-visualizer {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 10px;
+		color: #94a3b8;
+	}
+
+	.audio-pulse-ring {
+		width: 56px;
+		height: 56px;
+		border-radius: 50%;
+		background: rgba(16, 185, 129, 0.12);
+		border: 1px solid rgba(16, 185, 129, 0.35);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+	}
+
+	.audio-icon {
+		font-size: 1.75rem;
+		color: #10b981;
+	}
+
+	.audio-meta {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 3px;
+	}
+
+	.audio-track-name {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: #f1f5f9;
+	}
+
+	.audio-track-status {
+		font-size: 0.7rem;
+		color: #34d399;
+		letter-spacing: 0.04em;
+	}
+
+	.empty-stage-state {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
+		user-select: none;
+		color: #475569;
+	}
+
+	.empty-stage-icon {
+		font-size: 2rem;
+		opacity: 0.45;
+	}
+
+	.empty-stage-heading {
+		font-size: 0.82rem;
+		font-weight: 600;
+		color: #64748b;
+		letter-spacing: 0.02em;
+	}
+
+	.empty-stage-subtext {
+		font-size: 0.7rem;
+		color: #475569;
+	}
+
+	.font-mono {
+		font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+	}
 </style>
+

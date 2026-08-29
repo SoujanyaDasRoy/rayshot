@@ -1,19 +1,21 @@
-import { describe, it, expect, vi } from 'vitest';
-import { MoveClipCommand } from '../moveClip';
+// @ts-nocheck
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock the project store
-const mockProjectStore = {
-  set: vi.fn(),
-};
+const { mockProjectStore } = vi.hoisted(() => {
+  return {
+    mockProjectStore: {
+      set: vi.fn(),
+      mockState: null
+    }
+  };
+});
 
 vi.mock('$lib/stores/project.svelte', () => ({
-  ...mockProjectStore,
+  projectStore: mockProjectStore
 }));
 
 vi.mock('svelte/store', () => ({
-  get: (store: any) => {
-    return store.mockState;
-  },
+  get: (store: any) => store.mockState,
   writable: () => ({
     set: vi.fn(),
     update: vi.fn(),
@@ -21,9 +23,14 @@ vi.mock('svelte/store', () => ({
   })
 }));
 
+import { MoveClipCommand } from '../moveClip';
+
 describe('MoveClipCommand', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('should execute and move a clip to a new track and position', () => {
-    // Setup mock state
     const mockState = {
       assets: new Map([
         ['asset1', { id: 'asset1', duration: 10, name: 'Test Asset' }]
@@ -35,11 +42,11 @@ describe('MoveClipCommand', () => {
           tracks: [
             {
               id: 'track1',
-              clipInstances: ['clip1'] // clip1 exists in track1
+              clipInstances: ['clip1']
             },
             {
               id: 'track2',
-              clipInstances: [] // empty track2
+              clipInstances: []
             }
           ]
         }
@@ -63,33 +70,26 @@ describe('MoveClipCommand', () => {
 
     mockProjectStore.mockState = mockState;
 
-    // Create command instance: move clip1 from track1 to track2 at position 7
     const command = new MoveClipCommand({
       clipId: 'clip1',
       newTrackId: 'track2',
       newPosition: 7
     });
 
-    // Execute
     command.execute();
 
-    // Expect projectStore.set to have been called
     expect(mockProjectStore.set).toHaveBeenCalled();
 
     const updatedProject = mockProjectStore.set.mock.calls[0][0];
 
-    // Verify that the clip's trackInstances have been updated
     const track1 = updatedProject.sequences[0].tracks.find(t => t.id === 'track1');
     const track2 = updatedProject.sequences[0].tracks.find(t => t.id === 'track2');
     expect(track1.clipInstances).not.toContain('clip1');
     expect(track2.clipInstances).toContain('clip1');
 
-    // Verify that the clip's timelineStart has been updated to newPosition (7)
     const movedClip = updatedProject.clips.get('clip1');
     expect(movedClip).toBeDefined();
     expect(movedClip?.timelineStart).toBe(7);
-
-    // Verify other properties unchanged
     expect(movedClip?.mediaAssetId).toBe('asset1');
     expect(movedClip?.sourceIn).toBe(0);
     expect(movedClip?.sourceOut).toBe(5);

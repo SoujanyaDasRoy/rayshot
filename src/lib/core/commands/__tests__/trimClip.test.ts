@@ -1,19 +1,21 @@
-import { describe, it, expect, vi } from 'vitest';
-import { TrimClipCommand } from '../trimClip';
+// @ts-nocheck
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock the project store
-const mockProjectStore = {
-  set: vi.fn(),
-};
+const { mockProjectStore } = vi.hoisted(() => {
+  return {
+    mockProjectStore: {
+      set: vi.fn(),
+      mockState: null
+    }
+  };
+});
 
 vi.mock('$lib/stores/project.svelte', () => ({
-  ...mockProjectStore,
+  projectStore: mockProjectStore
 }));
 
 vi.mock('svelte/store', () => ({
-  get: (store: any) => {
-    return store.mockState;
-  },
+  get: (store: any) => store.mockState,
   writable: () => ({
     set: vi.fn(),
     update: vi.fn(),
@@ -21,9 +23,14 @@ vi.mock('svelte/store', () => ({
   })
 }));
 
+import { TrimClipCommand } from '../trimClip';
+
 describe('TrimClipCommand', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('should trim the start of a clip', () => {
-    // Setup mock state
     const mockState = {
       assets: new Map([
         ['asset1', { id: 'asset1', duration: 10, name: 'Test Asset' }]
@@ -59,14 +66,12 @@ describe('TrimClipCommand', () => {
 
     mockProjectStore.mockState = mockState;
 
-    // Trim start to 2 seconds (so sourceIn becomes 2)
     const command = new TrimClipCommand({
       clipId: 'clip1',
       side: 'start',
       newSourceTime: 2
     });
 
-    // Execute
     command.execute();
 
     expect(mockProjectStore.set).toHaveBeenCalled();
@@ -76,11 +81,8 @@ describe('TrimClipCommand', () => {
     expect(trimmedClip).toBeDefined();
     expect(trimmedClip?.sourceIn).toBe(2);
     expect(trimmedClip?.sourceOut).toBe(8);
-    // When trimming start, timelineStart should adjust to keep end point fixed
-    // Original end time = timelineStart + (sourceOut - sourceIn) = 2 + (8-0) = 10
-    // New timelineStart = endTime - (newSourceOut - newSourceIn) = 10 - (8-2) = 4
     expect(trimmedClip?.timelineStart).toBe(4);
-    expect(trimmedClip?.timelineDuration).toBe(6); // sourceOut - sourceIn = 8-2 = 6
+    expect(trimmedClip?.timelineDuration).toBe(6);
 
     // Undo
     command.undo();
@@ -98,7 +100,6 @@ describe('TrimClipCommand', () => {
   });
 
   it('should trim the end of a clip', () => {
-    // Setup mock state
     const mockState = {
       assets: new Map([
         ['asset1', { id: 'asset1', duration: 10, name: 'Test Asset' }]
@@ -134,14 +135,12 @@ describe('TrimClipCommand', () => {
 
     mockProjectStore.mockState = mockState;
 
-    // Trim end to 6 seconds (so sourceOut becomes 6)
     const command = new TrimClipCommand({
       clipId: 'clip1',
       side: 'end',
       newSourceTime: 6
     });
 
-    // Execute
     command.execute();
 
     expect(mockProjectStore.set).toHaveBeenCalled();
@@ -151,9 +150,8 @@ describe('TrimClipCommand', () => {
     expect(trimmedClip).toBeDefined();
     expect(trimmedClip?.sourceIn).toBe(1);
     expect(trimmedClip?.sourceOut).toBe(6);
-    // When trimming end, timelineStart stays the same
     expect(trimmedClip?.timelineStart).toBe(3);
-    expect(trimmedClip?.timelineDuration).toBe(5); // 6-1 = 5
+    expect(trimmedClip?.timelineDuration).toBe(5);
 
     // Undo
     command.undo();
@@ -171,7 +169,6 @@ describe('TrimClipCommand', () => {
   });
 
   it('should clamp values to media asset bounds', () => {
-    // Setup mock state with asset duration 10
     const mockState = {
       assets: new Map([
         ['asset1', { id: 'asset1', duration: 10, name: 'Test Asset' }]
@@ -207,7 +204,6 @@ describe('TrimClipCommand', () => {
 
     mockProjectStore.mockState = mockState;
 
-    // Try to trim start to -5 (should clamp to 0)
     const command1 = new TrimClipCommand({
       clipId: 'clip1',
       side: 'start',
@@ -216,12 +212,10 @@ describe('TrimClipCommand', () => {
     command1.execute();
     const updatedProject1 = mockProjectStore.set.mock.calls[0][0];
     const clipped1 = updatedProject1.clips.get('clip1');
-    expect(clipped1?.sourceIn).toBe(0); // clamped to 0
-    expect(clipped1?.sourceOut).toBe(10); // unchanged
-    // timelineStart adjustment: end time = 0 + (10-0) = 10; new timelineStart = 10 - (10-0) = 0
+    expect(clipped1?.sourceIn).toBe(0);
+    expect(clipped1?.sourceOut).toBe(10);
     expect(clipped1?.timelineStart).toBe(0);
 
-    // Try to trim end to 15 (should clamp to 10)
     const command2 = new TrimClipCommand({
       clipId: 'clip1',
       side: 'end',
@@ -231,7 +225,7 @@ describe('TrimClipCommand', () => {
     const updatedProject2 = mockProjectStore.set.mock.calls[1][0];
     const clipped2 = updatedProject2.clips.get('clip1');
     expect(clipped2?.sourceIn).toBe(0);
-    expect(clipped2?.sourceOut).toBe(10); // clamped to 10
+    expect(clipped2?.sourceOut).toBe(10);
     expect(clipped2?.timelineStart).toBe(0);
     expect(clipped2?.timelineDuration).toBe(10);
   });

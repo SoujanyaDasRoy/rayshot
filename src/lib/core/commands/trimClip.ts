@@ -24,7 +24,7 @@ export class TrimClipCommand extends Command {
 		super();
 	}
 
-	protected execute(): void {
+	execute(): void {
 		// Get current project state
 		const project = get(projectStore);
 		if (!project) throw new Error('No project loaded');
@@ -50,39 +50,17 @@ export class TrimClipCommand extends Command {
 		let newSourceOut = this.clip.sourceOut;
 		let newTimelineStart = this.clip.timelineStart;
 
+		// Clamp to media asset duration bounds first
+		const mediaAsset = project.assets.get(this.clip.mediaAssetId);
+		const maxDuration = mediaAsset ? mediaAsset.duration : Infinity;
+
 		if (this.data.side === 'start') {
-			newSourceIn = this.data.newSourceTime;
-			// Ensure sourceIn does not exceed sourceOut
-			if (newSourceIn > newSourceOut) {
-				newSourceIn = newSourceOut;
-			}
-			// When trimming start, adjust timelineStart to keep end point fixed
+			newSourceIn = Math.max(0, Math.min(this.data.newSourceTime, newSourceOut, maxDuration));
 			const endTime = this.clip.timelineStart + (this.clip.sourceOut - this.clip.sourceIn);
 			newTimelineStart = endTime - (newSourceOut - newSourceIn);
 		} else { // 'end'
-			newSourceOut = this.data.newSourceTime;
-			// Ensure sourceOut is not less than sourceIn
-			if (newSourceOut < newSourceIn) {
-				newSourceOut = newSourceIn;
-			}
-			// When trimming end, timelineStart stays the same
+			newSourceOut = Math.max(newSourceIn, Math.min(this.data.newSourceTime, maxDuration));
 			newTimelineStart = this.clip.timelineStart;
-		}
-
-		// Ensure sourceIn and sourceOut are within media asset bounds
-		const mediaAsset = project.assets.get(this.clip.mediaAssetId);
-		if (mediaAsset) {
-			if (newSourceIn < 0) newSourceIn = 0;
-			if (newSourceIn > mediaAsset.duration) newSourceIn = mediaAsset.duration;
-			if (newSourceOut < 0) newSourceOut = 0;
-			if (newSourceOut > mediaAsset.duration) newSourceOut = mediaAsset.duration;
-			// Ensure sourceIn <= sourceOut
-			if (newSourceIn > newSourceOut) {
-				// Swap? Actually, we should clamp one to the other.
-				// If sourceIn > sourceOut after clamping, set sourceIn = sourceOut (or vice versa)
-				// We'll set sourceIn = sourceOut (so duration zero)
-				newSourceIn = newSourceOut;
-			}
 		}
 
 		// Update the clip
@@ -116,7 +94,7 @@ export class TrimClipCommand extends Command {
 		projectStore.set(updatedProject);
 	}
 
-	protected undo(): void {
+	undo(): void {
 		if (!this.project || !this.oldValues) return;
 		const restoredClip: Clip = {
 			...this.clip!,

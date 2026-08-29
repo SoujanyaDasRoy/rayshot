@@ -20,7 +20,7 @@ export class AddClipCommand extends Command {
 		super();
 	}
 	
-	protected execute(): void {
+	execute(): void {
 		// Get current project state
 		const project = get(projectStore);
 		if (!project) throw new Error('No project loaded');
@@ -43,8 +43,8 @@ export class AddClipCommand extends Command {
 		if (!mediaAsset) throw new Error('Media asset not found');
 		this.mediaAsset = { ...mediaAsset };
 		
-		// Generate a unique ID for the new clip
-		this.clipId = Math.random().toString(36).substr(2, 9);
+		// Generate a unique ID for the new clip (preserve on redo)
+		this.clipId = this.clipId || Math.random().toString(36).substr(2, 9);
 		
 		// Create the new clip
 		const newClip: Clip = {
@@ -64,7 +64,9 @@ export class AddClipCommand extends Command {
 			audioParameters: {
 				volume: 1.0,
 				mute: false
-			}
+			},
+			playbackRate: 1,
+			filters: {}
 		};
 		
 		// Add clip to track's clipInstances
@@ -104,7 +106,7 @@ export class AddClipCommand extends Command {
 		projectStore.set(updatedProject);
 	}
 	
-	protected undo(): void {
+	undo(): void {
 		if (!this.project) return;
 		
 		// Restore the previous project state
