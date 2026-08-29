@@ -7,6 +7,7 @@
 	import { opfsGetAutoSaveMeta, opfsLoadAutoSave } from '$lib/core/persistence/opfsAdapter';
 	import type { Project } from '$lib/types/project';
 	import MediaBin from '$lib/features/media/MediaBin.svelte';
+	import MediaLibraryView from '$lib/features/media/MediaLibraryView.svelte';
 	import Canvas from '$lib/features/canvas/Canvas.svelte';
 	import Controls from '$lib/features/canvas/Controls.svelte';
 	import Inspector from '$lib/features/inspector/Inspector.svelte';
@@ -18,6 +19,7 @@
 	let isGlobalDragOver = $state(false);
 	let activeNavTab = $state<'media' | 'record' | 'effects' | 'templates' | 'text' | 'transitions' | 'settings'>('media');
 	let isEditingProjectName = $state(false);
+	let canvasMode = $state<'library' | 'canvas'>('library');
 
 	let restorePrompt = $state<{ show: boolean; projectName: string; savedAt: number }>({
 		show: false,
@@ -194,16 +196,33 @@
 				</button>
 			</div>
 
-			<!-- Preview Button -->
+			<!-- View Switcher (Library vs Canvas) -->
+			<div class="flex items-center bg-surface-container-highest rounded border border-outline-variant p-0.5 text-xs font-semibold text-on-surface-variant">
+				<button
+					type="button"
+					class="px-2.5 py-1 rounded transition-colors {canvasMode === 'library' ? 'bg-primary text-on-primary font-bold' : 'hover:text-on-surface'}"
+					onclick={() => { canvasMode = 'library'; activeNavTab = 'media'; }}
+					title="Show Media Library View"
+				>
+					<span class="material-symbols-outlined text-[15px] align-middle mr-1">grid_view</span>Library
+				</button>
+				<button
+					type="button"
+					class="px-2.5 py-1 rounded transition-colors {canvasMode === 'canvas' ? 'bg-primary text-on-primary font-bold' : 'hover:text-on-surface'}"
+					onclick={() => (canvasMode = 'canvas')}
+					title="Show Canvas Player View"
+				>
+					<span class="material-symbols-outlined text-[15px] align-middle mr-1">smart_display</span>Canvas
+				</button>
+			</div>
+
+			<!-- Share Button (Matching screenshot) -->
 			<button
 				type="button"
-				class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-container-highest border border-outline-variant text-on-surface hover:bg-surface-bright transition-colors text-xs font-semibold"
-				onclick={() => {
-					playbackStore.update((p) => ({ ...p, isPlaying: !p.isPlaying }));
-				}}
+				class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-container-highest border border-outline-variant text-on-surface hover:bg-surface-bright transition-colors text-xs font-medium"
+				onclick={() => {}}
 			>
-				<span class="material-symbols-outlined text-sm">play_arrow</span>
-				<span>Preview</span>
+				<span>Share</span>
 			</button>
 
 			<!-- High-Visibility Export Video Button -->
@@ -212,7 +231,6 @@
 				class="flex items-center gap-1.5 px-4 py-1.5 rounded bg-primary text-on-primary font-bold hover:opacity-90 transition-opacity text-xs shadow-md shadow-primary/20"
 				onclick={() => (exportDialogOpen = true)}
 			>
-				<span class="material-symbols-outlined text-sm">file_upload</span>
 				<span>Export Video</span>
 			</button>
 
@@ -227,7 +245,7 @@
 	<div class="nle-workspace-grid">
 
 		<div class="middle-work-row">
-			<!-- Vertical Side Navigation Dock (Stitch Design 1:1) -->
+			<!-- Vertical Side Navigation Dock (Matching Screenshot 1:1) -->
 			<nav class="flex flex-col items-center py-4 space-y-4 docked h-full w-16 border-r border-outline-variant bg-surface shrink-0 z-20">
 				<div class="flex flex-col items-center justify-center w-full space-y-5 flex-1">
 					<button
@@ -235,7 +253,7 @@
 						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'media'
 							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
 							: 'text-on-surface-variant hover:text-on-surface'}"
-						onclick={() => (activeNavTab = 'media')}
+						onclick={() => { activeNavTab = 'media'; canvasMode = 'library'; }}
 					>
 						<span class="material-symbols-outlined text-xl" style={activeNavTab === 'media' ? "font-variation-settings: 'FILL' 1;" : ''}>video_library</span>
 						<span class="text-[10px]">Library</span>
@@ -246,7 +264,7 @@
 						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'record'
 							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
 							: 'text-on-surface-variant hover:text-on-surface'}"
-						onclick={() => (activeNavTab = 'record')}
+						onclick={() => { activeNavTab = 'record'; canvasMode = 'canvas'; }}
 					>
 						<span class="material-symbols-outlined text-xl">videocam</span>
 						<span class="text-[10px]">Record</span>
@@ -257,10 +275,10 @@
 						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'effects'
 							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
 							: 'text-on-surface-variant hover:text-on-surface'}"
-						onclick={() => (activeNavTab = 'effects')}
+						onclick={() => { activeNavTab = 'effects'; canvasMode = 'canvas'; }}
 					>
 						<span class="material-symbols-outlined text-xl" style={activeNavTab === 'effects' ? "font-variation-settings: 'FILL' 1;" : ''}>auto_fix_high</span>
-						<span class="text-[10px]">Effects</span>
+						<span class="text-[10px]">Content</span>
 					</button>
 
 					<button
@@ -268,7 +286,7 @@
 						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'templates'
 							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
 							: 'text-on-surface-variant hover:text-on-surface'}"
-						onclick={() => (activeNavTab = 'templates')}
+						onclick={() => { activeNavTab = 'templates'; canvasMode = 'canvas'; }}
 					>
 						<span class="material-symbols-outlined text-xl">dashboard_customize</span>
 						<span class="text-[10px]">Templates</span>
@@ -279,7 +297,7 @@
 						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'text'
 							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
 							: 'text-on-surface-variant hover:text-on-surface'}"
-						onclick={() => (activeNavTab = 'text')}
+						onclick={() => { activeNavTab = 'text'; canvasMode = 'canvas'; }}
 					>
 						<span class="material-symbols-outlined text-xl" style={activeNavTab === 'text' ? "font-variation-settings: 'FILL' 1;" : ''}>title</span>
 						<span class="text-[10px]">Text</span>
@@ -290,7 +308,7 @@
 						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'transitions'
 							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
 							: 'text-on-surface-variant hover:text-on-surface'}"
-						onclick={() => (activeNavTab = 'transitions')}
+						onclick={() => { activeNavTab = 'transitions'; canvasMode = 'canvas'; }}
 					>
 						<span class="material-symbols-outlined text-xl">animation</span>
 						<span class="text-[10px]">Transitions</span>
@@ -306,34 +324,49 @@
 						<span class="material-symbols-outlined text-xl">settings</span>
 						<span class="text-[10px]">Settings</span>
 					</button>
+					<button
+						type="button"
+						class="flex flex-col items-center space-y-1 cursor-pointer hover:text-on-surface"
+						onclick={() => {}}
+					>
+						<span class="material-symbols-outlined text-xl">help</span>
+						<span class="text-[10px]">Help</span>
+					</button>
 				</div>
 			</nav>
 
-			<!-- Left Drawer Panel (Media Bin & Presets) -->
-			<aside class="left-mediabin-col">
-				<MediaBin activePillar={activeNavTab === 'templates' ? 'effects' : (activeNavTab as any)} />
-			</aside>
+			{#if canvasMode === 'library'}
+				<!-- Expanded Media Library View (Matching Screenshot 1:1) -->
+				<div class="flex-1 h-full min-w-0 overflow-hidden">
+					<MediaLibraryView />
+				</div>
+			{:else}
+				<!-- Left Drawer Panel (Media Bin & Presets) -->
+				<aside class="left-mediabin-col">
+					<MediaBin activePillar={activeNavTab === 'templates' ? 'effects' : (activeNavTab as any)} />
+				</aside>
 
-			<!-- Middle Center Column: Video Preview & Multitrack Timeline -->
-			<main class="center-canvas-col">
-				<!-- Top Preview Canvas & Transport Controls -->
-				<section class="flex-1 flex flex-col p-3 items-center justify-center relative min-h-0 bg-surface-container-lowest">
-					<!-- Canvas Container -->
-					<div class="w-full flex-1 min-h-0 relative flex items-center justify-center bg-black rounded-lg shadow-2xl overflow-hidden border border-surface-container">
-						<Canvas />
-					</div>
+				<!-- Middle Center Column: Video Preview & Multitrack Timeline -->
+				<main class="center-canvas-col">
+					<!-- Top Preview Canvas & Transport Controls -->
+					<section class="flex-1 flex flex-col p-3 items-center justify-center relative min-h-0 bg-surface-container-lowest">
+						<!-- Canvas Container -->
+						<div class="w-full flex-1 min-h-0 relative flex items-center justify-center bg-black rounded-lg shadow-2xl overflow-hidden border border-surface-container">
+							<Canvas />
+						</div>
 
-					<!-- Transport Bar -->
-					<div class="w-full mt-2 shrink-0">
-						<Controls />
-					</div>
-				</section>
-			</main>
+						<!-- Transport Bar -->
+						<div class="w-full mt-2 shrink-0">
+							<Controls />
+						</div>
+					</section>
+				</main>
 
-			<!-- Right Inspector Panel -->
-			<aside class="right-inspector-col">
-				<Inspector />
-			</aside>
+				<!-- Right Inspector Panel -->
+				<aside class="right-inspector-col">
+					<Inspector />
+				</aside>
+			{/if}
 		</div>
 
 		<!-- Bottom Multitrack Timeline Panel -->

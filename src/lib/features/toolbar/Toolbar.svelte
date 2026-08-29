@@ -96,9 +96,7 @@
 	<!-- Left: Brand Logo & Editable Project Title -->
 	<div class="header-left-group">
 		<div class="brand-badge" title="RayShot Video Editor">
-			<svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="#38bdf8" stroke="#38bdf8"/>
-			</svg>
+			<img src="/assets/logos/rayshot_official_dark_logo.png" alt="RayShot Logo" class="brand-icon" />
 			<span class="brand-title">RayShot</span>
 			<span class="brand-sub">Studio</span>
 		</div>
