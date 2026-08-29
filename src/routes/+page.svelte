@@ -147,95 +147,79 @@
 <!-- Main App Shell -->
 <div class="app-layout-shell">
 
-	<!-- Top Header Navigation Bar (Stitch Design) -->
-	<header class="bg-surface-container h-14 border-b border-outline-variant flex justify-between items-center px-4 shrink-0 z-30">
-		<!-- Left: Brand Logo & Editable Project Name -->
-		<div class="flex items-center gap-4">
-			<div class="flex items-center gap-2 text-primary font-black text-lg tracking-tight">
-				<span class="material-symbols-outlined text-2xl text-primary" style="font-variation-settings: 'FILL' 1;">
-					animation
-				</span>
-				<span>RayShot</span>
+	<!-- Top Header Navigation Bar (Stitch Screen Design 1:1) -->
+	<header class="flex justify-between items-center px-4 w-full h-14 border-b border-outline-variant bg-surface-container shrink-0 z-30">
+		<div class="flex items-center space-x-4">
+			<!-- RAYSHOT Brand Logo Box -->
+			<div class="bg-black px-3 py-1 rounded border border-outline-variant/60 text-white font-black tracking-widest text-xs uppercase flex items-center gap-1.5 shadow-sm">
+				<span class="w-2 h-2 rounded-full bg-primary animate-pulse inline-block"></span>
+				<span>RAYSHOT</span>
 			</div>
-			<div class="h-4 w-px bg-outline-variant"></div>
 
-			<!-- Project Title Input -->
-			<div class="flex items-center gap-2 text-sm text-on-surface-variant">
-				{#if isEditingProjectName}
-					<input
-						type="text"
-						class="bg-surface-container-highest border border-primary text-on-surface rounded px-2 py-0.5 text-xs font-medium focus:outline-none"
-						value={$projectStore?.name ?? 'RayShot_Project_1'}
-						onblur={(e) => {
-							updateProjectName((e.target as HTMLInputElement).value);
-							isEditingProjectName = false;
-						}}
-						onkeydown={(e) => {
-							if (e.key === 'Enter') {
-								updateProjectName((e.currentTarget as HTMLInputElement).value);
-								isEditingProjectName = false;
-							}
-						}}
-					/>
-				{:else}
-					<button
-						type="button"
-						class="hover:text-on-surface hover:bg-surface-container-highest px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors"
-						onclick={() => (isEditingProjectName = true)}
-					>
-						<span>{$projectStore?.name ?? 'RayShot_Project_1'}</span>
-						<span class="material-symbols-outlined text-xs text-outline">edit</span>
-					</button>
-				{/if}
+			<div class="hidden md:flex items-center space-x-6 ml-4 text-xs font-medium text-on-surface-variant">
+				<span class="hover:text-on-surface cursor-pointer transition-colors">16:9</span>
+				<span class="hover:text-on-surface cursor-pointer transition-colors">Project Settings</span>
 			</div>
 		</div>
 
-		<!-- Center: Aspect Ratio & History Controls -->
-		<div class="flex items-center gap-3">
-			<div class="bg-surface-container-low border border-outline-variant px-3 py-1 rounded-full text-xs font-mono text-on-surface-variant flex items-center gap-1.5">
-				<span class="material-symbols-outlined text-sm text-primary">aspect_ratio</span>
-				<span>16:9 Widescreen</span>
+		<div class="flex items-center space-x-3">
+			<!-- Editable Project Name Input Pill -->
+			<div class="bg-surface-container-highest border border-outline-variant rounded px-3 py-1 text-xs font-medium text-on-surface flex items-center gap-1">
+				<input
+					type="text"
+					class="bg-transparent border-none outline-none text-xs text-on-surface font-medium w-40"
+					value={$projectStore?.name ?? 'Outfit Check pt.07'}
+					onchange={(e) => updateProjectName((e.target as HTMLInputElement).value)}
+				/>
+				<span class="material-symbols-outlined text-[16px] text-on-surface-variant">expand_more</span>
 			</div>
 
-			<div class="flex items-center gap-1 bg-surface-container-low border border-outline-variant p-0.5 rounded-lg">
+			<!-- History Undo / Redo -->
+			<div class="flex items-center space-x-1.5 text-on-surface-variant px-1">
 				<button
 					type="button"
-					class="p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-30"
+					class="hover:text-on-surface text-lg px-1 transition-colors disabled:opacity-30"
 					onclick={handleUndo}
 					title="Undo (Ctrl+Z)"
 				>
-					<span class="material-symbols-outlined text-lg">undo</span>
+					↺
 				</button>
 				<button
 					type="button"
-					class="p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-30"
+					class="hover:text-on-surface text-lg px-1 transition-colors disabled:opacity-30"
 					onclick={handleRedo}
 					title="Redo (Ctrl+Y)"
 				>
-					<span class="material-symbols-outlined text-lg">redo</span>
+					↻
 				</button>
 			</div>
-		</div>
 
-		<!-- Right: Import & High-Visibility Export Button -->
-		<div class="flex items-center gap-3">
+			<!-- Preview Button -->
 			<button
 				type="button"
-				class="bg-surface-container-highest hover:bg-surface-bright border border-outline-variant text-on-surface px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
-				onclick={() => fileInput?.click()}
+				class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-container-highest border border-outline-variant text-on-surface hover:bg-surface-bright transition-colors text-xs font-semibold"
+				onclick={() => {
+					playbackStore.update((p) => ({ ...p, isPlaying: !p.isPlaying }));
+				}}
 			>
-				<span class="material-symbols-outlined text-base text-secondary">add_circle</span>
-				<span>Import Media</span>
+				<span class="material-symbols-outlined text-sm">play_arrow</span>
+				<span>Preview</span>
 			</button>
 
+			<!-- High-Visibility Export Video Button -->
 			<button
 				type="button"
-				class="bg-primary text-on-primary font-bold px-4 py-1.5 rounded-lg text-xs flex items-center gap-1.5 hover:bg-primary-fixed-dim transition-all shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"
+				class="flex items-center gap-1.5 px-4 py-1.5 rounded bg-primary text-on-primary font-bold hover:opacity-90 transition-opacity text-xs shadow-md shadow-primary/20"
 				onclick={() => (exportDialogOpen = true)}
 			>
-				<span class="material-symbols-outlined text-base">download</span>
+				<span class="material-symbols-outlined text-sm">file_upload</span>
 				<span>Export Video</span>
 			</button>
+
+			<div class="flex items-center space-x-3 ml-2 border-l border-outline-variant pl-4 text-on-surface-variant">
+				<span class="material-symbols-outlined cursor-pointer hover:text-on-surface text-lg">notifications</span>
+				<span class="material-symbols-outlined cursor-pointer hover:text-on-surface text-2xl">account_circle</span>
+			</div>
 		</div>
 	</header>
 
@@ -243,70 +227,84 @@
 	<div class="nle-workspace-grid">
 
 		<div class="middle-work-row">
-			<!-- Vertical Side Navigation Dock (Stitch Design) -->
-			<nav class="bg-surface w-16 border-r border-outline-variant flex flex-col items-center py-3 space-y-2 shrink-0 z-20">
-				<button
-					type="button"
-					class="w-12 h-12 flex flex-col items-center justify-center rounded-lg transition-all gap-0.5 text-[10px] font-medium {activeNavTab === 'media'
-						? 'text-primary bg-primary-container/20 border-l-2 border-primary font-bold'
-						: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}"
-					onclick={() => (activeNavTab = 'media')}
-				>
-					<span class="material-symbols-outlined text-xl">perm_media</span>
-					<span>Media</span>
-				</button>
-
-				<button
-					type="button"
-					class="w-12 h-12 flex flex-col items-center justify-center rounded-lg transition-all gap-0.5 text-[10px] font-medium {activeNavTab === 'text'
-						? 'text-primary bg-primary-container/20 border-l-2 border-primary font-bold'
-						: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}"
-					onclick={() => (activeNavTab = 'text')}
-				>
-					<span class="material-symbols-outlined text-xl">title</span>
-					<span>Text</span>
-				</button>
-
-				<button
-					type="button"
-					class="w-12 h-12 flex flex-col items-center justify-center rounded-lg transition-all gap-0.5 text-[10px] font-medium {activeNavTab === 'effects'
-						? 'text-primary bg-primary-container/20 border-l-2 border-primary font-bold'
-						: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}"
-					onclick={() => (activeNavTab = 'effects')}
-				>
-					<span class="material-symbols-outlined text-xl">auto_fix_high</span>
-					<span>Effects</span>
-				</button>
-
-				<button
-					type="button"
-					class="w-12 h-12 flex flex-col items-center justify-center rounded-lg transition-all gap-0.5 text-[10px] font-medium {activeNavTab === 'templates'
-						? 'text-primary bg-primary-container/20 border-l-2 border-primary font-bold'
-						: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}"
-					onclick={() => (activeNavTab = 'templates')}
-				>
-					<span class="material-symbols-outlined text-xl">dashboard_customize</span>
-					<span>Templates</span>
-				</button>
-
-				<button
-					type="button"
-					class="w-12 h-12 flex flex-col items-center justify-center rounded-lg transition-all gap-0.5 text-[10px] font-medium {activeNavTab === 'transitions'
-						? 'text-primary bg-primary-container/20 border-l-2 border-primary font-bold'
-						: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}"
-					onclick={() => (activeNavTab = 'transitions')}
-				>
-					<span class="material-symbols-outlined text-xl">animation</span>
-					<span>Transitions</span>
-				</button>
-
-				<div class="mt-auto flex flex-col space-y-2 pt-4 border-t border-outline-variant/40 w-full items-center">
+			<!-- Vertical Side Navigation Dock (Stitch Design 1:1) -->
+			<nav class="flex flex-col items-center py-4 space-y-4 docked h-full w-16 border-r border-outline-variant bg-surface shrink-0 z-20">
+				<div class="flex flex-col items-center justify-center w-full space-y-5 flex-1">
 					<button
 						type="button"
-						class="w-12 h-12 flex flex-col items-center justify-center rounded-lg transition-all text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest"
+						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'media'
+							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
+							: 'text-on-surface-variant hover:text-on-surface'}"
+						onclick={() => (activeNavTab = 'media')}
+					>
+						<span class="material-symbols-outlined text-xl" style={activeNavTab === 'media' ? "font-variation-settings: 'FILL' 1;" : ''}>video_library</span>
+						<span class="text-[10px]">Library</span>
+					</button>
+
+					<button
+						type="button"
+						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'record'
+							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
+							: 'text-on-surface-variant hover:text-on-surface'}"
+						onclick={() => (activeNavTab = 'record')}
+					>
+						<span class="material-symbols-outlined text-xl">videocam</span>
+						<span class="text-[10px]">Record</span>
+					</button>
+
+					<button
+						type="button"
+						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'effects'
+							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
+							: 'text-on-surface-variant hover:text-on-surface'}"
+						onclick={() => (activeNavTab = 'effects')}
+					>
+						<span class="material-symbols-outlined text-xl" style={activeNavTab === 'effects' ? "font-variation-settings: 'FILL' 1;" : ''}>auto_fix_high</span>
+						<span class="text-[10px]">Effects</span>
+					</button>
+
+					<button
+						type="button"
+						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'templates'
+							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
+							: 'text-on-surface-variant hover:text-on-surface'}"
+						onclick={() => (activeNavTab = 'templates')}
+					>
+						<span class="material-symbols-outlined text-xl">dashboard_customize</span>
+						<span class="text-[10px]">Templates</span>
+					</button>
+
+					<button
+						type="button"
+						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'text'
+							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
+							: 'text-on-surface-variant hover:text-on-surface'}"
+						onclick={() => (activeNavTab = 'text')}
+					>
+						<span class="material-symbols-outlined text-xl" style={activeNavTab === 'text' ? "font-variation-settings: 'FILL' 1;" : ''}>title</span>
+						<span class="text-[10px]">Text</span>
+					</button>
+
+					<button
+						type="button"
+						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'transitions'
+							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
+							: 'text-on-surface-variant hover:text-on-surface'}"
+						onclick={() => (activeNavTab = 'transitions')}
+					>
+						<span class="material-symbols-outlined text-xl">animation</span>
+						<span class="text-[10px]">Transitions</span>
+					</button>
+				</div>
+
+				<div class="flex flex-col items-center space-y-4 pb-2 text-on-surface-variant">
+					<button
+						type="button"
+						class="flex flex-col items-center space-y-1 cursor-pointer hover:text-on-surface"
 						onclick={() => (activeNavTab = 'settings')}
 					>
 						<span class="material-symbols-outlined text-xl">settings</span>
+						<span class="text-[10px]">Settings</span>
 					</button>
 				</div>
 			</nav>
