@@ -981,31 +981,100 @@
 			</div>
 		</div>
 	{:else}
-		<!-- Unselected State: Quiet, approachable guidance prompt (No Technical Sequence/Resolution/FPS metrics) -->
-		<div class="empty-inspector-container">
-			<div class="empty-guide-card">
-				<div class="guide-icon-circle">
-					<svg class="guide-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-						<path d="M4 21v-7" />
-						<path d="M4 10V3" />
-						<path d="M12 21v-9" />
-						<path d="M12 8V3" />
-						<path d="M20 21v-5" />
-						<path d="M20 12V3" />
-						<circle cx="4" cy="14" r="2" />
-						<circle cx="12" cy="10" r="2" />
-						<circle cx="20" cy="16" r="2" />
-					</svg>
+		<!-- Unselected State: Stitch Design Inspector with tabs & controls -->
+		<div class="flex flex-col h-full bg-surface-container text-on-surface">
+			<!-- Inspector Tabs -->
+			<div class="flex border-b border-outline-variant bg-surface-container-low text-xs font-semibold">
+				<button type="button" class="flex-1 py-2.5 text-center border-b-2 border-primary text-primary flex items-center justify-center gap-1">
+					<span class="material-symbols-outlined text-base">tune</span>
+					<span>Adjust</span>
+				</button>
+				<button type="button" class="flex-1 py-2.5 text-center text-on-surface-variant hover:text-on-surface flex items-center justify-center gap-1">
+					<span class="material-symbols-outlined text-base">palette</span>
+					<span>Filters</span>
+				</button>
+				<button type="button" class="flex-1 py-2.5 text-center text-on-surface-variant hover:text-on-surface flex items-center justify-center gap-1">
+					<span class="material-symbols-outlined text-base">auto_fix_high</span>
+					<span>Effects</span>
+				</button>
+			</div>
+
+			<!-- Inspector Content Scroll Area -->
+			<div class="flex-1 overflow-y-auto p-4 space-y-5 text-xs">
+				<div class="bg-surface-container-highest/50 border border-outline-variant p-3 rounded-lg flex items-center gap-2 text-on-surface-variant">
+					<span class="material-symbols-outlined text-primary text-lg">info</span>
+					<span>Select a clip on the timeline to edit properties & apply LUTs</span>
 				</div>
-				<h3 class="guide-headline">Clip Inspector</h3>
-				<p class="guide-subtext">
-					Select a clip on the timeline to inspect and customize properties
-				</p>
-				<div class="guide-pills-row">
-					<span class="feature-pill">Transform</span>
-					<span class="feature-pill">Audio</span>
-					<span class="feature-pill">Color</span>
-					<span class="feature-pill">Typography</span>
+
+				<!-- White Balance Section -->
+				<div class="space-y-3">
+					<div class="flex justify-between items-center font-bold text-on-surface">
+						<span>White Balance</span>
+						<button type="button" class="text-primary text-[10px] uppercase tracking-wider hover:underline">Reset</button>
+					</div>
+					<div class="space-y-2">
+						<div class="flex items-center justify-between">
+							<span class="text-on-surface-variant w-16">Temp</span>
+							<input type="range" min="-100" max="100" value="15" class="flex-1 accent-primary mx-2" disabled />
+							<span class="font-mono text-outline text-[11px] w-8 text-right">15</span>
+						</div>
+						<div class="flex items-center justify-between">
+							<span class="text-on-surface-variant w-16">Tint</span>
+							<input type="range" min="-100" max="100" value="0" class="flex-1 accent-primary mx-2" disabled />
+							<span class="font-mono text-outline text-[11px] w-8 text-right">0</span>
+						</div>
+					</div>
+				</div>
+
+				<!-- Tone Section -->
+				<div class="space-y-3 pt-2 border-t border-outline-variant/40">
+					<div class="flex justify-between items-center font-bold text-on-surface">
+						<span>Tone</span>
+						<button type="button" class="text-primary text-[10px] uppercase tracking-wider hover:underline">Reset</button>
+					</div>
+					<div class="space-y-2">
+						<div class="flex items-center justify-between">
+							<span class="text-on-surface-variant w-16">Exposure</span>
+							<input type="range" min="-100" max="100" value="0" class="flex-1 accent-primary mx-2" disabled />
+							<span class="font-mono text-outline text-[11px] w-8 text-right">0</span>
+						</div>
+						<div class="flex items-center justify-between">
+							<span class="text-on-surface-variant w-16">Contrast</span>
+							<input type="range" min="-100" max="100" value="10" class="flex-1 accent-primary mx-2" disabled />
+							<span class="font-mono text-outline text-[11px] w-8 text-right">10</span>
+						</div>
+						<div class="flex items-center justify-between">
+							<span class="text-on-surface-variant w-16">Highlights</span>
+							<input type="range" min="-100" max="100" value="-5" class="flex-1 accent-primary mx-2" disabled />
+							<span class="font-mono text-outline text-[11px] w-8 text-right">-5</span>
+						</div>
+						<div class="flex items-center justify-between">
+							<span class="text-on-surface-variant w-16">Shadows</span>
+							<input type="range" min="-100" max="100" value="5" class="flex-1 accent-primary mx-2" disabled />
+							<span class="font-mono text-outline text-[11px] w-8 text-right">5</span>
+						</div>
+					</div>
+				</div>
+
+				<!-- Creative Color Grading Section -->
+				<div class="space-y-3 pt-2 border-t border-outline-variant/40">
+					<div class="flex justify-between items-center font-bold text-on-surface">
+						<span>Creative (LUTs)</span>
+					</div>
+					<div class="grid grid-cols-2 gap-2">
+						<div class="bg-surface-container-highest border border-outline-variant rounded-md p-2 text-center text-[11px] text-on-surface-variant hover:border-primary cursor-pointer transition-colors">
+							Teal & Orange
+						</div>
+						<div class="bg-surface-container-highest border border-outline-variant rounded-md p-2 text-center text-[11px] text-on-surface-variant hover:border-primary cursor-pointer transition-colors">
+							Cyberpunk Neon
+						</div>
+						<div class="bg-surface-container-highest border border-outline-variant rounded-md p-2 text-center text-[11px] text-on-surface-variant hover:border-primary cursor-pointer transition-colors">
+							Vintage Sepia
+						</div>
+						<div class="bg-surface-container-highest border border-outline-variant rounded-md p-2 text-center text-[11px] text-on-surface-variant hover:border-primary cursor-pointer transition-colors">
+							Monochrome Noir
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>

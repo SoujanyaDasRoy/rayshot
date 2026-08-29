@@ -313,7 +313,7 @@
 
 			<!-- Left Drawer Panel (Media Bin & Presets) -->
 			<aside class="left-mediabin-col">
-				<MediaBin />
+				<MediaBin activePillar={activeNavTab === 'templates' ? 'effects' : (activeNavTab as any)} />
 			</aside>
 
 			<!-- Middle Center Column: Video Preview & Multitrack Timeline -->

@@ -14,7 +14,7 @@
 	// Category pillars
 	type PillarId = 'media' | 'text' | 'audio' | 'effects' | 'transitions';
 
-	let activePillar = $state<PillarId>('media');
+	let { activePillar = 'media' } = $props<{ activePillar?: PillarId }>();
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let isDragOver = $state(false);
 	let searchQuery = $state('');
@@ -874,60 +874,7 @@
 	role="region"
 	aria-label="Category Navigation & Media Bin"
 >
-	<!-- 1. 5-Pillar Vertical Category Navigation Bar -->
-	<nav class="pillar-nav-bar" aria-label="Category pillars">
-		<button
-			class="pillar-btn"
-			class:active={activePillar === 'media'}
-			onclick={() => (activePillar = 'media')}
-			title="Media Bin (Footage, Audio, Images)"
-		>
-			<span class="pillar-icon">▦</span>
-			<span class="pillar-label">Media</span>
-		</button>
-
-		<button
-			class="pillar-btn"
-			class:active={activePillar === 'text'}
-			onclick={() => (activePillar = 'text')}
-			title="Text Titles & Lower Thirds"
-		>
-			<span class="pillar-icon">T</span>
-			<span class="pillar-label">Text</span>
-		</button>
-
-		<button
-			class="pillar-btn"
-			class:active={activePillar === 'audio'}
-			onclick={() => (activePillar = 'audio')}
-			title="Sound Effects & Music Presets"
-		>
-			<span class="pillar-icon">♫</span>
-			<span class="pillar-label">Audio</span>
-		</button>
-
-		<button
-			class="pillar-btn"
-			class:active={activePillar === 'effects'}
-			onclick={() => (activePillar = 'effects')}
-			title="Visual Filters & LUTs"
-		>
-			<span class="pillar-icon">✨</span>
-			<span class="pillar-label">Effects</span>
-		</button>
-
-		<button
-			class="pillar-btn"
-			class:active={activePillar === 'transitions'}
-			onclick={() => (activePillar = 'transitions')}
-			title="Video Transition Presets"
-		>
-			<span class="pillar-icon">↔</span>
-			<span class="pillar-label">Transitions</span>
-		</button>
-	</nav>
-
-	<!-- 2. Responsive Category Drawer matching active pillar -->
+	<!-- Responsive Category Drawer matching active pillar -->
 	<div class="drawer-viewport">
 		<!-- Drawer Header -->
 		<div class="drawer-header">
