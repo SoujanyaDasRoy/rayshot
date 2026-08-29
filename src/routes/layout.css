@@ -1,5 +1,58 @@
 @import 'tailwindcss';
 
+@theme {
+  --color-surface-container-high: #2a2a2a;
+  --color-surface: #131313;
+  --color-surface-tint: #d0bcff;
+  --color-tertiary-fixed: #ffdadb;
+  --color-on-primary-fixed: #23005c;
+  --color-secondary-fixed-dim: #4cd7f6;
+  --color-error: #ffb4ab;
+  --color-on-tertiary: #67001b;
+  --color-on-secondary: #003640;
+  --color-primary: #d0bcff;
+  --color-secondary-fixed: #acedff;
+  --color-surface-bright: #3a3939;
+  --color-on-error: #690005;
+  --color-on-primary-container: #340080;
+  --color-on-background: #e5e2e1;
+  --color-primary-fixed: #e9ddff;
+  --color-surface-container-low: #1c1b1b;
+  --color-inverse-surface: #e5e2e1;
+  --color-secondary-container: #03b5d3;
+  --color-on-primary-fixed-variant: #5516be;
+  --color-on-tertiary-fixed-variant: #92002a;
+  --color-primary-fixed-dim: #d0bcff;
+  --color-tertiary-fixed-dim: #ffb2b7;
+  --color-surface-container: #201f1f;
+  --color-on-tertiary-container: #5b0017;
+  --color-error-container: #93000a;
+  --color-secondary: #4cd7f6;
+  --color-inverse-primary: #6d3bd7;
+  --color-on-error-container: #ffdad6;
+  --color-on-tertiary-fixed: #40000d;
+  --color-on-secondary-fixed-variant: #004e5c;
+  --color-tertiary: #ffb2b7;
+  --color-outline-variant: #494454;
+  --color-primary-container: #a078ff;
+  --color-surface-container-highest: #353534;
+  --color-tertiary-container: #ff516a;
+  --color-surface-dim: #131313;
+  --color-outline: #958ea0;
+  --color-on-primary: #3c0091;
+  --color-inverse-on-surface: #313030;
+  --color-on-secondary-container: #00424e;
+  --color-background: #131313;
+  --color-on-surface-variant: #cbc3d7;
+  --color-surface-container-lowest: #0e0e0e;
+  --color-on-surface: #e5e2e1;
+  --color-surface-variant: #353534;
+  --color-on-secondary-fixed: #001f26;
+
+  --font-inter: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
 :root {
   /* RayShot Design System - Theme Tokens */
   --color-bg-base: #090a0d;
@@ -11,18 +64,22 @@
   --color-border-muted: #1c1f2e;
   --color-accent-primary: #38bdf8;
   --color-accent-primary-hover: #0ea5e9;
-  --color-accent-primary-dark: #0284c7;
-  --color-accent-glow: rgba(56, 189, 248, 0.25);
+
+  /* Stitch Theme Tokens */
+  --color-bg-stitch: #131313;
+  --color-accent-stitch: #d0bcff;
+  --color-accent-primary-dark: #a078ff;
+  --color-accent-glow: rgba(208, 188, 255, 0.25);
   
-  --color-text-primary: #f8fafc;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #64748b;
-  --color-text-dim: #475569;
+  --color-text-primary: #e5e2e1;
+  --color-text-secondary: #cbc3d7;
+  --color-text-muted: #958ea0;
+  --color-text-dim: #494454;
   
-  --color-danger: #ef4444;
-  --color-danger-hover: #dc2626;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
+  --color-danger: #ffb4ab;
+  --color-danger-hover: #ff516a;
+  --color-success: #4cd7f6;
+  --color-warning: #ffb2b7;
 
   /* Backward Compatibility Aliases */
   --bg-primary: var(--color-bg-base);
@@ -112,4 +169,74 @@ body {
   background-color: var(--color-bg-header-hover);
   color: var(--color-text-primary);
   border-color: #383e58;
+}
+
+/* NLE Shell Grid Layout */
+.app-layout-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background-color: #131313;
+  overflow: hidden;
+  position: relative;
+}
+
+.nle-workspace-grid {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.middle-work-row {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.left-mediabin-col {
+  width: 18rem;
+  background-color: #201f1f;
+  border-right: 1px solid #494454;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  z-index: 10;
+}
+
+.center-canvas-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background-color: #0e0e0e;
+  overflow: hidden;
+  position: relative;
+}
+
+.right-inspector-col {
+  width: 20rem;
+  background-color: #201f1f;
+  border-left: 1px solid #494454;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  z-index: 10;
+}
+
+.bottom-timeline-row {
+  height: 36vh;
+  min-height: 220px;
+  max-height: 460px;
+  flex-shrink: 0;
+  border-top: 1px solid #494454;
+  background-color: #131313;
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }

@@ -27,17 +27,25 @@
 		return maxEnd;
 	});
 
-	const presets = [
-		{ name: '1080p Full HD (16:9)', width: 1920, height: 1080, fps: 30 },
-		{ name: '720p HD (16:9)', width: 1280, height: 720, fps: 30 },
-		{ name: 'Instagram Square (1:1)', width: 1080, height: 1080, fps: 30 },
-		{ name: 'TikTok / Shorts (9:16)', width: 1080, height: 1920, fps: 30 }
-	];
+	let fileName = $state('Rayshot_Export_Video');
+	let resolutionMode = $state<'1080p' | '4k' | 'custom'>('1080p');
+	let exportFormat = $state('webm');
+	let frameRate = $state(30);
+	let bitrateQuality = $state(80);
 
-	let selectedPreset = $state(presets[0]);
 	let isExporting = $state(false);
 	let exportProgress = $state(0);
 	let exportStatusText = $state('');
+
+	const computedWidth = $derived(resolutionMode === '4k' ? 3840 : 1920);
+	const computedHeight = $derived(resolutionMode === '4k' ? 2160 : 1080);
+	const estimatedMB = $derived(Math.max(5, Math.round(($sequenceDuration * (bitrateQuality / 100) * 15))));
+
+	function formatTimecode(seconds: number): string {
+		const mins = Math.floor(seconds / 60);
+		const secs = Math.floor(seconds % 60);
+		return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+	}
 
 	function handleClose() {
 		if (isExporting) return;
@@ -59,9 +67,9 @@
 		exportStatusText = 'Preparing canvas & encoders...';
 
 		try {
-			const width = selectedPreset.width;
-			const height = selectedPreset.height;
-			const fps = selectedPreset.fps;
+			const width = computedWidth;
+			const height = computedHeight;
+			const fps = frameRate;
 
 			const canvas = document.createElement('canvas');
 			canvas.width = width;
@@ -76,7 +84,7 @@
 
 			const recorder = new MediaRecorder(stream, {
 				mimeType,
-				videoBitsPerSecond: 8_000_000
+				videoBitsPerSecond: Math.round((bitrateQuality / 100) * 12_000_000)
 			});
 
 			const recordedChunks: Blob[] = [];
@@ -173,14 +181,15 @@
 				}
 			}
 
-			exportStatusText = 'Finalizing video...';
+			exportStatusText = 'Finalizing video file...';
 			recorder.stop();
 
 			const finalBlob = await exportPromise;
 			const downloadUrl = URL.createObjectURL(finalBlob);
 			const a = document.createElement('a');
 			a.href = downloadUrl;
-			a.download = `${project.name.toLowerCase().replace(/\s+/g, '_')}_export.webm`;
+			const sanitizedName = (fileName || 'rayshot_export').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+			a.download = `${sanitizedName}.${exportFormat}`;
 			document.body.appendChild(a);
 			a.click();
 			document.body.removeChild(a);
@@ -201,248 +210,198 @@
 </script>
 
 {#if open}
-	<div class="modal-backdrop" onclick={handleClose} role="presentation">
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4"
+		onclick={handleClose}
+		role="presentation"
+	>
 		<div
-			class="modal-card"
+			class="bg-surface-container/95 border border-outline-variant/60 w-full max-w-2xl rounded-xl shadow-2xl flex flex-col overflow-hidden text-on-surface"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
 			tabindex="-1"
 		>
-			<div class="modal-header">
-				<span class="modal-title">Export Video</span>
-				<button class="close-btn" disabled={isExporting} onclick={handleClose}>✕</button>
-			</div>
-
-			<div class="modal-body">
-				{#if isExporting}
-					<div class="export-status">
-						<div class="status-label">{exportStatusText}</div>
-						<div class="progress-track">
-							<div class="progress-bar" style="width: {exportProgress}%;"></div>
-						</div>
-					</div>
-				{:else}
-					<div class="form-group">
-						<label for="preset-select">Export Preset</label>
-						<select id="preset-select" bind:value={selectedPreset}>
-							{#each presets as preset}
-								<option value={preset}>{preset.name}</option>
-							{/each}
-						</select>
-					</div>
-
-					<div class="preset-meta-grid">
-						<div class="meta-item">
-							<span class="meta-lbl">Resolution</span>
-							<span class="meta-val font-mono">{selectedPreset.width} × {selectedPreset.height}</span>
-						</div>
-						<div class="meta-item">
-							<span class="meta-lbl">Frame Rate</span>
-							<span class="meta-val font-mono">{selectedPreset.fps} FPS</span>
-						</div>
-						<div class="meta-item">
-							<span class="meta-lbl">Format</span>
-							<span class="meta-val">WebM (VP9)</span>
-						</div>
-						<div class="meta-item">
-							<span class="meta-lbl">Duration</span>
-							<span class="meta-val font-mono">{$sequenceDuration.toFixed(1)}s</span>
-						</div>
-					</div>
-				{/if}
-			</div>
-
-			<div class="modal-footer">
-				<button class="cancel-btn" disabled={isExporting} onclick={handleClose}>Cancel</button>
-				<button class="submit-btn" disabled={isExporting || $sequenceDuration <= 0} onclick={startExport}>
-					{isExporting ? 'Exporting...' : 'Export'}
+			<!-- Modal Header -->
+			<div class="px-6 py-4 border-b border-outline-variant/60 flex justify-between items-center bg-surface-container-high/40">
+				<div class="flex items-center gap-2">
+					<span class="material-symbols-outlined text-primary">movie</span>
+					<h2 class="text-lg font-bold text-on-surface">Export Project</h2>
+				</div>
+				<button
+					class="text-on-surface-variant hover:text-primary transition-colors p-1 rounded-md hover:bg-surface-container-highest"
+					disabled={isExporting}
+					onclick={handleClose}
+				>
+					<span class="material-symbols-outlined text-xl">close</span>
 				</button>
+			</div>
+
+			<!-- Modal Body -->
+			<div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+				<!-- Left Column: Settings -->
+				<div class="space-y-5">
+					<div class="space-y-2">
+						<label for="export-filename" class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
+							File Name
+						</label>
+						<input
+							id="export-filename"
+							class="w-full bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-primary transition-all"
+							type="text"
+							bind:value={fileName}
+							disabled={isExporting}
+						/>
+					</div>
+
+					<div class="space-y-2">
+						<label class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
+							Resolution
+						</label>
+						<div class="grid grid-cols-3 gap-2">
+							<button
+								type="button"
+								class="py-2 rounded-lg text-xs font-medium border transition-colors {resolutionMode === '1080p'
+									? 'bg-primary-container/20 border-primary text-primary font-bold'
+									: 'bg-surface-container-highest border-outline-variant hover:bg-surface-bright'}"
+								disabled={isExporting}
+								onclick={() => (resolutionMode = '1080p')}
+							>
+								1080p
+							</button>
+							<button
+								type="button"
+								class="py-2 rounded-lg text-xs font-medium border transition-colors {resolutionMode === '4k'
+									? 'bg-primary-container/20 border-primary text-primary font-bold'
+									: 'bg-surface-container-highest border-outline-variant hover:bg-surface-bright'}"
+								disabled={isExporting}
+								onclick={() => (resolutionMode = '4k')}
+							>
+								4K UHD
+							</button>
+							<button
+								type="button"
+								class="py-2 rounded-lg text-xs font-medium border transition-colors {resolutionMode === 'custom'
+									? 'bg-primary-container/20 border-primary text-primary font-bold'
+									: 'bg-surface-container-highest border-outline-variant hover:bg-surface-bright'}"
+								disabled={isExporting}
+								onclick={() => (resolutionMode = 'custom')}
+							>
+								Custom
+							</button>
+						</div>
+					</div>
+
+					<div class="grid grid-cols-2 gap-4">
+						<div class="space-y-2">
+							<label for="export-format" class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
+								Format
+							</label>
+							<select
+								id="export-format"
+								class="w-full bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer"
+								bind:value={exportFormat}
+								disabled={isExporting}
+							>
+								<option value="webm">WEBM (VP9)</option>
+								<option value="mp4">MP4 (H.264)</option>
+							</select>
+						</div>
+						<div class="space-y-2">
+							<label for="export-fps" class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
+								Frame Rate
+							</label>
+							<select
+								id="export-fps"
+								class="w-full bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer"
+								bind:value={frameRate}
+								disabled={isExporting}
+							>
+								<option value={60}>60 fps</option>
+								<option value={30}>30 fps</option>
+								<option value={24}>24 fps</option>
+							</select>
+						</div>
+					</div>
+
+					<div class="space-y-2">
+						<div class="flex justify-between items-center">
+							<label for="export-bitrate" class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
+								Quality (Bitrate)
+							</label>
+							<span class="text-xs font-mono text-primary font-bold">
+								{bitrateQuality > 75 ? 'High' : bitrateQuality > 40 ? 'Medium' : 'Low'}
+							</span>
+						</div>
+						<input
+							id="export-bitrate"
+							type="range"
+							min="10"
+							max="100"
+							bind:value={bitrateQuality}
+							disabled={isExporting}
+							class="w-full accent-primary bg-surface-container-highest"
+						/>
+						<div class="flex justify-between text-[10px] text-on-surface-variant opacity-70">
+							<span>Smaller File</span>
+							<span>Better Quality</span>
+						</div>
+					</div>
+				</div>
+
+				<!-- Right Column: Preview & Status -->
+				<div class="flex flex-col justify-between">
+					<!-- Preview Thumbnail card -->
+					<div class="bg-surface-container-lowest rounded-lg border border-outline-variant overflow-hidden relative p-4 flex flex-col items-center justify-center min-h-[160px]">
+						<span class="material-symbols-outlined text-4xl text-primary/70 mb-2">video_library</span>
+						<div class="flex items-center gap-2 text-xs text-on-surface-variant font-mono">
+							<span class="material-symbols-outlined text-sm">schedule</span>
+							<span>{formatTimecode($sequenceDuration)}</span>
+							<span class="mx-1">•</span>
+							<span>~{estimatedMB} MB</span>
+						</div>
+						<div class="text-[11px] text-outline mt-1 font-mono">
+							{computedWidth} × {computedHeight} @ {frameRate}fps
+						</div>
+					</div>
+
+					<!-- Status & Actions -->
+					{#if isExporting}
+						<div class="bg-surface-container-highest/60 rounded-lg p-4 border border-outline-variant/60 space-y-2">
+							<div class="flex justify-between items-center text-xs font-semibold">
+								<span class="text-primary animate-pulse">{exportStatusText}</span>
+								<span class="text-primary font-mono">{exportProgress}%</span>
+							</div>
+							<div class="w-full bg-surface-container rounded-full h-2 overflow-hidden">
+								<div
+									class="bg-primary h-full rounded-full transition-all duration-200"
+									style="width: {exportProgress}%"
+								></div>
+							</div>
+						</div>
+					{:else}
+						<div class="flex items-center justify-end gap-3 pt-4 border-t border-outline-variant/40">
+							<button
+								type="button"
+								class="px-4 py-2 rounded-lg text-xs font-medium border border-outline-variant hover:bg-surface-container-highest text-on-surface-variant transition-colors"
+								onclick={handleClose}
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								class="px-5 py-2 rounded-lg text-xs font-bold bg-primary text-on-primary hover:bg-primary-fixed-dim transition-colors shadow-lg shadow-primary/20 flex items-center gap-1.5 disabled:opacity-40"
+								disabled={$sequenceDuration <= 0}
+								onclick={startExport}
+							>
+								<span class="material-symbols-outlined text-base">download</span>
+								Export Video
+							</button>
+						</div>
+					{/if}
+				</div>
 			</div>
 		</div>
 	</div>
 {/if}
-
-<style>
-	.modal-backdrop {
-		position: fixed;
-		top: 0;
-		left: 0;
-		width: 100vw;
-		height: 100vh;
-		background: rgba(0, 0, 0, 0.75);
-		backdrop-filter: blur(4px);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 1000;
-	}
-
-	.modal-card {
-		background: #111216;
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 8px;
-		width: 400px;
-		max-width: 90vw;
-		box-shadow: 0 20px 48px rgba(0, 0, 0, 0.8);
-		overflow: hidden;
-		color: #e2e8f0;
-	}
-
-	.modal-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 12px 16px;
-		background: #15161c;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-
-	.modal-title {
-		font-size: 0.85rem;
-		font-weight: 600;
-		color: #f8fafc;
-	}
-
-	.close-btn {
-		background: none;
-		border: none;
-		color: #64748b;
-		font-size: 0.8rem;
-		cursor: pointer;
-		padding: 2px;
-	}
-
-	.close-btn:hover {
-		color: #fff;
-	}
-
-	.modal-body {
-		padding: 16px;
-		display: flex;
-		flex-direction: column;
-		gap: 14px;
-	}
-
-	.form-group {
-		display: flex;
-		flex-direction: column;
-		gap: 5px;
-	}
-
-	.form-group label {
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: #94a3b8;
-	}
-
-	.form-group select {
-		background: #161820;
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		color: #f1f5f9;
-		padding: 6px 10px;
-		border-radius: 5px;
-		font-size: 0.8rem;
-		cursor: pointer;
-		outline: none;
-	}
-
-	.preset-meta-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 8px;
-		background: #15161b;
-		padding: 10px;
-		border-radius: 5px;
-		border: 1px solid rgba(255, 255, 255, 0.05);
-	}
-
-	.meta-item {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-
-	.meta-lbl {
-		font-size: 0.65rem;
-		color: #64748b;
-		text-transform: uppercase;
-		font-weight: 600;
-	}
-
-	.meta-val {
-		font-size: 0.75rem;
-		color: #cbd5e1;
-	}
-
-	.font-mono {
-		font-family: monospace;
-	}
-
-	.export-status {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		padding: 10px 0;
-	}
-
-	.status-label {
-		font-size: 0.75rem;
-		color: #94a3b8;
-	}
-
-	.progress-track {
-		width: 100%;
-		height: 4px;
-		background: #181920;
-		border-radius: 2px;
-		overflow: hidden;
-	}
-
-	.progress-bar {
-		height: 100%;
-		background: #3b82f6;
-		transition: width 0.15s ease;
-	}
-
-	.modal-footer {
-		display: flex;
-		justify-content: flex-end;
-		gap: 8px;
-		padding: 10px 16px;
-		background: #131418;
-		border-top: 1px solid rgba(255, 255, 255, 0.06);
-	}
-
-	.cancel-btn {
-		background: #1a1b22;
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		color: #cbd5e1;
-		padding: 5px 12px;
-		border-radius: 5px;
-		font-size: 0.75rem;
-		cursor: pointer;
-	}
-
-	.submit-btn {
-		background: #2563eb;
-		border: 1px solid #3b82f6;
-		color: white;
-		padding: 5px 14px;
-		border-radius: 5px;
-		font-size: 0.75rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: background 0.15s ease;
-	}
-
-	.submit-btn:hover:not(:disabled) {
-		background: #1d4ed8;
-	}
-
-	.submit-btn:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
-	}
-</style>

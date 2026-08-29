@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { projectStore } from '$lib/stores/project.svelte';
+	import { playbackStore } from '$lib/stores/playback.svelte';
+	import { commandProcessor } from '$lib/core/commands/processor';
 	import { importMediaFiles, restoreCachedAssets } from '$lib/utils/mediaUtils';
 	import { opfsGetAutoSaveMeta, opfsLoadAutoSave } from '$lib/core/persistence/opfsAdapter';
 	import type { Project } from '$lib/types/project';
-	import Toolbar from '$lib/features/toolbar/Toolbar.svelte';
 	import MediaBin from '$lib/features/media/MediaBin.svelte';
 	import Canvas from '$lib/features/canvas/Canvas.svelte';
 	import Controls from '$lib/features/canvas/Controls.svelte';
@@ -15,6 +16,9 @@
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let exportDialogOpen = $state(false);
 	let isGlobalDragOver = $state(false);
+	let activeNavTab = $state<'media' | 'record' | 'effects' | 'templates' | 'text' | 'transitions' | 'settings'>('media');
+	let isEditingProjectName = $state(false);
+
 	let restorePrompt = $state<{ show: boolean; projectName: string; savedAt: number }>({
 		show: false,
 		projectName: '',
@@ -27,7 +31,7 @@
 
 			const defaultProject: Project = {
 				id: 'default-project',
-				name: 'Untitled Project',
+				name: 'RayShot_Project_1',
 				version: 1,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
@@ -58,15 +62,16 @@
 		restoreCachedAssets().catch(() => {});
 
 		// Check for OPFS auto-save and offer restore
-		opfsGetAutoSaveMeta().then((meta) => {
-			if (meta && meta.savedAt) {
-				// Only offer restore if saved less than 30 days ago
-				const ageDays = (Date.now() - meta.savedAt) / (1000 * 60 * 60 * 24);
-				if (ageDays < 30) {
-					restorePrompt = { show: true, projectName: meta.projectName, savedAt: meta.savedAt };
+		opfsGetAutoSaveMeta()
+			.then((meta) => {
+				if (meta && meta.savedAt) {
+					const ageDays = (Date.now() - meta.savedAt) / (1000 * 60 * 60 * 24);
+					if (ageDays < 30) {
+						restorePrompt = { show: true, projectName: meta.projectName, savedAt: meta.savedAt };
+					}
 				}
-			}
-		}).catch(() => {});
+			})
+			.catch(() => {});
 
 		const handleWindowDragOver = (e: DragEvent) => {
 			e.preventDefault();
@@ -122,55 +127,224 @@
 	function handleDismissRestore() {
 		restorePrompt = { show: false, projectName: '', savedAt: 0 };
 	}
+
+	function updateProjectName(newName: string) {
+		projectStore.update((p) => {
+			if (!p) return p;
+			return { ...p, name: newName || 'RayShot_Project_1', modifiedAt: Date.now() };
+		});
+	}
+
+	function handleUndo() {
+		commandProcessor.undo();
+	}
+
+	function handleRedo() {
+		commandProcessor.redo();
+	}
 </script>
 
-<div class="app-layout-shell" role="application">
-	<Toolbar
-		onOpenExport={() => (exportDialogOpen = true)}
-		onImportMedia={() => fileInput?.click()}
-	/>
+<!-- Main App Shell -->
+<div class="app-layout-shell">
 
-	<!-- OPFS auto-save restore toast -->
-	{#if restorePrompt.show}
-		<div class="restore-toast">
-			<span class="restore-icon">💾</span>
-			<span class="restore-text">
-				Restore <strong>{restorePrompt.projectName}</strong>?
-				<span class="restore-time">
-					Saved {new Date(restorePrompt.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+	<!-- Top Header Navigation Bar (Stitch Design) -->
+	<header class="bg-surface-container h-14 border-b border-outline-variant flex justify-between items-center px-4 shrink-0 z-30">
+		<!-- Left: Brand Logo & Editable Project Name -->
+		<div class="flex items-center gap-4">
+			<div class="flex items-center gap-2 text-primary font-black text-lg tracking-tight">
+				<span class="material-symbols-outlined text-2xl text-primary" style="font-variation-settings: 'FILL' 1;">
+					animation
 				</span>
-			</span>
-			<button class="restore-btn-yes" onclick={handleRestoreProject}>Restore</button>
-			<button class="restore-btn-no" onclick={handleDismissRestore}>Dismiss</button>
-		</div>
-	{/if}
+				<span>RayShot</span>
+			</div>
+			<div class="h-4 w-px bg-outline-variant"></div>
 
-	<!-- Permanent 3-Pane NLE Workspace Grid -->
+			<!-- Project Title Input -->
+			<div class="flex items-center gap-2 text-sm text-on-surface-variant">
+				{#if isEditingProjectName}
+					<input
+						type="text"
+						class="bg-surface-container-highest border border-primary text-on-surface rounded px-2 py-0.5 text-xs font-medium focus:outline-none"
+						value={$projectStore?.name ?? 'RayShot_Project_1'}
+						onblur={(e) => {
+							updateProjectName((e.target as HTMLInputElement).value);
+							isEditingProjectName = false;
+						}}
+						onkeydown={(e) => {
+							if (e.key === 'Enter') {
+								updateProjectName((e.currentTarget as HTMLInputElement).value);
+								isEditingProjectName = false;
+							}
+						}}
+					/>
+				{:else}
+					<button
+						type="button"
+						class="hover:text-on-surface hover:bg-surface-container-highest px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors"
+						onclick={() => (isEditingProjectName = true)}
+					>
+						<span>{$projectStore?.name ?? 'RayShot_Project_1'}</span>
+						<span class="material-symbols-outlined text-xs text-outline">edit</span>
+					</button>
+				{/if}
+			</div>
+		</div>
+
+		<!-- Center: Aspect Ratio & History Controls -->
+		<div class="flex items-center gap-3">
+			<div class="bg-surface-container-low border border-outline-variant px-3 py-1 rounded-full text-xs font-mono text-on-surface-variant flex items-center gap-1.5">
+				<span class="material-symbols-outlined text-sm text-primary">aspect_ratio</span>
+				<span>16:9 Widescreen</span>
+			</div>
+
+			<div class="flex items-center gap-1 bg-surface-container-low border border-outline-variant p-0.5 rounded-lg">
+				<button
+					type="button"
+					class="p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-30"
+					onclick={handleUndo}
+					title="Undo (Ctrl+Z)"
+				>
+					<span class="material-symbols-outlined text-lg">undo</span>
+				</button>
+				<button
+					type="button"
+					class="p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-30"
+					onclick={handleRedo}
+					title="Redo (Ctrl+Y)"
+				>
+					<span class="material-symbols-outlined text-lg">redo</span>
+				</button>
+			</div>
+		</div>
+
+		<!-- Right: Import & High-Visibility Export Button -->
+		<div class="flex items-center gap-3">
+			<button
+				type="button"
+				class="bg-surface-container-highest hover:bg-surface-bright border border-outline-variant text-on-surface px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+				onclick={() => fileInput?.click()}
+			>
+				<span class="material-symbols-outlined text-base text-secondary">add_circle</span>
+				<span>Import Media</span>
+			</button>
+
+			<button
+				type="button"
+				class="bg-primary text-on-primary font-bold px-4 py-1.5 rounded-lg text-xs flex items-center gap-1.5 hover:bg-primary-fixed-dim transition-all shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"
+				onclick={() => (exportDialogOpen = true)}
+			>
+				<span class="material-symbols-outlined text-base">download</span>
+				<span>Export Video</span>
+			</button>
+		</div>
+	</header>
+
+	<!-- Main Workspace Area -->
 	<div class="nle-workspace-grid">
-		<!-- Middle Row: Left Category Drawer / Media Bin | Center Canvas & Transport | Right Contextual Inspector -->
+
 		<div class="middle-work-row">
-			<div class="left-mediabin-col">
-				<MediaBin />
-			</div>
+			<!-- Vertical Side Navigation Dock (Stitch Design) -->
+			<nav class="bg-surface w-16 border-r border-outline-variant flex flex-col items-center py-3 space-y-2 shrink-0 z-20">
+				<button
+					type="button"
+					class="w-12 h-12 flex flex-col items-center justify-center rounded-lg transition-all gap-0.5 text-[10px] font-medium {activeNavTab === 'media'
+						? 'text-primary bg-primary-container/20 border-l-2 border-primary font-bold'
+						: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}"
+					onclick={() => (activeNavTab = 'media')}
+				>
+					<span class="material-symbols-outlined text-xl">perm_media</span>
+					<span>Media</span>
+				</button>
 
-			<div class="center-canvas-col">
-				<div class="canvas-screen-box">
-					<Canvas />
+				<button
+					type="button"
+					class="w-12 h-12 flex flex-col items-center justify-center rounded-lg transition-all gap-0.5 text-[10px] font-medium {activeNavTab === 'text'
+						? 'text-primary bg-primary-container/20 border-l-2 border-primary font-bold'
+						: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}"
+					onclick={() => (activeNavTab = 'text')}
+				>
+					<span class="material-symbols-outlined text-xl">title</span>
+					<span>Text</span>
+				</button>
+
+				<button
+					type="button"
+					class="w-12 h-12 flex flex-col items-center justify-center rounded-lg transition-all gap-0.5 text-[10px] font-medium {activeNavTab === 'effects'
+						? 'text-primary bg-primary-container/20 border-l-2 border-primary font-bold'
+						: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}"
+					onclick={() => (activeNavTab = 'effects')}
+				>
+					<span class="material-symbols-outlined text-xl">auto_fix_high</span>
+					<span>Effects</span>
+				</button>
+
+				<button
+					type="button"
+					class="w-12 h-12 flex flex-col items-center justify-center rounded-lg transition-all gap-0.5 text-[10px] font-medium {activeNavTab === 'templates'
+						? 'text-primary bg-primary-container/20 border-l-2 border-primary font-bold'
+						: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}"
+					onclick={() => (activeNavTab = 'templates')}
+				>
+					<span class="material-symbols-outlined text-xl">dashboard_customize</span>
+					<span>Templates</span>
+				</button>
+
+				<button
+					type="button"
+					class="w-12 h-12 flex flex-col items-center justify-center rounded-lg transition-all gap-0.5 text-[10px] font-medium {activeNavTab === 'transitions'
+						? 'text-primary bg-primary-container/20 border-l-2 border-primary font-bold'
+						: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}"
+					onclick={() => (activeNavTab = 'transitions')}
+				>
+					<span class="material-symbols-outlined text-xl">animation</span>
+					<span>Transitions</span>
+				</button>
+
+				<div class="mt-auto flex flex-col space-y-2 pt-4 border-t border-outline-variant/40 w-full items-center">
+					<button
+						type="button"
+						class="w-12 h-12 flex flex-col items-center justify-center rounded-lg transition-all text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest"
+						onclick={() => (activeNavTab = 'settings')}
+					>
+						<span class="material-symbols-outlined text-xl">settings</span>
+					</button>
 				</div>
-				<Controls />
-			</div>
+			</nav>
 
-			<div class="right-inspector-col">
+			<!-- Left Drawer Panel (Media Bin & Presets) -->
+			<aside class="left-mediabin-col">
+				<MediaBin />
+			</aside>
+
+			<!-- Middle Center Column: Video Preview & Multitrack Timeline -->
+			<main class="center-canvas-col">
+				<!-- Top Preview Canvas & Transport Controls -->
+				<section class="flex-1 flex flex-col p-3 items-center justify-center relative min-h-0 bg-surface-container-lowest">
+					<!-- Canvas Container -->
+					<div class="w-full flex-1 min-h-0 relative flex items-center justify-center bg-black rounded-lg shadow-2xl overflow-hidden border border-surface-container">
+						<Canvas />
+					</div>
+
+					<!-- Transport Bar -->
+					<div class="w-full mt-2 shrink-0">
+						<Controls />
+					</div>
+				</section>
+			</main>
+
+			<!-- Right Inspector Panel -->
+			<aside class="right-inspector-col">
 				<Inspector />
-			</div>
+			</aside>
 		</div>
 
-		<!-- Bottom Row: Multitrack Timeline -->
-		<div class="bottom-timeline-row">
+		<!-- Bottom Multitrack Timeline Panel -->
+		<section class="bottom-timeline-row">
 			<Timeline />
-		</div>
+		</section>
 	</div>
 
+	<!-- Hidden Media File Input -->
 	<input
 		type="file"
 		bind:this={fileInput}
@@ -180,202 +354,45 @@
 		style="display: none;"
 	/>
 
+	<!-- Export Dialog Modal -->
 	<Export open={exportDialogOpen} onClose={() => (exportDialogOpen = false)} />
 
+	<!-- OPFS Auto-Save Restore Toast -->
+	{#if restorePrompt.show}
+		<div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-surface-container-high border border-outline-variant rounded-xl px-4 py-3 shadow-2xl animate-bounce text-xs">
+			<span class="material-symbols-outlined text-primary text-lg">save</span>
+			<span>
+				Restore auto-saved project <strong>{restorePrompt.projectName}</strong>?
+			</span>
+			<div class="flex items-center gap-2 ml-2">
+				<button
+					type="button"
+					class="bg-primary text-on-primary font-bold px-3 py-1 rounded-md hover:bg-primary-fixed-dim transition-colors"
+					onclick={handleRestoreProject}
+				>
+					Restore
+				</button>
+				<button
+					type="button"
+					class="bg-surface-container-highest border border-outline-variant text-on-surface-variant px-3 py-1 rounded-md hover:text-on-surface transition-colors"
+					onclick={handleDismissRestore}
+				>
+					Dismiss
+				</button>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Global Drag & Drop Overlay Curtain -->
 	{#if isGlobalDragOver}
-		<div class="global-drag-curtain">
-			<div class="curtain-card">
-				<span class="curtain-icon">📥</span>
-				<div class="curtain-text-group">
-					<span class="curtain-heading">Drop footage to import into RayShot</span>
-					<span class="curtain-subtext">Videos, audio tracks, and images will be added to your project</span>
-				</div>
+		<div class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center pointer-events-none p-6">
+			<div class="border-2 border-dashed border-primary bg-surface-container/90 rounded-2xl p-10 flex flex-col items-center gap-3 text-center shadow-2xl">
+				<span class="material-symbols-outlined text-5xl text-primary animate-pulse">cloud_upload</span>
+				<h3 class="text-lg font-bold text-on-surface">Drop Media Files to Import</h3>
+				<p class="text-xs text-on-surface-variant max-w-xs">
+					Videos, audio tracks, and images will be automatically added to your RayShot media library.
+				</p>
 			</div>
 		</div>
 	{/if}
 </div>
-
-<style>
-	.app-layout-shell {
-		display: flex;
-		flex-direction: column;
-		height: 100vh;
-		width: 100vw;
-		background: var(--color-bg-base, #090a0d);
-		overflow: hidden;
-		position: relative;
-	}
-
-	.nle-workspace-grid {
-		display: flex;
-		flex-direction: column;
-		flex: 1;
-		min-height: 0;
-		overflow: hidden;
-	}
-
-	.middle-work-row {
-		display: flex;
-		flex: 1;
-		min-height: 0;
-		overflow: hidden;
-	}
-
-	.left-mediabin-col {
-		width: 290px;
-		min-width: 260px;
-		max-width: 380px;
-		height: 100%;
-		flex-shrink: 0;
-		background: var(--color-bg-surface, #121319);
-	}
-
-	.center-canvas-col {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		min-width: 0;
-		height: 100%;
-		background: #000000;
-		position: relative;
-	}
-
-	.canvas-screen-box {
-		flex: 1;
-		min-height: 0;
-		position: relative;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: #000000;
-	}
-
-	.right-inspector-col {
-		width: 280px;
-		min-width: 250px;
-		max-width: 360px;
-		height: 100%;
-		flex-shrink: 0;
-		background: var(--color-bg-surface, #121319);
-	}
-
-	.bottom-timeline-row {
-		height: 280px;
-		min-height: 200px;
-		max-height: 480px;
-		flex-shrink: 0;
-		position: relative;
-		border-top: 1px solid var(--color-border-subtle, #232738);
-	}
-
-	/* Global Drag Curtain */
-	.global-drag-curtain {
-		position: fixed;
-		top: 0;
-		left: 0;
-		width: 100vw;
-		height: 100vh;
-		background: rgba(9, 10, 13, 0.88);
-		backdrop-filter: blur(6px);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 2000;
-		pointer-events: none;
-	}
-
-	.curtain-card {
-		padding: 32px 48px;
-		border: 2px dashed var(--color-accent-primary, #38bdf8);
-		border-radius: 12px;
-		background: rgba(18, 19, 25, 0.98);
-		color: #f1f5f9;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 12px;
-		box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85);
-	}
-
-	.curtain-icon {
-		font-size: 2.75rem;
-	}
-
-	.curtain-text-group {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 4px;
-	}
-
-	.curtain-heading {
-		font-size: 1.05rem;
-		font-weight: 600;
-		color: #ffffff;
-	}
-
-
-	.curtain-subtext {
-		font-size: 0.8rem;
-		color: #94a3b8;
-	}
-
-	/* OPFS Restore Toast */
-	.restore-toast {
-		position: fixed;
-		bottom: 20px;
-		left: 50%;
-		transform: translateX(-50%);
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		background: #1e2130;
-		border: 1px solid #334155;
-		border-radius: 10px;
-		padding: 10px 16px;
-		z-index: 1500;
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-		font-size: 0.85rem;
-		color: #cbd5e1;
-		animation: slideUp 0.2s ease;
-	}
-
-	@keyframes slideUp {
-		from { opacity: 0; transform: translateX(-50%) translateY(12px); }
-		to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-	}
-
-	.restore-icon { font-size: 1.1rem; }
-
-	.restore-text strong { color: #f1f5f9; }
-
-	.restore-time {
-		font-size: 0.75rem;
-		color: #64748b;
-		margin-left: 4px;
-	}
-
-	.restore-btn-yes {
-		background: #38bdf8;
-		color: #000;
-		border: none;
-		border-radius: 6px;
-		padding: 4px 12px;
-		font-size: 0.8rem;
-		font-weight: 600;
-		cursor: pointer;
-	}
-
-	.restore-btn-no {
-		background: transparent;
-		color: #64748b;
-		border: 1px solid #334155;
-		border-radius: 6px;
-		padding: 4px 10px;
-		font-size: 0.8rem;
-		cursor: pointer;
-	}
-
-	.restore-btn-yes:hover { background: #7dd3fc; }
-	.restore-btn-no:hover { color: #94a3b8; }
-</style>
