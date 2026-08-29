@@ -482,7 +482,7 @@
 			</div>
 			{#each $tracks as track, index}
 				{@const videoTracks = $tracks.filter((t) => t.type === 'video')}
-				{@const trackLabel = track.type === 'video' ? `Video ${index + 1}` : `Audio ${index + 1 - videoTracks.length}`}
+				{@const trackLabel = track.type === 'video' ? `V${index + 1}` : `A${index + 1 - videoTracks.length}`}
 				<div class="track-label-row {track.type}">
 					<div class="track-id-badge {track.type}">
 						{#if track.type === 'video'}

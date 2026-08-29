@@ -238,8 +238,8 @@
 	}
 
 	.timeline-clip-block.selected {
-		border: 2px solid #ffffff !important;
-		box-shadow: 0 0 0 2px #38bdf8, 0 4px 16px rgba(56, 189, 248, 0.45);
+		border: 2px solid #d0bcff !important;
+		box-shadow: 0 0 0 1px #d0bcff, 0 0 12px rgba(208, 188, 255, 0.45);
 		z-index: 20;
 	}
 
