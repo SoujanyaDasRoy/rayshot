@@ -2,6 +2,9 @@
 
 > A modern, browser-native desktop-class creative video editor powered by Svelte 5 (Runes), SvelteKit 2, Web Workers, IndexedDB, and the Web Audio API.
 
+[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/z2mNFZYzW4)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 ---
 
 ## ✨ Features
@@ -25,6 +28,16 @@ All product specifications and design documents are located in [`docs/`](./docs/
 - [`docs/RayShot_PRD.md`](./docs/RayShot_PRD.md) — Product Requirements Document
 - [`docs/RayShot_HLD.md`](./docs/RayShot_HLD.md) — High-Level Design & Architecture
 - [`docs/RayShot_Technical_Requirements.md`](./docs/RayShot_Technical_Requirements.md) — Technical Specifications
+
+---
+
+## 💬 Community & Support
+
+Join the RayShot creator and developer community on Discord:
+
+[![Join Discord](https://img.shields.io/badge/Discord-Join%20Server-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/z2mNFZYzW4)
+
+👉 **[https://discord.gg/z2mNFZYzW4](https://discord.gg/z2mNFZYzW4)**
 
 ---
 
