@@ -11,7 +11,7 @@
 	import { DeleteClipCommand } from '$lib/core/commands/deleteClip';
 	import { AddTrackCommand } from '$lib/core/commands/addTrack';
 	import Clip from './Clip.svelte';
-	import type { Clip as ClipType } from '$lib/types/project';
+	import { type Clip as ClipType } from '$lib/types/project';
 	import { derived } from 'svelte/store';
 
 	const sequences = derived(projectStore, ($project) => $project?.sequences ?? []);
@@ -369,7 +369,7 @@
 		const totalSecs = Math.max(0, seconds);
 		const hrs = Math.floor(totalSecs / 3600);
 		const mins = Math.floor((totalSecs % 3600) / 60);
-		const secs = Math.floor(totalSecs % 60);
+		const secs = Math.floor((totalSecs % 60));
 		const frames = Math.floor((totalSecs % 1) * fps);
 
 		const pad = (n: number) => n.toString().padStart(2, '0');
@@ -690,7 +690,6 @@
 						<svg width="14" height="18" viewBox="0 0 14 18" fill="none" class="pin-svg-shape">
 							<path
 								d="M0 2C0 0.895431 0.895431 0 2 0H12C13.1046 0 14 0.895431 14 2V11C14 11.5833 13.7461 12.1384 13.3045 12.5186L7 17.9474L0.695521 12.5186C0.253905 12.1384 0 11.5833 0 11V2Z"
-								fill="#ef4444"
 							/>
 						</svg>
 					</div>
@@ -708,11 +707,12 @@
 		display: flex;
 		flex-direction: column;
 		height: 100%;
-		background: #090a0d;
+		background: #1c1b1b; /* surface-container-low */
 		color: #cbd5e1;
 		user-select: none;
 		border-top: 1px solid #1a1d28;
 		overflow: hidden;
+		min-height: 300px;
 	}
 
 	/* Top Toolbar */
@@ -721,9 +721,9 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 0 12px;
-		background: #121319;
+		background: #1c1b1b; /* surface-container-low */
 		border-bottom: 1px solid #1a1d28;
-		height: 38px;
+		height: 40px; /* h-10 in Tailwind (10 * 4px) */
 		flex-shrink: 0;
 	}
 
@@ -841,9 +841,9 @@
 
 	/* Track Header Column */
 	.track-labels-sidebar {
-		width: 116px;
-		background: #121319;
-		border-right: 1px solid #1a1d28;
+		width: 48px; /* w-48 */
+		background: #201f1f; /* surface-container */
+		border-right: 1px solid #494454; /* outline-variant */
 		display: flex;
 		flex-direction: column;
 		flex-shrink: 0;
@@ -852,7 +852,7 @@
 
 	.ruler-corner-cell {
 		height: 28px;
-		background: #121319;
+		background: #201f1f; /* surface-container */
 		border-bottom: 1px solid #1a1d28;
 		display: flex;
 		align-items: center;
@@ -860,10 +860,10 @@
 	}
 
 	.tracks-header-label {
+		color: #cbc3d7; /* on-surface-variant */
 		font-size: 0.62rem;
 		font-weight: 700;
 		letter-spacing: 0.06em;
-		color: #64748b;
 	}
 
 	.track-label-row {
@@ -873,7 +873,7 @@
 		padding: 0 8px;
 		gap: 6px;
 		border-bottom: 1px solid #1a1d28;
-		background: #121319;
+		background: #0e0e0e; /* surface-container-lowest */
 	}
 
 	.track-id-badge {
@@ -884,18 +884,7 @@
 		border-radius: 4px;
 		font-size: 0.72rem;
 		font-weight: 700;
-	}
-
-	.track-id-badge.video {
-		background: rgba(56, 189, 248, 0.12);
-		color: #38bdf8;
-		border: 1px solid rgba(56, 189, 248, 0.25);
-	}
-
-	.track-id-badge.audio {
-		background: rgba(16, 185, 129, 0.12);
-		color: #34d399;
-		border: 1px solid rgba(16, 185, 129, 0.25);
+		color: #cbc3d7; /* on-surface-variant */
 	}
 
 	.track-svg-icon {
@@ -944,7 +933,7 @@
 		flex: 1;
 		overflow-x: auto;
 		overflow-y: auto;
-		background: #090a0d;
+		background: #0e0e0e; /* surface-container-lowest */
 		position: relative;
 		scrollbar-width: thin;
 		scrollbar-color: #232738 #121319;
@@ -978,9 +967,9 @@
 
 	/* Timecode Ruler */
 	.timecode-ruler {
-		height: 28px;
-		background: #121319;
-		border-bottom: 1px solid #1a1d28;
+		height: 8px; /* h-8 */
+		background: #353534; /* surface-container-highest */
+		border-bottom: 1px solid #1a1d28; /* border-border-surface-container-low */
 		position: relative;
 		cursor: pointer;
 		flex-shrink: 0;
@@ -997,7 +986,7 @@
 		position: absolute;
 		height: 35%;
 		top: 65%;
-		border-left: 1px solid #1a1d28;
+		border-left: 1px solid rgba(255,255,255,0.08);
 	}
 
 	.ruler-timecode {
@@ -1017,7 +1006,6 @@
 	}
 
 	.track-row-lane {
-		height: 48px;
 		position: relative;
 		border-bottom: 1px solid #1a1d28;
 		background: repeating-linear-gradient(
@@ -1031,10 +1019,17 @@
 
 	.track-row-lane.video {
 		background-color: rgba(56, 189, 248, 0.015);
+		height: 24px; /* h-24 for main video track */
 	}
 
 	.track-row-lane.audio {
-		background-color: rgba(16, 185, 129, 0.015);
+		background-color: rgba(6, 182, 212, 0.015);
+		height: 20px; /* h-20 for audio track */
+	}
+
+	/* Text/Graphics track gets default height */
+	.track-row-lane:not(.video):not(.audio) {
+		height: 16px; /* h-16 for text/graphics track */
 	}
 
 	/* Snapping Guide Line */

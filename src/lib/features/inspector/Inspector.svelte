@@ -285,7 +285,10 @@
 				</span>
 			</div>
 			<button class="deselect-btn" title="Deselect clip" onclick={() => timelineActions.selectClip(null)}>
-				✕
+				<svg class="icon-btn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+	<line x1="18" y1="6" x2="6" y2="18"></line>
+	<line x1="6" y1="6" x2="18" y2="18"></line>
+</svg>
 			</button>
 		</div>
 
@@ -1011,15 +1014,15 @@
 							<span class="text-xs font-medium w-16 text-on-surface-variant">Global</span>
 							<div class="flex-1 h-1.5 bg-surface-container-highest rounded-full relative">
 								<div class="absolute left-0 top-0 bottom-0 bg-primary rounded-full" style="width: 75%;"></div>
-								<div class="absolute w-3 h-3 bg-white rounded-full -top-[3px] shadow cursor-pointer border border-outline-variant" style="left: 75%; transform: translateX(-50%);"></div>
+								<div class="absolute w-3 h-3 bg-white rounded-full -top-0.75 shadow cursor-pointer border border-outline-variant" style="left: 75%; transform: translateX(-50%);"></div>
 							</div>
 							<span class="font-mono text-[11px] w-8 text-right bg-surface-container-lowest px-1 py-0.5 rounded border border-outline-variant">75</span>
 						</div>
 
 						<div class="flex items-center gap-3">
 							<span class="text-xs font-medium w-16 text-on-surface-variant">Hue Shift</span>
-							<div class="flex-1 h-1.5 bg-gradient-to-r from-red-500 via-green-500 to-blue-500 rounded-full relative opacity-80">
-								<div class="absolute w-3 h-3 bg-white rounded-full -top-[3px] shadow cursor-pointer border border-outline-variant" style="left: 40%; transform: translateX(-50%);"></div>
+							<div class="flex-1 h-1.5 bg-linear-to-r from-red-500 via-green-500 to-blue-500 rounded-full relative opacity-80">
+								<div class="absolute w-3 h-3 bg-white rounded-full -top-0.75 shadow cursor-pointer border border-outline-variant" style="left: 40%; transform: translateX(-50%);"></div>
 							</div>
 							<span class="font-mono text-[11px] w-8 text-right bg-surface-container-lowest px-1 py-0.5 rounded border border-outline-variant">-12</span>
 						</div>
@@ -1033,21 +1036,31 @@
 					<div class="text-[10px] font-bold text-on-surface-variant mb-3 uppercase tracking-widest">Variations</div>
 					<div class="grid grid-cols-3 gap-2">
 						<div class="flex flex-col gap-1 items-center cursor-pointer group">
-							<div class="w-full aspect-square bg-surface-container-high rounded border border-outline-variant overflow-hidden group-hover:border-on-surface transition-colors flex items-center justify-center bg-[#252525]">
-								<span class="text-lg">🌅</span>
+							<div class="w-full aspect-square bg-surface-container-high rounded border border-outline-variant overflow-hidden group-hover:border-on-surface transition-colors flex items-center justify-center">
+								<svg class="icon-btn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="1em" height="1em">
+										<circle cx="12" cy="12" r="4"/>
+										<line x1="12" y1="2" x2="12" y2="6"/>
+										<line x1="12" y1="18" x2="12" y2="22"/>
+										<line x1="2" y1="12" x2="6" y2="12"/>
+										<line x1="18" y1="12" x2="22" y2="12"/>
+										<line x1="5" y1="5" x2="7" y2="7"/>
+										<line x1="17" y1="17" x2="19" y2="19"/>
+										<line x1="5" y1="17" x2="7" y2="19"/>
+										<line x1="17" y1="5" x2="19" y2="7"/>
+									</svg>
 							</div>
 							<span class="text-[10px] text-on-surface-variant group-hover:text-on-surface">Vivid</span>
 						</div>
 
 						<div class="flex flex-col gap-1 items-center cursor-pointer group">
-							<div class="w-full aspect-square bg-surface-container-high rounded border border-primary ring-1 ring-primary overflow-hidden flex items-center justify-center bg-gradient-to-tr from-secondary/30 to-primary/30">
+							<div class="w-full aspect-square bg-surface-container-high rounded border border-primary ring-1 ring-primary overflow-hidden flex items-center justify-center bg-linear-to-tr from-secondary/30 to-primary/30">
 								<span class="text-lg">🌆</span>
 							</div>
 							<span class="text-[10px] text-primary font-bold">Neon</span>
 						</div>
 
 						<div class="flex flex-col gap-1 items-center cursor-pointer group">
-							<div class="w-full aspect-square bg-surface-container-high rounded border border-outline-variant overflow-hidden group-hover:border-on-surface transition-colors flex items-center justify-center bg-[#1e1e1e]">
+							<div class="w-full aspect-square bg-surface-container-high rounded border border-outline-variant overflow-hidden group-hover:border-on-surface transition-colors flex items-center justify-center">
 								<span class="text-lg">🎬</span>
 							</div>
 							<span class="text-[10px] text-on-surface-variant group-hover:text-on-surface">Cine</span>

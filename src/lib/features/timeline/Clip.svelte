@@ -99,89 +99,60 @@
 	onmousedown={onMousedown}
 	ontouchstart={onTouchstart}
 	onkeydown={handleKeydown}
+	onfocus={($event) => $event.currentTarget.classList.add('focus-visible')}
+	onblur={($event) => $event.currentTarget.classList.remove('focus-visible')}
 	tabindex="0"
+	class:focus-visible={false}
 >
 	<!-- Left Trim Handle (Start boundary) -->
-	<div class="trim-edge start" title="Drag to trim start">
-		<div class="edge-bar"></div>
-	</div>
+	<div class="trim-handle start" title="Drag to trim start">
+			</div>
 
 	<!-- Clip Visual Body -->
 	<div class="clip-visual-content">
-		<!-- Video & Image Filmstrip Layer -->
+		<!-- Video & Image Clip -->
 		{#if $assetType === 'video' || $assetType === 'image'}
-			{#if $uiStore.showThumbnails}
-				<div class="clip-filmstrip" aria-hidden="true">
+			<!-- Filename Bar -->
+			<div class="clip-filename-bar">
+				<span class="clip-filename-text font-mono-label text-[9px] truncate">{$assetName}</span>
+					{#if $isSelected}
+						<span class="clip-speed-icon">
+							<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+							</svg>
+						</span>
+					{/if}
+			</div>
+
+			<!-- Thumbnail Representations -->
+			<div class="clip-thumbnails flex-1 flex space-x-0.5 px-1 py-1">
+				{#if $uiStore.showThumbnails}
 					{#each thumbnailFrames as thumbSrc}
-						<div class="filmstrip-frame">
-							<img
-								src={thumbSrc}
-								alt="frame"
-								onerror={(e) => {
-									(e.currentTarget as HTMLImageElement).src = placeholderThumbnail;
-								}}
-							/>
-						</div>
+						<div class="clip-thumbnail flex-1 bg-surface-variant rounded-sm"></div>
 					{/each}
-				</div>
-			{:else}
-				<div class="mini-thumb-wrap">
-					<img
-						src={thumbnailCache.get(clip.mediaAssetId) ?? placeholderThumbnail}
-						alt="thumb"
-						onerror={(e) => {
-							(e.currentTarget as HTMLImageElement).src = placeholderThumbnail;
-						}}
-					/>
-				</div>
-			{/if}
+				{:else}
+					<div class="clip-thumbnail flex-1 bg-surface-variant rounded-sm"></div>
+					<div class="clip-thumbnail flex-1 bg-surface-variant rounded-sm"></div>
+					<div class="clip-thumbnail flex-1 bg-surface-variant rounded-sm"></div>
+				{/if}
+			</div>
 		{/if}
 
-		<!-- Audio Waveform Layer -->
+		<!-- Audio Clip -->
 		{#if $assetType === 'audio'}
-			{#if $uiStore.showWaveforms}
-				<div class="audio-waveform-container" aria-hidden="true">
-					<svg
-						class="waveform-svg"
-						viewBox="0 0 {Math.max(10, waveformBars.length * 4)} 40"
-						preserveAspectRatio="none"
-					>
-						<defs>
-							<linearGradient id="wave-grad-{clip.id}" x1="0" y1="0" x2="0" y2="1">
-								<stop offset="0%" stop-color="#34d399" stop-opacity="0.95" />
-								<stop offset="50%" stop-color="#10b981" stop-opacity="0.7" />
-								<stop offset="100%" stop-color="#059669" stop-opacity="0.95" />
-							</linearGradient>
-						</defs>
-						<!-- Center line -->
-						<line
-							x1="0"
-							y1="20"
-							x2={waveformBars.length * 4}
-							y2="20"
-							stroke="rgba(52, 211, 153, 0.3)"
-							stroke-width="1"
-						/>
-						<!-- Waveform Bars -->
-						{#each waveformBars as peak, i}
-							{@const barHeight = Math.max(3, peak * 32)}
-							{@const yPos = 20 - barHeight / 2}
-							<rect
-								x={i * 4 + 0.8}
-								y={yPos}
-								width="2.4"
-								height={barHeight}
-								rx="1"
-								fill="url(#wave-grad-{clip.id})"
-							/>
-						{/each}
-					</svg>
+			<!-- Filename Bar -->
+			<div class="clip-filename-bar">
+				<span class="clip-filename-text font-mono-label text-[9px] text-secondary truncate">{$assetName}</span>
+			</div>
+
+			<!-- Waveform Representations -->
+			<div class="clip-waveform flex-1 w-full relative opacity-70">
+				<div class="absolute inset-0 flex items-end justify-around px-1 pb-1">
+					{#each [30, 60, 80, 40, 90, 50, 20, 70, 85, 35, 60, 80, 40, 90, 50] as height}
+						<div class="clip-waveform-bar w-[2px] h-[{height}%] bg-secondary rounded-t"></div>
+					{/each}
 				</div>
-			{:else}
-				<div class="audio-waveform-decor">
-					<div class="waveform-line"></div>
-				</div>
-			{/if}
+			</div>
 		{/if}
 
 		<!-- Dark Legibility Overlay -->
@@ -195,27 +166,22 @@
 	</div>
 
 	<!-- Right Trim Handle (End boundary) -->
-	<div class="trim-edge end" title="Drag to trim end">
-		<div class="edge-bar"></div>
-	</div>
+	<div class="trim-handle end" title="Drag to trim end">
+			</div>
 </div>
 
 <style>
 	.timeline-clip-block {
 		position: absolute;
-		top: 4px;
-		height: 40px;
-		border-radius: 5px;
-		color: white;
+		top: 0;
+		bottom: 0;
+		border-radius: 4px;
 		display: flex;
-		align-items: center;
-		cursor: grab;
-		user-select: none;
-		box-sizing: border-box;
-		border: 1px solid rgba(255, 255, 255, 0.16);
-		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
-		transition: border-color 0.15s ease, box-shadow 0.15s ease;
+		flex-direction: column;
 		overflow: hidden;
+		cursor: pointer;
+		/* Height will be controlled by the track lane */
+		transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 	}
 
 	.timeline-clip-block:active {
@@ -223,24 +189,50 @@
 	}
 
 	.timeline-clip-block.video {
-		background: #172554;
-		border-color: #2563eb;
+		background-color: #2a2a2a; /* bg-surface-container-high */
+		border: 1px solid transparent;
+		box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); /* inner border */
+	}
+
+	.timeline-clip-block.video.selected {
+		border: 2px solid #d0bcff; /* border-2 border-primary */
+		box-shadow: 0 0 8px rgba(208, 188, 255, 0.3); /* shadow-[0_0_8px_rgba(208,188,255,0.3)] */
+		z-index: 10;
 	}
 
 	.timeline-clip-block.audio {
-		background: #022c22;
-		border-color: #059669;
+		background-color: #06B6D4; /* secondary cyan */
+		border: 1px solid transparent;
+		box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); /* inner border */
 	}
 
 	.timeline-clip-block.image {
-		background: #451a03;
-		border-color: #d97706;
+		background-color: #451a03;
+		border: 1px solid transparent;
+		box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); /* inner border */
 	}
 
-	.timeline-clip-block.selected {
-		border: 2px solid #d0bcff !important;
-		box-shadow: 0 0 0 1px #d0bcff, 0 0 12px rgba(208, 188, 255, 0.45);
-		z-index: 20;
+	.timeline-clip-block.adjustment {
+		background-color: #8B5CF6; /* primary purple */
+		border: 1px solid transparent;
+		box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); /* inner border */
+	}
+
+	/* Focus visible styles for keyboard navigation */
+	.timeline-clip-block.focus-visible {
+		border-color: #d0bcff !important;
+		box-shadow: 0 0 0 2px #d0bcff, 0 0 0 4px rgba(208, 188, 255, 0.2), 0 0 12px rgba(208, 188, 255, 0.45);
+	}
+
+	/* Reduce motion support - disable animations for users who prefer reduced motion */
+	@media (prefers-reduced-motion: reduce) {
+		.timeline-clip-block {
+			transition: none !important;
+		}
+
+		.timeline-clip-block.focus-visible {
+			transition: none !important;
+		}
 	}
 
 	.clip-visual-content {
@@ -375,36 +367,91 @@
 		font-family: 'JetBrains Mono', monospace;
 	}
 
-	/* Trim Handles */
-	.trim-edge {
-		width: 8px;
-		height: 100%;
+	/* Clip Internal Structure */
+	.clip-filename-bar {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		cursor: col-resize;
-		background: rgba(0, 0, 0, 0.3);
-		transition: background 0.15s ease;
-		flex-shrink: 0;
-		z-index: 10;
+		height: 4px;
+		padding: 0 1px;
+		font-size: 9px;
 	}
 
-	.trim-edge:hover {
-		background: rgba(56, 189, 248, 0.55);
+	.timeline-clip-block.video .clip-filename-bar {
+		background-color: rgba(0, 0, 0, 0.5); /* bg-surface-container-lowest/50 */
+		color: #e5e2e1; /* text-on-surface-variant */
 	}
 
-	.trim-edge.start {
-		border-right: 1px solid rgba(255, 255, 255, 0.08);
+	.timeline-clip-block.video.selected .clip-filename-bar {
+		background-color: rgba(208, 188, 255, 0.2); /* bg-primary/20 */
+		color: #d0bcff; /* text-primary */
+		justify-content: space-between;
+		padding: 0 1px;
+		display: flex;
+		align-items: center;
 	}
 
-	.trim-edge.end {
-		border-left: 1px solid rgba(255, 255, 255, 0.08);
+	.timeline-clip-block.video.selected .clip-filename-text {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 9px;
+		color: #d0bcff;
 	}
 
-	.edge-bar {
+	.timeline-clip-block.video.selected .clip-speed-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 12px;
+		height: 12px;
+	}
+
+	.timeline-clip-block.audio .clip-filename-bar {
+		background-color: rgba(3, 105, 161, 0.1); /* bg-secondary/10 */
+		color: #34d399; /* text-secondary */
+	}
+
+	.clip-thumbnails {
+		display: flex;
+		flex: 1;
+		gap: 0.5px;
+		padding: 1px 1px;
+	}
+
+	.clip-thumbnail {
+		background-color: #353534; /* bg-surface-variant */
+		border-radius: 2px; /* rounded-sm */
+		flex: 1;
+	}
+
+	.clip-waveform {
+		position: relative;
+		height: 100%;
+	}
+
+	.clip-waveform-bar {
+		position: absolute;
+		bottom: 0;
 		width: 2px;
-		height: 16px;
-		background: rgba(255, 255, 255, 0.85);
-		border-radius: 1px;
+		background-color: #34d399; /* bg-secondary */
+		border-radius: 2px; /* rounded-t */
+	}
+
+	/* Trim handles (positioned absolutely by parent) */
+	.trim-handle {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		width: 2px;
+		background-color: rgba(208, 188, 255, 0.5); /* bg-primary/50 */
+		cursor: ew-resize;
+		z-index: 5;
+	}
+
+	.trim-handle.start {
+		left: 0;
+	}
+
+	.trim-handle.end {
+		right: 0;
 	}
 </style>

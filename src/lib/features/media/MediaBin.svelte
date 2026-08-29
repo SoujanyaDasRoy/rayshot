@@ -815,7 +815,7 @@
 	function handleApplyEffect(preset: EffectPreset) {
 		const timeline = get(timelineStore);
 		if (!timeline.selectedClipId) {
-			showToast('💡 Click a clip on the timeline first, then apply effect');
+			showToast('Click a clip on the timeline first to apply effect');
 			return;
 		}
 
@@ -836,13 +836,13 @@
 			return { ...project, clips: updatedClips, modifiedAt: Date.now() };
 		});
 
-		showToast(`✨ Applied "${preset.name}" to selected clip!`);
+		showToast(`Applied "${preset.name}" to selected clip!`);
 	}
 
 	function handleApplyTransition(preset: TransitionPreset) {
 		const timeline = get(timelineStore);
 		if (!timeline.selectedClipId) {
-			showToast('💡 Click a clip on the timeline first to apply transition');
+			showToast('Click a clip on the timeline first to apply transition');
 			return;
 		}
 
@@ -858,7 +858,7 @@
 			return { ...project, clips: updatedClips, modifiedAt: Date.now() };
 		});
 
-		showToast(`↔ Applied "${preset.name}" transition to clip!`);
+		showToast(`Applied "${preset.name}" transition to clip!`);
 	}
 </script>
 
@@ -880,7 +880,7 @@
 		<div class="drawer-header">
 			<div class="drawer-header-title-box">
 				<span class="drawer-header-icon">
-					{#if activePillar === 'media'}▦{:else if activePillar === 'text'}T{:else if activePillar === 'audio'}♫{:else if activePillar === 'effects'}✨{:else}↔{/if}
+					{#if activePillar === 'media'}folder{:else if activePillar === 'text'}title{:else if activePillar === 'audio'}music_note{:else if activePillar === 'effects'}magic{:else}swap_horiz{/if}
 				</span>
 				<span class="drawer-header-title">
 					{#if activePillar === 'media'}Media Bin{:else if activePillar === 'text'}Text Templates{:else if activePillar === 'audio'}Audio & Music{:else if activePillar === 'effects'}Visual Effects{:else}Transitions{/if}
@@ -1248,11 +1248,11 @@
 							<!-- Glitch Card -->
 							<button
 								type="button"
-								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-outline-variant hover:border-primary transition-all text-left"
+								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-outline-variant hover:border-primary transition-all text-left cursor-pointer"
 								onclick={() => handleApplyEffect(effectPresets[0])}
 							>
-								<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity bg-[#1c1b1b] flex items-center justify-center text-primary font-bold text-[10px]">
-									⚡ GLITCH
+								<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity bg-surface-container-low flex items-center justify-center text-primary font-bold text-[10px]">
+									<span class="material-symbols-outlined">flash_on</span> GLITCH
 								</div>
 								<div class="absolute bottom-1 left-1.5 text-[9px] bg-black/70 px-1 rounded backdrop-blur-sm">Glitch</div>
 							</button>
@@ -1260,11 +1260,11 @@
 							<!-- Lens Blur Card -->
 							<button
 								type="button"
-								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-outline-variant hover:border-primary transition-all text-left"
+								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-outline-variant hover:border-primary transition-all text-left cursor-pointer"
 								onclick={() => handleApplyEffect(effectPresets[4])}
 							>
-								<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity bg-[#2a2a2a] flex items-center justify-center text-secondary font-bold text-[10px]">
-									🔍 LENS BLUR
+								<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity bg-surface-container-high flex items-center justify-center text-secondary font-bold text-[10px]">
+									<span class="material-symbols-outlined">search</span> LENS BLUR
 								</div>
 								<div class="absolute bottom-1 left-1.5 text-[9px] bg-black/70 px-1 rounded backdrop-blur-sm">Lens Blur</div>
 							</button>
@@ -1272,7 +1272,7 @@
 							<!-- VHS Retro Card -->
 							<button
 								type="button"
-								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-outline-variant hover:border-primary transition-all text-left"
+								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-outline-variant hover:border-primary transition-all text-left cursor-pointer"
 								onclick={() => handleApplyEffect(effectPresets[2])}
 							>
 								<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity bg-[#353534] flex items-center justify-center text-tertiary font-bold text-[10px]">
@@ -1287,8 +1287,8 @@
 								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-primary ring-1 ring-primary transition-all text-left shadow-lg shadow-primary/20"
 								onclick={() => handleApplyEffect(effectPresets[1])}
 							>
-								<div class="w-full h-full bg-gradient-to-tr from-secondary/40 to-primary/40 flex items-center justify-center font-bold text-[10px] text-white">
-									✨ CYBER COLOR
+								<div class="w-full h-full bg-linear-to-tr from-secondary/40 to-primary/40 flex items-center justify-center font-bold text-[10px] text-white">
+									<span class="material-symbols-outlined">magic</span> CYBER COLOR
 								</div>
 								<div class="absolute bottom-1 left-1.5 text-[9px] bg-black/70 px-1 rounded backdrop-blur-sm text-primary font-bold">Cyber Color</div>
 							</button>

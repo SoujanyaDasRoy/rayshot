@@ -139,7 +139,7 @@
 		display: flex;
 		flex-direction: column;
 		border-bottom: 1px solid #404040;
-		min-height: 40px;
+		/* Height will be controlled by parent timeline */
 	}
 
 	.track-header {
