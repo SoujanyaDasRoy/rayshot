@@ -8,6 +8,10 @@
 	import type { Project } from '$lib/types/project';
 	import MediaBin from '$lib/features/media/MediaBin.svelte';
 	import MediaLibraryView from '$lib/features/media/MediaLibraryView.svelte';
+	import RecordView from '$lib/features/record/RecordView.svelte';
+	import TemplatesView from '$lib/features/templates/TemplatesView.svelte';
+	import SettingsView from '$lib/features/settings/SettingsView.svelte';
+	import HelpView from '$lib/features/help/HelpView.svelte';
 	import Canvas from '$lib/features/canvas/Canvas.svelte';
 	import Controls from '$lib/features/canvas/Controls.svelte';
 	import Inspector from '$lib/features/inspector/Inspector.svelte';
@@ -17,9 +21,9 @@
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let exportDialogOpen = $state(false);
 	let isGlobalDragOver = $state(false);
-	let activeNavTab = $state<'media' | 'record' | 'effects' | 'templates' | 'text' | 'transitions' | 'settings'>('media');
-	let isEditingProjectName = $state(false);
-	let canvasMode = $state<'library' | 'canvas'>('library');
+	let activeNavTab = $state<'media' | 'record' | 'effects' | 'templates' | 'text' | 'transitions' | 'settings' | 'help'>('media');
+	let sidebarExpanded = $state(false);
+	let showTimeline = $state(false);
 
 	let restorePrompt = $state<{ show: boolean; projectName: string; savedAt: number }>({
 		show: false,
@@ -149,18 +153,28 @@
 <!-- Main App Shell -->
 <div class="app-layout-shell">
 
-	<!-- Top Header Navigation Bar (Stitch Screen Design 1:1) -->
+	<!-- Top Header Navigation Bar -->
 	<header class="flex justify-between items-center px-4 w-full h-14 border-b border-outline-variant bg-surface-container shrink-0 z-30">
-		<div class="flex items-center space-x-4">
-			<!-- RAYSHOT Brand Logo Box -->
-			<div class="bg-black px-3 py-1 rounded border border-outline-variant/60 text-white font-black tracking-widest text-xs uppercase flex items-center gap-1.5 shadow-sm">
-				<span class="w-2 h-2 rounded-full bg-primary animate-pulse inline-block"></span>
-				<span>RAYSHOT</span>
+		<div class="flex items-center space-x-5">
+			<!-- Official RayShot Dark Logo Image -->
+			<div
+				class="flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity"
+				onclick={() => (activeNavTab = 'media')}
+				role="button"
+				tabindex="0"
+				onkeydown={(e) => { if (e.key === 'Enter') activeNavTab = 'media'; }}
+				title="RayShot Home"
+			>
+				<img
+					src="/assets/logos/rayshot_official_dark_logo.png"
+					alt="RayShot"
+					class="h-7 w-auto max-w-[135px] object-contain"
+				/>
 			</div>
 
-			<div class="hidden md:flex items-center space-x-6 ml-4 text-xs font-medium text-on-surface-variant">
-				<span class="hover:text-on-surface cursor-pointer transition-colors">16:9</span>
-				<span class="hover:text-on-surface cursor-pointer transition-colors">Project Settings</span>
+			<div class="hidden md:flex items-center space-x-4 ml-2 text-xs font-medium text-on-surface-variant">
+				<button type="button" class="hover:text-on-surface cursor-pointer transition-colors bg-transparent border-none p-0" onclick={() => (activeNavTab = 'settings')}>16:9</button>
+				<button type="button" class="hover:text-on-surface cursor-pointer transition-colors bg-transparent border-none p-0" onclick={() => (activeNavTab = 'settings')}>Project Settings</button>
 			</div>
 		</div>
 
@@ -196,30 +210,10 @@
 				</button>
 			</div>
 
-			<!-- View Switcher (Library vs Canvas) -->
-			<div class="flex items-center bg-surface-container-highest rounded border border-outline-variant p-0.5 text-xs font-semibold text-on-surface-variant">
-				<button
-					type="button"
-					class="px-2.5 py-1 rounded transition-colors {canvasMode === 'library' ? 'bg-primary text-on-primary font-bold' : 'hover:text-on-surface'}"
-					onclick={() => { canvasMode = 'library'; activeNavTab = 'media'; }}
-					title="Show Media Library View"
-				>
-					<span class="material-symbols-outlined text-[15px] align-middle mr-1">grid_view</span>Library
-				</button>
-				<button
-					type="button"
-					class="px-2.5 py-1 rounded transition-colors {canvasMode === 'canvas' ? 'bg-primary text-on-primary font-bold' : 'hover:text-on-surface'}"
-					onclick={() => (canvasMode = 'canvas')}
-					title="Show Canvas Player View"
-				>
-					<span class="material-symbols-outlined text-[15px] align-middle mr-1">smart_display</span>Canvas
-				</button>
-			</div>
-
-			<!-- Share Button (Matching screenshot) -->
+			<!-- Share Button -->
 			<button
 				type="button"
-				class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-container-highest border border-outline-variant text-on-surface hover:bg-surface-bright transition-colors text-xs font-medium"
+				class="flex items-center gap-1.5 px-3.5 py-1.5 rounded bg-surface-container-highest border border-outline-variant text-on-surface hover:bg-surface-bright transition-colors text-xs font-semibold"
 				onclick={() => {}}
 			>
 				<span>Share</span>
@@ -231,12 +225,17 @@
 				class="flex items-center gap-1.5 px-4 py-1.5 rounded bg-primary text-on-primary font-bold hover:opacity-90 transition-opacity text-xs shadow-md shadow-primary/20"
 				onclick={() => (exportDialogOpen = true)}
 			>
+				<span class="material-symbols-outlined text-sm">file_upload</span>
 				<span>Export Video</span>
 			</button>
 
 			<div class="flex items-center space-x-3 ml-2 border-l border-outline-variant pl-4 text-on-surface-variant">
-				<span class="material-symbols-outlined cursor-pointer hover:text-on-surface text-lg">notifications</span>
-				<span class="material-symbols-outlined cursor-pointer hover:text-on-surface text-2xl">account_circle</span>
+				<button type="button" class="bg-transparent border-none p-0 flex items-center cursor-pointer hover:text-on-surface text-on-surface-variant" onclick={() => (activeNavTab = 'help')} title="Help">
+					<span class="material-symbols-outlined text-lg">notifications</span>
+				</button>
+				<button type="button" class="bg-transparent border-none p-0 flex items-center cursor-pointer hover:text-on-surface text-on-surface-variant" onclick={() => (activeNavTab = 'settings')} title="Settings">
+					<span class="material-symbols-outlined text-2xl">account_circle</span>
+				</button>
 			</div>
 		</div>
 	</header>
@@ -245,134 +244,178 @@
 	<div class="nle-workspace-grid">
 
 		<div class="middle-work-row">
-			<!-- Vertical Side Navigation Dock (Matching Screenshot 1:1) -->
-			<nav class="flex flex-col items-center py-4 space-y-4 docked h-full w-16 border-r border-outline-variant bg-surface shrink-0 z-20">
-				<div class="flex flex-col items-center justify-center w-full space-y-5 flex-1">
+			<!-- Expandable / Collapsible Side Navigation Dock -->
+			<nav
+				class="flex flex-col py-3 transition-all duration-200 docked h-full border-r border-outline-variant bg-surface shrink-0 z-20"
+				style="width: {sidebarExpanded ? '200px' : '64px'};"
+			>
+				<!-- Expand / Collapse Toggle Header -->
+				<div class="px-2 pb-3 mb-1 border-b border-outline-variant/60 flex items-center justify-between">
+					{#if sidebarExpanded}
+						<span class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant px-2">Navigation</span>
+					{/if}
 					<button
 						type="button"
-						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'media'
-							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
-							: 'text-on-surface-variant hover:text-on-surface'}"
-						onclick={() => { activeNavTab = 'media'; canvasMode = 'library'; }}
+						class="p-1.5 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors mx-auto"
+						onclick={() => (sidebarExpanded = !sidebarExpanded)}
+						title={sidebarExpanded ? 'Collapse Sidebar' : 'Expand Sidebar'}
 					>
-						<span class="material-symbols-outlined text-xl" style={activeNavTab === 'media' ? "font-variation-settings: 'FILL' 1;" : ''}>video_library</span>
-						<span class="text-[10px]">Library</span>
-					</button>
-
-					<button
-						type="button"
-						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'record'
-							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
-							: 'text-on-surface-variant hover:text-on-surface'}"
-						onclick={() => { activeNavTab = 'record'; canvasMode = 'canvas'; }}
-					>
-						<span class="material-symbols-outlined text-xl">videocam</span>
-						<span class="text-[10px]">Record</span>
-					</button>
-
-					<button
-						type="button"
-						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'effects'
-							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
-							: 'text-on-surface-variant hover:text-on-surface'}"
-						onclick={() => { activeNavTab = 'effects'; canvasMode = 'canvas'; }}
-					>
-						<span class="material-symbols-outlined text-xl" style={activeNavTab === 'effects' ? "font-variation-settings: 'FILL' 1;" : ''}>auto_fix_high</span>
-						<span class="text-[10px]">Content</span>
-					</button>
-
-					<button
-						type="button"
-						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'templates'
-							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
-							: 'text-on-surface-variant hover:text-on-surface'}"
-						onclick={() => { activeNavTab = 'templates'; canvasMode = 'canvas'; }}
-					>
-						<span class="material-symbols-outlined text-xl">dashboard_customize</span>
-						<span class="text-[10px]">Templates</span>
-					</button>
-
-					<button
-						type="button"
-						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'text'
-							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
-							: 'text-on-surface-variant hover:text-on-surface'}"
-						onclick={() => { activeNavTab = 'text'; canvasMode = 'canvas'; }}
-					>
-						<span class="material-symbols-outlined text-xl" style={activeNavTab === 'text' ? "font-variation-settings: 'FILL' 1;" : ''}>title</span>
-						<span class="text-[10px]">Text</span>
-					</button>
-
-					<button
-						type="button"
-						class="flex flex-col items-center space-y-1 cursor-pointer w-full text-center transition-colors {activeNavTab === 'transitions'
-							? 'text-primary bg-primary-container/20 border-l-2 border-primary py-2 font-bold'
-							: 'text-on-surface-variant hover:text-on-surface'}"
-						onclick={() => { activeNavTab = 'transitions'; canvasMode = 'canvas'; }}
-					>
-						<span class="material-symbols-outlined text-xl">animation</span>
-						<span class="text-[10px]">Transitions</span>
+						<span class="material-symbols-outlined text-lg">
+							{sidebarExpanded ? 'first_page' : 'menu_open'}
+						</span>
 					</button>
 				</div>
 
-				<div class="flex flex-col items-center space-y-4 pb-2 text-on-surface-variant">
+				<!-- Navigation Pillars List -->
+				<div class="flex flex-col w-full space-y-1.5 flex-1 px-1.5 overflow-y-auto">
+					<!-- Library Tab -->
 					<button
 						type="button"
-						class="flex flex-col items-center space-y-1 cursor-pointer hover:text-on-surface"
+						class="flex items-center rounded-lg transition-colors cursor-pointer w-full {activeNavTab === 'media'
+							? 'text-primary bg-primary-container/25 border border-primary/40 font-bold'
+							: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'} {sidebarExpanded ? 'px-3 py-2.5 gap-3 justify-start' : 'flex-col justify-center py-2 text-center'}"
+						onclick={() => (activeNavTab = 'media')}
+						title="Media Library"
+					>
+						<span class="material-symbols-outlined text-xl" style={activeNavTab === 'media' ? "font-variation-settings: 'FILL' 1;" : ''}>video_library</span>
+						<span class="{sidebarExpanded ? 'text-xs' : 'text-[10px]'}">Library</span>
+					</button>
+
+					<!-- Record Tab -->
+					<button
+						type="button"
+						class="flex items-center rounded-lg transition-colors cursor-pointer w-full {activeNavTab === 'record'
+							? 'text-primary bg-primary-container/25 border border-primary/40 font-bold'
+							: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'} {sidebarExpanded ? 'px-3 py-2.5 gap-3 justify-start' : 'flex-col justify-center py-2 text-center'}"
+						onclick={() => (activeNavTab = 'record')}
+						title="Recording Studio"
+					>
+						<span class="material-symbols-outlined text-xl">videocam</span>
+						<span class="{sidebarExpanded ? 'text-xs' : 'text-[10px]'}">Record</span>
+					</button>
+
+					<!-- Content & Effects Tab -->
+					<button
+						type="button"
+						class="flex items-center rounded-lg transition-colors cursor-pointer w-full {activeNavTab === 'effects'
+							? 'text-primary bg-primary-container/25 border border-primary/40 font-bold'
+							: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'} {sidebarExpanded ? 'px-3 py-2.5 gap-3 justify-start' : 'flex-col justify-center py-2 text-center'}"
+						onclick={() => (activeNavTab = 'effects')}
+						title="Visual Effects & Sound FX"
+					>
+						<span class="material-symbols-outlined text-xl" style={activeNavTab === 'effects' ? "font-variation-settings: 'FILL' 1;" : ''}>auto_fix_high</span>
+						<span class="{sidebarExpanded ? 'text-xs' : 'text-[10px]'}">Content</span>
+					</button>
+
+					<!-- Templates Tab -->
+					<button
+						type="button"
+						class="flex items-center rounded-lg transition-colors cursor-pointer w-full {activeNavTab === 'templates'
+							? 'text-primary bg-primary-container/25 border border-primary/40 font-bold'
+							: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'} {sidebarExpanded ? 'px-3 py-2.5 gap-3 justify-start' : 'flex-col justify-center py-2 text-center'}"
+						onclick={() => (activeNavTab = 'templates')}
+						title="Creative Templates"
+					>
+						<span class="material-symbols-outlined text-xl">dashboard_customize</span>
+						<span class="{sidebarExpanded ? 'text-xs' : 'text-[10px]'}">Templates</span>
+					</button>
+
+					<!-- Text Typography Tab -->
+					<button
+						type="button"
+						class="flex items-center rounded-lg transition-colors cursor-pointer w-full {activeNavTab === 'text'
+							? 'text-primary bg-primary-container/25 border border-primary/40 font-bold'
+							: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'} {sidebarExpanded ? 'px-3 py-2.5 gap-3 justify-start' : 'flex-col justify-center py-2 text-center'}"
+						onclick={() => (activeNavTab = 'text')}
+						title="Text & Titles"
+					>
+						<span class="material-symbols-outlined text-xl" style={activeNavTab === 'text' ? "font-variation-settings: 'FILL' 1;" : ''}>title</span>
+						<span class="{sidebarExpanded ? 'text-xs' : 'text-[10px]'}">Text</span>
+					</button>
+
+					<!-- Transitions Tab -->
+					<button
+						type="button"
+						class="flex items-center rounded-lg transition-colors cursor-pointer w-full {activeNavTab === 'transitions'
+							? 'text-primary bg-primary-container/25 border border-primary/40 font-bold'
+							: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'} {sidebarExpanded ? 'px-3 py-2.5 gap-3 justify-start' : 'flex-col justify-center py-2 text-center'}"
+						onclick={() => (activeNavTab = 'transitions')}
+						title="Video Transitions"
+					>
+						<span class="material-symbols-outlined text-xl">animation</span>
+						<span class="{sidebarExpanded ? 'text-xs' : 'text-[10px]'}">Transitions</span>
+					</button>
+				</div>
+
+				<!-- Bottom Nav Group: Settings & Help -->
+				<div class="flex flex-col w-full space-y-1 pt-3 border-t border-outline-variant/60 px-1.5 text-on-surface-variant">
+					<button
+						type="button"
+						class="flex items-center rounded-lg transition-colors cursor-pointer w-full {activeNavTab === 'settings'
+							? 'text-primary bg-primary-container/25 border border-primary/40 font-bold'
+							: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'} {sidebarExpanded ? 'px-3 py-2 gap-3 justify-start' : 'flex-col justify-center py-2 text-center'}"
 						onclick={() => (activeNavTab = 'settings')}
+						title="Project Settings"
 					>
 						<span class="material-symbols-outlined text-xl">settings</span>
-						<span class="text-[10px]">Settings</span>
+						<span class="{sidebarExpanded ? 'text-xs' : 'text-[10px]'}">Settings</span>
 					</button>
 					<button
 						type="button"
-						class="flex flex-col items-center space-y-1 cursor-pointer hover:text-on-surface"
-						onclick={() => {}}
+						class="flex items-center rounded-lg transition-colors cursor-pointer w-full {activeNavTab === 'help'
+							? 'text-primary bg-primary-container/25 border border-primary/40 font-bold'
+							: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'} {sidebarExpanded ? 'px-3 py-2 gap-3 justify-start' : 'flex-col justify-center py-2 text-center'}"
+						onclick={() => (activeNavTab = 'help')}
+						title="Help & Shortcuts"
 					>
 						<span class="material-symbols-outlined text-xl">help</span>
-						<span class="text-[10px]">Help</span>
+						<span class="{sidebarExpanded ? 'text-xs' : 'text-[10px]'}">Help</span>
 					</button>
 				</div>
 			</nav>
 
-			{#if canvasMode === 'library'}
-				<!-- Expanded Media Library View (Matching Screenshot 1:1) -->
-				<div class="flex-1 h-full min-w-0 overflow-hidden">
+			<!-- Interactive Main Workspace Display based on activeNavTab -->
+			<div class="flex-1 h-full min-w-0 overflow-hidden relative">
+				{#if activeNavTab === 'media'}
 					<MediaLibraryView />
-				</div>
-			{:else}
-				<!-- Left Drawer Panel (Media Bin & Presets) -->
-				<aside class="left-mediabin-col">
-					<MediaBin activePillar={activeNavTab === 'templates' ? 'effects' : (activeNavTab as any)} />
-				</aside>
-
-				<!-- Middle Center Column: Video Preview & Multitrack Timeline -->
-				<main class="center-canvas-col">
-					<!-- Top Preview Canvas & Transport Controls -->
-					<section class="flex-1 flex flex-col p-3 items-center justify-center relative min-h-0 bg-surface-container-lowest">
-						<!-- Canvas Container -->
-						<div class="w-full flex-1 min-h-0 relative flex items-center justify-center bg-black rounded-lg shadow-2xl overflow-hidden border border-surface-container">
-							<Canvas />
-						</div>
-
-						<!-- Transport Bar -->
-						<div class="w-full mt-2 shrink-0">
-							<Controls />
-						</div>
-					</section>
-				</main>
-
-				<!-- Right Inspector Panel -->
-				<aside class="right-inspector-col">
-					<Inspector />
-				</aside>
-			{/if}
+				{:else if activeNavTab === 'record'}
+					<RecordView />
+				{:else if activeNavTab === 'templates'}
+					<TemplatesView />
+				{:else if activeNavTab === 'settings'}
+					<SettingsView />
+				{:else if activeNavTab === 'help'}
+					<HelpView />
+				{:else}
+					<!-- Visual Effects, Text & Transitions Studio with Live Canvas & Inspector -->
+					<div class="flex h-full w-full overflow-hidden">
+						<aside class="left-mediabin-col">
+							<MediaBin activePillar={activeNavTab as any} />
+						</aside>
+						<main class="center-canvas-col">
+							<section class="flex-1 flex flex-col p-3 items-center justify-center relative min-h-0 bg-surface-container-lowest">
+								<div class="w-full flex-1 min-h-0 relative flex items-center justify-center bg-black rounded-lg shadow-2xl overflow-hidden border border-surface-container">
+									<Canvas />
+								</div>
+								<div class="w-full mt-2 shrink-0">
+									<Controls />
+								</div>
+							</section>
+						</main>
+						<aside class="right-inspector-col">
+							<Inspector />
+						</aside>
+					</div>
+				{/if}
+			</div>
 		</div>
 
-		<!-- Bottom Multitrack Timeline Panel -->
-		<section class="bottom-timeline-row">
-			<Timeline />
-		</section>
+		<!-- Bottom Multitrack Timeline Panel (Accessible when toggled or needed) -->
+		{#if showTimeline}
+			<section class="bottom-timeline-row">
+				<Timeline />
+			</section>
+		{/if}
 	</div>
 
 	<!-- Hidden Media File Input -->
