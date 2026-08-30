@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { projectStore } from '$lib/stores/project.svelte';
+	// Import project store
+		import { projectStore } from '$lib/stores/project.svelte';
 	import { derived } from 'svelte/store';
 
 	let { open = false, onClose = () => {} } = $props<{
@@ -377,7 +378,7 @@
 
 					<div class="grid grid-cols-2 gap-4">
 						<div class="space-y-2">
-							<label for="export-format" class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
+							<label class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
 								Format
 							</label>
 							<select
