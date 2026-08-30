@@ -15,37 +15,37 @@ export class AddClipCommand extends Command {
 	private track: Track | null = null;
 	private mediaAsset: MediaAsset | null = null;
 	private clipId: string = '';
-	
+
 	constructor(private data: AddClipCommandData) {
 		super();
 	}
-	
+
 	execute(): void {
 		// Get current project state
 		const project = get(projectStore);
 		if (!project) throw new Error('No project loaded');
-		
+
 		// Store references for undo
 		this.project = { ...project };
-		
+
 		// Find the active sequence
 		const sequence = project.sequences.find(s => s.id === project.activeSequenceId);
 		if (!sequence) throw new Error('No active sequence');
 		this.sequence = { ...sequence };
-		
+
 		// Find the track
 		const track = sequence.tracks.find(t => t.id === this.data.trackId);
 		if (!track) throw new Error('Track not found');
 		this.track = { ...track };
-		
+
 		// Find the media asset
 		const mediaAsset = project.assets.get(this.data.mediaAssetId);
 		if (!mediaAsset) throw new Error('Media asset not found');
 		this.mediaAsset = { ...mediaAsset };
-		
+
 		// Generate a unique ID for the new clip (preserve on redo)
 		this.clipId = this.clipId || Math.random().toString(36).substr(2, 9);
-		
+
 		// Create the new clip
 		const newClip: Clip = {
 			id: this.clipId,
@@ -66,25 +66,46 @@ export class AddClipCommand extends Command {
 				mute: false
 			},
 			playbackRate: 1,
-			filters: {}
+			filters: {},
+			colorGrade: {
+				exposure: 0,
+				contrast: 0,
+				highlights: 0,
+				shadows: 0,
+				whites: 0,
+				blacks: 0,
+				temperature: 0,
+				tint: 0,
+				saturation: 0,
+				vibrance: 0,
+				vignette: 0,
+				grain: 0,
+				lutUrl: undefined,
+				curves: {
+					r: [[0, 0], [0.5, 0.5], [1, 1]],
+					g: [[0, 0], [0.5, 0.5], [1, 1]],
+					b: [[0, 0], [0.5, 0.5], [1, 1]],
+					lum: [[0, 0], [0.5, 0.5], [1, 1]]
+				}
+			}
 		};
-		
+
 		// Add clip to track's clipInstances
 		const updatedTrack: Track = {
 			...track,
 			clipInstances: [...track.clipInstances, this.clipId]
 		};
-		
+
 		// Update sequence with modified track
 		const updatedTracks = sequence.tracks.map((t: Track) =>
 			t.id === this.data.trackId ? updatedTrack : t
 		);
-		
+
 		const updatedSequence: Sequence = {
 			...sequence,
 			tracks: updatedTracks
 		};
-		
+
 		// Add the new clip to the project's clips map
 		const updatedClips = new Map(project.clips);
 		updatedClips.set(this.clipId, newClip);
@@ -105,10 +126,10 @@ export class AddClipCommand extends Command {
 		// Update the store
 		projectStore.set(updatedProject);
 	}
-	
+
 	undo(): void {
 		if (!this.project) return;
-		
+
 		// Restore the previous project state
 		projectStore.set(this.project);
 	}

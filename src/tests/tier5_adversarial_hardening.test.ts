@@ -224,7 +224,28 @@ function createMockClip(data: {
 		filters: data.filters ?? {},
 		effects: data.effects ?? [],
 		audioParameters: data.audioParameters ?? { volume: 1.0, mute: false },
-		playbackRate: data.playbackRate ?? 1.0
+		playbackRate: data.playbackRate ?? 1.0,
+		colorGrade: {
+			exposure: 0,
+			contrast: 0,
+			highlights: 0,
+			shadows: 0,
+					whites: 0,
+					blacks: 0,
+			temperature: 0,
+			tint: 0,
+			saturation: 0,
+			vibrance: 0,
+			vignette: 0,
+			grain: 0,
+			curves: {
+					r: [[0, 0], [0.5, 0.5], [1, 1]],
+					g: [[0, 0], [0.5, 0.5], [1, 1]],
+					b: [[0, 0], [0.5, 0.5], [1, 1]],
+					lum: [[0, 0], [0.5, 0.5], [1, 1]]
+				},
+			lutUrl: undefined
+		}
 	};
 }
 

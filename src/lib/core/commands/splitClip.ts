@@ -80,7 +80,8 @@ export class SplitClipCommand extends Command {
 			effects: [...this.originalClip.effects],
 			audioParameters: { ...this.originalClip.audioParameters },
 			playbackRate: this.originalClip.playbackRate,
-			filters: { ...this.originalClip.filters }
+			filters: { ...this.originalClip.filters },
+			colorGrade: { ...this.originalClip.colorGrade }
 		};
 
 		// Create second clip (right part)
@@ -95,7 +96,8 @@ export class SplitClipCommand extends Command {
 			effects: [...this.originalClip.effects],
 			audioParameters: { ...this.originalClip.audioParameters },
 			playbackRate: this.originalClip.playbackRate,
-			filters: { ...this.originalClip.filters }
+			filters: { ...this.originalClip.filters },
+			colorGrade: { ...this.originalClip.colorGrade }
 		};
 
 		// Update the track's clipInstances: replace the original clip with the two new clips

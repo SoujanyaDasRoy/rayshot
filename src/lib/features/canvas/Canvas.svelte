@@ -5,6 +5,7 @@
 	import { onDestroy } from 'svelte';
 	import type { Clip, MediaAsset } from '$lib/types/project';
 	import { audioEngine } from '$lib/core/audioEngine';
+	import { WebGLCompositor } from '$lib/core/rendering/webglCompositor';
 
 	interface LayerClipInfo {
 		clip: Clip;
@@ -72,6 +73,11 @@
 	// Map of assetId -> objectUrl
 	let objectUrls = $state<Map<string, string>>(new Map());
 	const mediaElements = new Map<string, HTMLMediaElement>();
+
+	// WebGL compositors for video layers: keyed by clip ID
+	const compositors = new Map<string, WebGLCompositor>();
+	// Object URLs for WebGL output images
+	const webglUrls = $state<Map<string, string>>(new Map());
 
 	$effect(() => {
 		const layers = $activeLayers;
@@ -166,6 +172,24 @@
 			const el = mediaElements.get(layer.clip.id);
 			if (el) {
 				syncElement(el, layer.clip, layer.sourceTime);
+				// If it's a video layer, update the WebGL output
+				if (layer.asset.type === 'video') {
+					const colorGrade = {
+						exposure: 0,
+						contrast: ((layer.clip.filters?.contrast ?? 0) / 100.0) - 1.0,
+						highlights: 0,
+						shadows: 0,
+						temperature: 0,
+						tint: 0,
+						saturation: ((layer.clip.filters?.saturate ?? 0) / 100.0) - 1.0,
+						vibrance: 0,
+						vignette: 0,
+						grain: 0,
+						curves: layer.clip.filters?.curves ?? [[0, 0], [0.5, 0.5], [1, 1]],
+						lutTexture: null
+					};
+					updateWebglOutput(layer.clip.id, el as HTMLVideoElement, colorGrade);
+				}
 			}
 		}
 	});
@@ -174,7 +198,12 @@
 		for (const url of objectUrls.values()) {
 			URL.revokeObjectURL(url);
 		}
+		for (const url of webglUrls.values()) {
+			URL.revokeObjectURL(url);
+		}
 		mediaElements.clear();
+		compositors.forEach(comp => comp.destroy());
+		compositors.clear();
 	});
 
 	function getLayerTransform(clip: Clip): string {
@@ -229,6 +258,39 @@
 	function getLayerOpacity(clip: Clip): number {
 		return clip.filters?.opacity ?? (clip.filters?.alpha ?? 1);
 	}
+
+	// Function to create or get a WebGL compositor for a video clip
+	function getVideoCompositor(clipId: string): WebGLCompositor {
+		if (!compositors.has(clipId)) {
+			// Create a new compositor with default size (will be resized later)
+			const compositor = new WebGLCompositor();
+			compositors.set(clipId, compositor);
+		}
+		return compositors.get(clipId)!;
+	}
+
+	// Function to update the WebGL output URL for a video clip
+	async function updateWebglOutput(clipId: string, videoEl: HTMLVideoElement, colorGrade: any): Promise<void> {
+		// Revoke the previous URL for this clipId if exists
+		const oldUrl = webglUrls.get(clipId);
+		if (oldUrl) {
+			URL.revokeObjectURL(oldUrl);
+		}
+
+		try {
+			const compositor = getVideoCompositor(clipId);
+			compositor.renderFrame(videoEl, colorGrade);
+			const offscreen = compositor.getCanvas() as OffscreenCanvas;
+			// Convert OffscreenCanvas to Blob and create object URL
+			const blob: Blob = await offscreen.convertToBlob({ type: 'image/png' });
+			const url = URL.createObjectURL(blob);
+			// Update the reactive map
+			webglUrls.set(clipId, url);
+		} catch (err) {
+			// If WebGL2 is not available, fallback will be used
+			console.warn('WebGL2 not available or failed, falling back to CSS filters:', err);
+		}
+	}
 </script>
 
 <div class="video-canvas-stage" role="region" aria-label="Video Canvas Stage">
@@ -237,20 +299,42 @@
 		{#if $visualLayers.length > 0}
 			{#each $visualLayers as layer (layer.clip.id)}
 				{@const url = objectUrls.get(layer.asset.id)}
+				{@const webglUrl = webglUrls.get(layer.clip.id)}
 				<div
 					class="canvas-layer"
 					style="transform: {getLayerTransform(layer.clip)}; filter: {getLayerFilter(layer.clip)}; opacity: {getLayerOpacity(layer.clip)}; z-index: {layer.trackOrder};"
 				>
-					{#if layer.asset.type === 'video' && url}
-						<video
-							use:mediaSync={{ clip: layer.clip, sourceTime: layer.sourceTime }}
-							class="canvas-media-element"
-							src={url}
-							playsinline
-							muted={$playbackStore.isMuted || layer.clip.audioParameters?.mute}
-						>
-							<track kind="captions" />
-						</video>
+					{#if layer.asset.type === 'video'}
+						{#if webglUrl}
+							<!-- Use WebGL output -->
+							<img
+								class="canvas-media-element"
+								src={webglUrl}
+								alt={layer.asset.filename}
+							/>
+							<!-- Hidden video element for playback and texture source -->
+							<video
+								style="display: none;"
+								use:mediaSync={{ clip: layer.clip, sourceTime: layer.sourceTime }}
+								class="canvas-media-element"
+								src={url}
+								playsinline
+								muted={$playbackStore.isMuted || layer.clip.audioParameters?.mute}
+							>
+								<track kind="captions" />
+							</video>
+						{:else}
+							<!-- Fallback to video element with CSS filters -->
+							<video
+								use:mediaSync={{ clip: layer.clip, sourceTime: layer.sourceTime }}
+								class="canvas-media-element"
+								src={url}
+								playsinline
+								muted={$playbackStore.isMuted || layer.clip.audioParameters?.mute}
+							>
+								<track kind="captions" />
+							</video>
+						{/if}
 					{:else if layer.asset.type === 'image' && url}
 						<img
 							class="canvas-media-element"
@@ -420,4 +504,3 @@
 		font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
 	}
 </style>
-

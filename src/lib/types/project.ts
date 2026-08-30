@@ -52,6 +52,28 @@ export interface Clip {
 	playbackRate: number; // 1 = normal speed
 	// Filter properties
 	filters: Record<string, any>; // Map of filter names to their parameters
+	// Color grading properties
+	colorGrade: {
+		exposure: number; // -2 to +2 stops
+		contrast: number; // -100 to +100
+		highlights: number; // -100 to +100
+		shadows: number; // -100 to +100
+		whites: number; // -100 to +100
+		blacks: number; // -100 to +100
+		temperature: number; // -100 cool to +100 warm
+		tint: number; // -100 green to +100 magenta
+		saturation: number; // -100 to +100
+		vibrance: number; // -100 to +100
+		vignette: number; // 0 to 1
+		grain: number; // 0 to 1
+		lutUrl?: string; // uploaded .cube LUT blob URL
+		curves: {
+			r: [number, number][];
+			g: [number, number][];
+			b: [number, number][];
+			lum: [number, number][];
+		};
+	};
 }
 
 export interface Sequence {

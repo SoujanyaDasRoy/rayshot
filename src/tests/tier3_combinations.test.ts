@@ -443,7 +443,28 @@ describe('Tier 3: Cross-Feature Combinations', () => {
 			effects: [],
 			audioParameters: { volume: 1, mute: false },
 			playbackRate: 2.0,
-			filters: {}
+			filters: {},
+			colorGrade: {
+				exposure: 0,
+				contrast: 0,
+				highlights: 0,
+				shadows: 0,
+					whites: 0,
+					blacks: 0,
+				temperature: 0,
+				tint: 0,
+				saturation: 0,
+				vibrance: 0,
+				vignette: 0,
+				grain: 0,
+				curves: {
+						r: [[0, 0], [0.5, 0.5], [1, 1]],
+						g: [[0, 0], [0.5, 0.5], [1, 1]],
+						b: [[0, 0], [0.5, 0.5], [1, 1]],
+						lum: [[0, 0], [0.5, 0.5], [1, 1]]
+					},
+				lutUrl: undefined
+			}
 		};
 
 		expect(getSourceTime(clip, 0)).toBe(10.0);

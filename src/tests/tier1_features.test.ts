@@ -501,6 +501,7 @@ describe('Tier 1: Feature Coverage (F1 - F10)', () => {
 			const seq = get(sequences)[0];
 			expect(seq.tracks).toHaveLength(5);
 			expect(seq.tracks[4].type).toBe('audio');
+			expect(seq.tracks[4].order).toBe(4);
 		});
 
 		it('F5.4: should undo AddTrackCommand restoring original track count', () => {
@@ -862,7 +863,28 @@ describe('Tier 1: Feature Coverage (F1 - F10)', () => {
 				effects: [],
 				audioParameters: { volume: 1, mute: false },
 				playbackRate: 1,
-				filters: {}
+				filters: {},
+				colorGrade: {
+					exposure: 0,
+					contrast: 0,
+					highlights: 0,
+					shadows: 0,
+						whites: 0,
+						blacks: 0,
+					temperature: 0,
+					tint: 0,
+					saturation: 0,
+					vibrance: 0,
+					vignette: 0,
+					grain: 0,
+					curves: {
+							r: [[0, 0], [1, 1]],
+							g: [[0, 0], [1, 1]],
+							b: [[0, 0], [1, 1]],
+							lum: [[0, 0], [1, 1]]
+						},
+					lutUrl: undefined
+				}
 			};
 
 			expect(getSourceTime(mockClip, 5.0)).toBe(10.0);
