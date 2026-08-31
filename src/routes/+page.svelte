@@ -159,7 +159,7 @@
 		<div class="flex items-center space-x-4">
 			<!-- Official RayShot Dark Logo Image -->
 			<div
-				class="flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity"
+				class="flex items-center cursor-pointer hover:opacity-95 transition-opacity h-14"
 				onclick={() => (activeNavTab = 'media')}
 				role="button"
 				tabindex="0"
@@ -169,7 +169,7 @@
 				<img
 					src="/assets/logos/rayshot_official_dark_logo.png"
 					alt="RayShot"
-					class="h-7 w-auto max-w-[130px] object-contain"
+					class="h-11 w-auto max-w-[160px] object-contain"
 				/>
 			</div>
 
