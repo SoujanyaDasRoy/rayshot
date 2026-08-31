@@ -154,8 +154,9 @@
 <div class="app-layout-shell">
 
 	<!-- Top Header Navigation Bar -->
-	<header class="flex justify-between items-center px-4 w-full h-14 border-b border-outline-variant bg-surface-container shrink-0 z-30">
-		<div class="flex items-center space-x-5">
+	<header class="flex justify-between items-center px-4 w-full h-14 border-b border-outline-variant bg-surface-container/95 backdrop-blur-md shrink-0 z-30 relative select-none">
+		<!-- Left: Logo & Selector -->
+		<div class="flex items-center space-x-4">
 			<!-- Official RayShot Dark Logo Image -->
 			<div
 				class="flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity"
@@ -168,45 +169,65 @@
 				<img
 					src="/assets/logos/rayshot_official_dark_logo.png"
 					alt="RayShot"
-					class="h-7 w-auto max-w-[135px] object-contain"
+					class="h-7 w-auto max-w-[130px] object-contain"
 				/>
 			</div>
 
-			<div class="hidden md:flex items-center space-x-4 ml-2 text-xs font-medium text-on-surface-variant">
-				<button type="button" class="hover:text-on-surface cursor-pointer transition-colors bg-transparent border-none p-0" onclick={() => (activeNavTab = 'settings')}>16:9</button>
-				<button type="button" class="hover:text-on-surface cursor-pointer transition-colors bg-transparent border-none p-0" onclick={() => (activeNavTab = 'settings')}>Project Settings</button>
+			<div class="h-4 w-[1px] bg-outline-variant"></div>
+
+			<!-- Unified Aspect Ratio / Format Selector Pill -->
+			<button
+				type="button"
+				class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-container-highest border border-outline-variant text-on-surface hover:bg-surface-bright text-xs font-semibold cursor-pointer transition-colors"
+				onclick={() => (activeNavTab = 'settings')}
+				title="Project Format Settings"
+			>
+				<span class="material-symbols-outlined text-[15px] text-primary">aspect_ratio</span>
+				<span>16:9 Landscape</span>
+				<span class="material-symbols-outlined text-[14px] text-on-surface-variant">expand_more</span>
+			</button>
+		</div>
+
+		<!-- Center: Project Title & Saved Status -->
+		<div class="absolute left-1/2 -translate-x-1/2 flex items-center gap-2.5 z-40">
+			<div class="flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-surface-container-highest border border-outline-variant focus-within:border-primary transition-all">
+				<span class="material-symbols-outlined text-[15px] text-on-surface-variant">drive_file_rename_outline</span>
+				<input
+					type="text"
+					class="bg-transparent border-none outline-none text-xs text-on-surface font-semibold w-36 text-center focus:w-48 transition-all"
+					value={$projectStore?.name ?? 'Outfit Check pt.07'}
+					onchange={(e) => updateProjectName((e.target as HTMLInputElement).value)}
+					title="Rename Project"
+				/>
+			</div>
+			<div
+				class="flex items-center gap-1 text-[10px] text-emerald-400 font-medium bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full"
+				title="All edits auto-saved locally to OPFS/IndexedDB sandbox"
+			>
+				<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+				<span>Saved</span>
 			</div>
 		</div>
 
-		<div class="flex items-center space-x-3">
-			<!-- Editable Project Name Input Pill -->
-			<div class="bg-surface-container-highest border border-outline-variant rounded px-3 py-1 text-xs font-medium text-on-surface flex items-center gap-1">
-				<input
-					type="text"
-					class="bg-transparent border-none outline-none text-xs text-on-surface font-medium w-40"
-					value={$projectStore?.name ?? 'Outfit Check pt.07'}
-					onchange={(e) => updateProjectName((e.target as HTMLInputElement).value)}
-				/>
-				<span class="material-symbols-outlined text-[16px] text-on-surface-variant">expand_more</span>
-			</div>
-
-			<!-- History Undo / Redo -->
-			<div class="flex items-center space-x-1.5 text-on-surface-variant px-1">
+		<!-- Right: Action Buttons -->
+		<div class="flex items-center space-x-3 z-40">
+			<!-- History Undo / Redo (Material Icons) -->
+			<div class="flex items-center bg-surface-container-highest rounded border border-outline-variant p-0.5">
 				<button
 					type="button"
-					class="hover:text-on-surface text-lg px-1 transition-colors disabled:opacity-30"
+					class="p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-bright transition-colors flex items-center justify-center"
 					onclick={handleUndo}
 					title="Undo (Ctrl+Z)"
 				>
-					↺
+					<span class="material-symbols-outlined text-[18px]">undo</span>
 				</button>
 				<button
 					type="button"
-					class="hover:text-on-surface text-lg px-1 transition-colors disabled:opacity-30"
+					class="p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-bright transition-colors flex items-center justify-center"
 					onclick={handleRedo}
 					title="Redo (Ctrl+Y)"
 				>
-					↻
+					<span class="material-symbols-outlined text-[18px]">redo</span>
 				</button>
 			</div>
 

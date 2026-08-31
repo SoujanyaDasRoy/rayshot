@@ -339,7 +339,7 @@
 					</div>
 
 					<div class="space-y-2">
-						<label class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
+						<label for="" class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
 							Resolution
 						</label>
 						<div class="grid grid-cols-3 gap-2">
@@ -378,7 +378,7 @@
 
 					<div class="grid grid-cols-2 gap-4">
 						<div class="space-y-2">
-							<label class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
+							<label for="" class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
 								Format
 							</label>
 							<select
@@ -436,7 +436,7 @@
 				<!-- Right Column: Preview & Status -->
 				<div class="flex flex-col justify-between">
 					<!-- Preview Thumbnail card -->
-					<div class="bg-surface-container-lowest rounded-lg border border-outline-variant overflow-hidden relative p-4 flex flex-col items-center justify-center min-h-[160px]">
+					<div class="bg-surface-container-lowest rounded-lg border border-outline-variant overflow-hidden relative p-4 flex flex-col items-center justify-center min-h-40">
 						<span class="material-symbols-outlined text-4xl text-primary/70 mb-2">video_library</span>
 						<div class="flex items-center gap-2 text-xs text-on-surface-variant font-mono">
 							<span class="material-symbols-outlined text-sm">schedule</span>
