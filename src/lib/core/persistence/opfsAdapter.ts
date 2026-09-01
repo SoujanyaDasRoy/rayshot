@@ -9,6 +9,9 @@
  *   /rayshot/autosave.meta.json — metadata (savedAt timestamp, projectName)
  */
 
+import { migrateProject } from './migrateProject';
+import type { Project } from '$lib/types/project';
+
 const OPFS_DIR = 'rayshot';
 const AUTOSAVE_FILE = 'autosave.json';
 const META_FILE = 'autosave.meta.json';
@@ -20,12 +23,6 @@ export function isOpfsAvailable(): boolean {
 		'storage' in navigator &&
 		'getDirectory' in navigator.storage
 	);
-}
-
-// ── Get OPFS directory handle ──────────────────────────────────────────────
-async function getRayshotDir(): Promise<FileSystemDirectoryHandle> {
-	const root = await navigator.storage.getDirectory();
-	return root.getDirectoryHandle(OPFS_DIR, { create: true });
 }
 
 // ── Serialize project (Maps → plain objects) ───────────────────────────────
@@ -136,19 +133,16 @@ export async function opfsGetAutoSaveMeta(): Promise<OpfsAutoSaveMeta | null> {
 /**
  * Load the full auto-saved project JSON. Returns null if none exists.
  */
-export async function opfsLoadAutoSave(): Promise<Record<string, unknown> | null> {
+export async function opfsLoadAutoSave(): Promise<Project | null> {
 	if (!isOpfsAvailable()) return null;
 	try {
 		const dir = await getRayhotDir();
 		const text = await readOpfsFile(dir, AUTOSAVE_FILE);
 		if (!text) return null;
-		const raw = JSON.parse(text) as Record<string, unknown>;
-		// Rehydrate Maps (without blobs — those come from IDB asset cache)
-		return {
-			...raw,
-			assets: new Map(Object.entries((raw.assets as Record<string, unknown>) ?? {})),
-			clips: new Map(Object.entries((raw.clips as Record<string, unknown>) ?? {}))
-		};
+		// migrateProject rehydrates the Maps, backfills legacy clips, and
+		// refuses a payload written by a newer build. Blobs are not here —
+		// they come from the IDB asset cache (see rehydrateAssetBlobs).
+		return migrateProject(JSON.parse(text));
 	} catch {
 		return null;
 	}

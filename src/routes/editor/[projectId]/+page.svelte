@@ -4,6 +4,7 @@
 	import { commandProcessor } from '$lib/core/commands/processor';
 	import { importMediaFiles, restoreCachedAssets } from '$lib/utils/mediaUtils';
 	import { opfsGetAutoSaveMeta, opfsLoadAutoSave } from '$lib/core/persistence/opfsAdapter';
+	import { CURRENT_PROJECT_VERSION } from '$lib/core/persistence/migrateProject';
 	import type { Project } from '$lib/types/project';
 	import MediaBin from '$lib/features/media/MediaBin.svelte';
 	import MediaLibraryView from '$lib/features/media/MediaLibraryView.svelte';
@@ -51,7 +52,7 @@
 			const defaultProject: Project = {
 				id: data.projectId,
 				name: 'RayShot_Project_1',
-				version: 1,
+				version: CURRENT_PROJECT_VERSION,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
 				assets: new Map(),
@@ -125,8 +126,9 @@
 
 	async function handleRestoreProject() {
 		try {
+			// Already migrated and Map-rehydrated by opfsLoadAutoSave — no cast needed.
 			const saved = await opfsLoadAutoSave();
-			if (saved) projectStore.set(saved as unknown as Project);
+			if (saved) projectStore.set(saved);
 		} catch { /* ignore */ }
 		restorePrompt = { show: false, projectName: '', savedAt: 0 };
 	}

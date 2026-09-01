@@ -2,12 +2,15 @@ import { Command } from './base';
 import { projectStore } from '$lib/stores/project.svelte';
 import { get } from 'svelte/store';
 import type { Project } from '$lib/types/project';
+// Relative, not $lib: the node Vitest project can't resolve bare $lib
+// specifiers, and this module is pulled in by the tier test suites.
+import { CURRENT_PROJECT_VERSION } from '../persistence/migrateProject';
 
 function buildDefaultProject(): Project {
 	return {
 		id: 'default-project',
 		name: 'Untitled Project',
-		version: 1,
+		version: CURRENT_PROJECT_VERSION,
 		createdAt: Date.now(),
 		modifiedAt: Date.now(),
 		assets: new Map(),
