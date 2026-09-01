@@ -8,6 +8,7 @@
 		placeholderThumbnail,
 		generateProceduralWaveform
 	} from '$lib/utils/mediaUtils';
+	import { waveformBars as resampleWaveform } from '$lib/utils/waveformBars';
 	import { derived } from 'svelte/store';
 	import { projectStore } from '$lib/stores/project.svelte';
 
@@ -59,7 +60,9 @@
 		return Array(count).fill(single);
 	});
 
-	// Compute sliced waveform peaks matching sourceIn and sourceOut
+	// Real decoded peaks when we have them (mediaUtils/mediaWorker cache them by
+	// asset id), procedural stand-in only until decoding lands. Resampling to
+	// the clip's own width lives in waveformBars.ts so it stays unit-testable.
 	const waveformBars = $derived.by(() => {
 		const assetDuration =
 			$asset?.duration || (clip.sourceOut > 0 ? clip.sourceOut : clip.timelineDuration) || 10;
@@ -70,21 +73,7 @@
 			allPeaks = generateProceduralWaveform(clip.mediaAssetId || clip.id, 120);
 		}
 
-		const startRatio = Math.max(0, Math.min(0.99, clip.sourceIn / assetDuration));
-		const endRatio = Math.max(startRatio + 0.01, Math.min(1.0, clip.sourceOut / assetDuration));
-
-		const startIdx = Math.floor(startRatio * allPeaks.length);
-		const endIdx = Math.max(startIdx + 1, Math.ceil(endRatio * allPeaks.length));
-		const sliced = allPeaks.slice(startIdx, endIdx);
-
-		// Generate density of bars based on clip width (1 bar per ~3.5px)
-		const targetBars = Math.max(6, Math.min(180, Math.floor(width / 3.5)));
-		const bars: number[] = [];
-		for (let i = 0; i < targetBars; i++) {
-			const idx = Math.floor((i / targetBars) * sliced.length);
-			bars.push(sliced[idx] !== undefined ? sliced[idx] : 0.2);
-		}
-		return bars;
+		return resampleWaveform(allPeaks, clip.sourceIn, clip.sourceOut, assetDuration, width);
 	});
 </script>
 
@@ -127,13 +116,13 @@
 			<!-- Thumbnail Representations -->
 			<div class="clip-thumbnails flex-1 flex space-x-0.5 px-1 py-1">
 				{#if $uiStore.showThumbnails}
-					{#each thumbnailFrames as thumbSrc}
-						<div class="clip-thumbnail flex-1 bg-surface-variant rounded-sm"></div>
+					{#each thumbnailFrames as thumbSrc, i (i)}
+						<div class="clip-thumbnail" style="background-image: url({thumbSrc});"></div>
 					{/each}
 				{:else}
-					<div class="clip-thumbnail flex-1 bg-surface-variant rounded-sm"></div>
-					<div class="clip-thumbnail flex-1 bg-surface-variant rounded-sm"></div>
-					<div class="clip-thumbnail flex-1 bg-surface-variant rounded-sm"></div>
+					<div class="clip-thumbnail"></div>
+					<div class="clip-thumbnail"></div>
+					<div class="clip-thumbnail"></div>
 				{/if}
 			</div>
 		{/if}
@@ -145,14 +134,18 @@
 				<span class="clip-filename-text font-mono-label text-[9px] text-secondary truncate">{$assetName}</span>
 			</div>
 
-			<!-- Waveform Representations -->
-			<div class="clip-waveform flex-1 w-full relative opacity-70">
-				<div class="absolute inset-0 flex items-end justify-around px-1 pb-1">
-					{#each [30, 60, 80, 40, 90, 50, 20, 70, 85, 35, 60, 80, 40, 90, 50] as height}
-						<div class="clip-waveform-bar w-[2px] h-[{height}%] bg-secondary rounded-t"></div>
-					{/each}
+			<!-- Waveform. Heights are inline styles, never Tailwind arbitrary values:
+			     Tailwind scans source text statically, so a class built by Svelte
+			     interpolation (h-[{n}%]) is never generated. -->
+			{#if $uiStore.showWaveforms}
+				<div class="clip-waveform flex-1 w-full relative opacity-70">
+					<div class="absolute inset-0 flex items-end justify-around px-1 pb-1">
+						{#each waveformBars as bar, i (i)}
+							<div class="clip-waveform-bar" style="height: {Math.max(2, bar * 100)}%;"></div>
+						{/each}
+					</div>
 				</div>
-			</div>
+			{/if}
 		{/if}
 
 		<!-- Dark Legibility Overlay -->
@@ -245,79 +238,6 @@
 		overflow: hidden;
 	}
 
-	/* Video Filmstrip */
-	.clip-filmstrip {
-		position: absolute;
-		inset: 0;
-		display: flex;
-		align-items: center;
-		overflow: hidden;
-		opacity: 0.72;
-		pointer-events: none;
-	}
-
-	.filmstrip-frame {
-		flex: 0 0 56px;
-		height: 100%;
-		border-right: 1px solid rgba(0, 0, 0, 0.45);
-		overflow: hidden;
-		background: #000;
-	}
-
-	.filmstrip-frame img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-		display: block;
-	}
-
-	.mini-thumb-wrap {
-		width: 32px;
-		height: 28px;
-		border-radius: 2px;
-		overflow: hidden;
-		flex-shrink: 0;
-		background: #000;
-		margin-left: 4px;
-	}
-
-	.mini-thumb-wrap img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-		display: block;
-	}
-
-	/* Audio Waveform */
-	.audio-waveform-container {
-		position: absolute;
-		inset: 0;
-		display: flex;
-		align-items: center;
-		pointer-events: none;
-		overflow: hidden;
-		opacity: 0.9;
-		padding: 2px 0;
-	}
-
-	.waveform-svg {
-		width: 100%;
-		height: 100%;
-	}
-
-	.audio-waveform-decor {
-		position: absolute;
-		inset: 0;
-		background: repeating-linear-gradient(
-			90deg,
-			transparent,
-			transparent 3px,
-			rgba(52, 211, 153, 0.3) 3px,
-			rgba(52, 211, 153, 0.3) 5px
-		);
-		opacity: 0.5;
-	}
-
 	/* Text overlay gradient for crisp typography */
 	.clip-text-overlay {
 		position: absolute;
@@ -406,8 +326,8 @@
 	}
 
 	.timeline-clip-block.audio .clip-filename-bar {
-		background-color: rgba(3, 105, 161, 0.1); /* bg-secondary/10 */
-		color: #34d399; /* text-secondary */
+		background-color: var(--ms-material);
+		color: var(--ms-text-secondary);
 	}
 
 	.clip-thumbnails {
@@ -418,9 +338,12 @@
 	}
 
 	.clip-thumbnail {
-		background-color: #353534; /* bg-surface-variant */
-		border-radius: 2px; /* rounded-sm */
+		background-color: var(--ms-raised);
+		background-size: cover;
+		background-position: center;
+		border-radius: 2px;
 		flex: 1;
+		min-width: 0;
 	}
 
 	.clip-waveform {
@@ -428,12 +351,13 @@
 		height: 100%;
 	}
 
+	/* Static flex children — the parent is `flex items-end`, so they bottom-align
+	   on their own. Absolute positioning here collapsed all bars to x=0. */
 	.clip-waveform-bar {
-		position: absolute;
-		bottom: 0;
 		width: 2px;
-		background-color: #34d399; /* bg-secondary */
-		border-radius: 2px; /* rounded-t */
+		flex-shrink: 0;
+		background-color: var(--ms-text-secondary);
+		border-radius: 1px 1px 0 0;
 	}
 
 	/* Trim handles (positioned absolutely by parent) */
