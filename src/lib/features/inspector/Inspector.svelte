@@ -9,6 +9,8 @@
 	import { SetClipVolumeCommand } from '$lib/core/commands/setClipVolume';
 	import { SetClipPlaybackRateCommand } from '$lib/core/commands/setClipPlaybackRate';
 	import { SetClipFilterCommand } from '$lib/core/commands/setClipFilter';
+	import { SetTransformCommand } from '$lib/core/commands/setTransform';
+	import { ToggleClipMuteCommand } from '$lib/core/commands/toggleClipMute';
 	import ColorGradePanel from '$lib/features/colorgrade/ColorGradePanel.svelte';
 	import { derived } from 'svelte/store';
 	import type { Clip, MediaAsset, Project } from '$lib/types/project';
@@ -53,25 +55,6 @@
 	let opacityOpen = $state(true);
 	let colorOpen = $state(true);
 	let audioFadesOpen = $state(true);
-	let textTypographyOpen = $state(true);
-	let textColorsOpen = $state(true);
-
-	// Mutation helper
-	function updateClip(clipId: string, updater: (clip: Clip) => Clip) {
-		projectStore.update((project) => {
-			if (!project) return null;
-			const clip = project.clips.get(clipId);
-			if (!clip) return project;
-			const updatedClips = new Map(project.clips);
-			const newClip = updater({ ...clip });
-			updatedClips.set(clipId, newClip);
-			return {
-				...project,
-				clips: updatedClips,
-				modifiedAt: Date.now()
-			};
-		});
-	}
 
 	function handleSplit() {
 		const clipId = $timelineStore.selectedClipId;
@@ -183,32 +166,26 @@
 	}
 
 	function handleTransformChange(prop: 'x' | 'y' | 'scale' | 'rotation', val: number) {
-		const clipId = $timelineStore.selectedClipId;
-		if (!clipId) return;
-		updateClip(clipId, (c) => ({
-			...c,
-			transform: {
-				x: c.transform?.x ?? 0,
-				y: c.transform?.y ?? 0,
-				scale: c.transform?.scale ?? 1,
-				rotation: c.transform?.rotation ?? 0,
-				[prop]: val
-			}
-		}));
+		const clipData = $selectedClipData;
+		if (!clipData) return;
+		const { clip } = clipData;
+		commandProcessor.execute(
+			new SetTransformCommand({
+				clipId: clip.id,
+				transform: { ...clip.transform, [prop]: val }
+			})
+		);
 	}
 
 	function handleResetTransform() {
 		const clipId = $timelineStore.selectedClipId;
 		if (!clipId) return;
-		updateClip(clipId, (c) => ({
-			...c,
-			transform: {
-				x: 0,
-				y: 0,
-				scale: 1,
-				rotation: 0
-			}
-		}));
+		commandProcessor.execute(
+			new SetTransformCommand({
+				clipId,
+				transform: { x: 0, y: 0, scale: 1, rotation: 0 }
+			})
+		);
 	}
 
 	function handleResetAdjustments() {
@@ -223,41 +200,9 @@
 		const clipData = $selectedClipData;
 		if (!clipData) return;
 		const { clip } = clipData;
-		const currentMute = clip.audioParameters?.mute ?? false;
-		updateClip(clip.id, (c) => ({
-			...c,
-			audioParameters: {
-				volume: c.audioParameters?.volume ?? 1,
-				mute: !currentMute
-			}
-		}));
+		commandProcessor.execute(new ToggleClipMuteCommand({ clipId: clip.id }));
 	}
 
-	function handleTextChange(val: string) {
-		const clipId = $timelineStore.selectedClipId;
-		if (!clipId) return;
-		updateClip(clipId, (c) => {
-			const filters = { ...(c.filters || {}), text: val };
-			return {
-				...c,
-				text: val,
-				filters
-			} as any;
-		});
-	}
-
-	function handleTypographyChange(prop: string, val: any) {
-		const clipId = $timelineStore.selectedClipId;
-		if (!clipId) return;
-		updateClip(clipId, (c) => {
-			const filters = { ...(c.filters || {}), [prop]: val };
-			return {
-				...c,
-				[prop]: val,
-				filters
-			} as any;
-		});
-	}
 </script>
 
 <aside class="inspector-sidebar" aria-label="Properties Inspector">
@@ -550,13 +495,7 @@
 					</div>
 
 					{#if colorOpen}
-						<ColorGradePanel {clip} onChange={(colorGrade) => {
-							// Update the clip's colorGrade in the store when it changes
-							updateClip($selectedClipData.clip.id, (clip) => ({
-								...clip,
-								colorGrade
-							}));
-						}} />
+						<ColorGradePanel {clip} onChange={() => {}} />
 					{/if}
 				</div>
 			{/if}

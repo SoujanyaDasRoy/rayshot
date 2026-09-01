@@ -13,6 +13,9 @@ export default defineConfig({
 			$workers: resolve('./src/workers')
 		}
 	},
+	ssr: {
+		noExternal: ['bits-ui']
+	},
 	test: {
 		expect: { requireAssertions: true },
 		projects: [

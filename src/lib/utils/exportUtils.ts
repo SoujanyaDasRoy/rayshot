@@ -84,25 +84,23 @@ export function generateExportFilename(baseName: string, extension: string): str
 }
 
 /**
- * Check if a browser supports a specific media codec
- * Note: This is a simplified check. Real implementation would be more complex.
- * @param codec Codec to check (e.g., 'h264', 'aac')
- * @returns Boolean indicating support
+ * Check if this browser's MediaRecorder can actually produce the given codec.
+ * Export only ever records WebM (see exportStore presets), so only WebM-compatible
+ * codecs are meaningful here — there is no real H.264/MP4 path in this pipeline.
+ * @param codec Codec to check (e.g., 'vp9', 'opus')
+ * @returns Boolean indicating real, runtime-checked support
  */
 export function isCodecSupported(codec: string): boolean {
-	// This is a placeholder implementation
-	// In a real implementation, you would use MediaSource.isTypeSupported()
-	// or check through HTMLMediaElement.canPlayType()
-	
-	const supportedCodecs: Record<string, boolean> = {
-		'h264': true, // Generally supported
-		'h265': false, // Limited support
-		'vp9': true, // Good support in modern browsers
-		'av01': false, // Limited support
-		'aac': true, // Widely supported
-		'mp3': true, // Widely supported
-		'opus': true // Good support in modern browsers
+	if (typeof MediaRecorder === 'undefined') return false;
+
+	const mimeTypeByCodec: Record<string, string> = {
+		vp9: 'video/webm;codecs=vp9',
+		vp8: 'video/webm;codecs=vp8',
+		opus: 'audio/webm;codecs=opus'
 	};
-	
-	return supportedCodecs[codec.toLowerCase()] ?? false;
+
+	const mimeType = mimeTypeByCodec[codec.toLowerCase()];
+	if (!mimeType) return false;
+
+	return MediaRecorder.isTypeSupported(mimeType);
 }

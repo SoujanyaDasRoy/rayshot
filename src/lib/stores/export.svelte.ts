@@ -5,49 +5,51 @@ import type { Project } from '$lib/types/project';
 // Export presets and progress
 export const exportStore = writable<ExportState>({
 	// Export presets
+	// Container is always WebM: MediaRecorder can't reliably produce real MP4/H.264
+	// in Chromium, so these presets describe what this app can actually export.
 	presets: [
 		{
 			id: '1080p30',
 			name: '1080p30',
-			description: '1920x1080 @ 30fps H.264',
+			description: '1920x1080 @ 30fps WebM (VP9)',
 			settings: {
-				container: 'mp4',
-				videoCodec: 'h264',
+				container: 'webm',
+				videoCodec: 'vp9',
 				width: 1920,
 				height: 1080,
 				frameRate: 30,
 				bitrate: 8000, // kbps
-				audioCodec: 'aac',
+				audioCodec: 'opus',
 				audioBitrate: 320 // kbps
 			}
 		},
 		{
 			id: '720p30',
 			name: '720p30',
-			description: '1280x720 @ 30fps H.264',
+			description: '1280x720 @ 30fps WebM (VP9)',
 			settings: {
-				container: 'mp4',
-				videoCodec: 'h264',
+				container: 'webm',
+				videoCodec: 'vp9',
 				width: 1280,
 				height: 720,
 				frameRate: 30,
 				bitrate: 4500, // kbps
-				audioCodec: 'aac',
+				audioCodec: 'opus',
 				audioBitrate: 160 // kbps
 			}
 		},
 		{
 			id: '4k30',
 			name: '4k30',
-			description: '3840x2160 @ 30fps H.264',
+			description: '3840x2160 @ 30fps WebM (VP9)',
 			settings: {
-				container: 'mp4',
-				videoCodec: 'h264',
+				container: 'webm',
+				videoCodec: 'vp9',
 				width: 3840,
 				height: 2160,
 				frameRate: 30,
 				bitrate: 20000, // kbps
-				audioCodec: 'aac',
+				audioCodec: 'opus',
 				audioBitrate: 320 // kbps
 			}
 		}

@@ -13,7 +13,7 @@ import {
 } from '../core/persistence/assetCache';
 
 export const placeholderThumbnail =
-	'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+	'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 // Global thumbnail caches across sessions/components
 export const thumbnailCache = new Map<string, string>();
@@ -371,7 +371,11 @@ export async function getFileDuration(file: File): Promise<number> {
 /**
  * Main import workflow for one or more files
  */
-export async function importMediaFiles(files: File[], autoPlaceOnTimeline: boolean = true) {
+export async function importMediaFiles(
+	files: File[],
+	autoPlaceOnTimeline: boolean = true,
+	folder?: string
+) {
 	if (!files || files.length === 0) return;
 
 	for (const file of files) {
@@ -389,7 +393,8 @@ export async function importMediaFiles(files: File[], autoPlaceOnTimeline: boole
 			type,
 			duration,
 			createdAt: Date.now(),
-			modifiedAt: Date.now()
+			modifiedAt: Date.now(),
+			folder
 		};
 
 		// 1. Add Asset to Project Store

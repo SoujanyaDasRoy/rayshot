@@ -7,6 +7,8 @@
 	import { commandProcessor } from '$lib/core/commands/processor';
 	import { AddClipCommand } from '$lib/core/commands/addClip';
 	import { SetClipFilterCommand } from '$lib/core/commands/setClipFilter';
+	import { AddClipEffectCommand } from '$lib/core/commands/addClipEffect';
+	import { SetClipTransitionCommand } from '$lib/core/commands/setClipTransition';
 	import { importMediaFiles, thumbnailCache, placeholderThumbnail } from '$lib/utils/mediaUtils';
 	import { get } from 'svelte/store';
 	import type { MediaAsset, Project, Clip } from '$lib/types/project';
@@ -825,16 +827,9 @@
 			value: preset.filterValue
 		});
 		commandProcessor.execute(filterCmd);
-
-		projectStore.update((project) => {
-			if (!project) return project;
-			const clip = project.clips.get(timeline.selectedClipId!);
-			if (!clip) return project;
-			const effects = clip.effects.includes(preset.id) ? clip.effects : [...clip.effects, preset.id];
-			const updatedClips = new Map(project.clips);
-			updatedClips.set(timeline.selectedClipId!, { ...clip, effects });
-			return { ...project, clips: updatedClips, modifiedAt: Date.now() };
-		});
+		commandProcessor.execute(
+			new AddClipEffectCommand({ clipId: timeline.selectedClipId, effectId: preset.id })
+		);
 
 		showToast(`Applied "${preset.name}" to selected clip!`);
 	}
@@ -846,17 +841,9 @@
 			return;
 		}
 
-		projectStore.update((project) => {
-			if (!project) return project;
-			const clip = project.clips.get(timeline.selectedClipId!);
-			if (!clip) return project;
-			const updatedClips = new Map(project.clips);
-			updatedClips.set(timeline.selectedClipId!, {
-				...clip,
-				transitionIn: preset.id
-			});
-			return { ...project, clips: updatedClips, modifiedAt: Date.now() };
-		});
+		commandProcessor.execute(
+			new SetClipTransitionCommand({ clipId: timeline.selectedClipId, transitionId: preset.id })
+		);
 
 		showToast(`Applied "${preset.name}" transition to clip!`);
 	}

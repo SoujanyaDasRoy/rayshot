@@ -970,11 +970,11 @@ describe('Tier 1: Feature Coverage (F1 - F10)', () => {
 			expect(filename.endsWith('.mp4')).toBe(true);
 		});
 
-		it('F10.5: should identify supported codecs via isCodecSupported', () => {
-			expect(isCodecSupported('h264')).toBe(true);
-			expect(isCodecSupported('vp9')).toBe(true);
-			expect(isCodecSupported('aac')).toBe(true);
-			expect(isCodecSupported('opus')).toBe(true);
+		it('F10.5: isCodecSupported returns false outside a browser (no MediaRecorder global)', () => {
+			// Real support is verified in a real browser by the Playwright suite —
+			// Vitest's node environment has no MediaRecorder, so every codec is unsupported here.
+			expect(isCodecSupported('vp9')).toBe(false);
+			expect(isCodecSupported('opus')).toBe(false);
 			expect(isCodecSupported('invalid_codec_xyz')).toBe(false);
 		});
 

@@ -261,12 +261,13 @@ body {
 /* NLE Shell Grid Layout - Updated Spacing */
 .app-layout-shell {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100vh;
   width: 100vw;
-  background-color: var(--color-bg-base);
+  background-color: #0d0e14;
   overflow: hidden;
   position: relative;
+  color: white;
 }
 
 .nle-workspace-grid {
@@ -451,4 +452,70 @@ body {
 .ring-primary { --tw-ring-opacity: 1; --tw-ring-color: rgba(208, 188, 255, var(--tw-ring-opacity)); }
 .ring-secondary { --tw-ring-opacity: 1; --tw-ring-color: rgba(76, 215, 246, var(--tw-ring-opacity)); }
 .ring-offset-2 { --tw-ring-offset-width: 2px; }
-</style>
+/* ============================================================================
+   MONOCHROME SHELL — new design system (--ms-*)
+   ----------------------------------------------------------------------------
+   Strictly neutral: every value is pure greyscale, no hue anywhere. Added
+   alongside the old tokens rather than replacing them, so panels that haven't
+   been rebuilt yet keep working while the rebuild moves panel by panel.
+   ========================================================================== */
+:root {
+	/* Surfaces — the rail is a translucent material over the void, so content
+	   can pass beneath it (Apple HIG: extend content under the sidebar). */
+	--ms-void: #000000;
+	--ms-material: rgba(255, 255, 255, 0.032);
+	--ms-raised: rgba(255, 255, 255, 0.06);
+	--ms-hover: rgba(255, 255, 255, 0.055);
+	--ms-selected: rgba(255, 255, 255, 0.11);
+	--ms-pressed: rgba(255, 255, 255, 0.16);
+
+	/* Hairlines. --ms-edge-lit is the light-catch along a raised top edge. */
+	--ms-edge: rgba(255, 255, 255, 0.08);
+	--ms-edge-strong: rgba(255, 255, 255, 0.14);
+	--ms-edge-lit: rgba(255, 255, 255, 0.18);
+
+	/* Text — one white, stepped down by opacity so contrast stays predictable. */
+	--ms-text: #ffffff;
+	--ms-text-secondary: rgba(255, 255, 255, 0.62);
+	--ms-text-tertiary: rgba(255, 255, 255, 0.38);
+	--ms-text-quaternary: rgba(255, 255, 255, 0.24);
+
+	/* Type. Real SF Pro on Apple hardware; Geist (its closest open relative)
+	   everywhere else. Deliberately not Inter. */
+	--ms-font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', Geist,
+		system-ui, sans-serif;
+	--ms-font-mono: 'SF Mono', 'Geist Mono', ui-monospace, 'JetBrains Mono', monospace;
+
+	/* Geometry — 32px rows and 7px radii match macOS sidebars at medium size. */
+	--ms-row-h: 32px;
+	--ms-radius: 7px;
+	--ms-radius-lg: 10px;
+	--ms-rail-w: 248px;
+	--ms-rail-w-collapsed: 60px;
+	/* Shared by the sidebar header and the title bar, so their bottom edges
+	   line up in one continuous line across the app's full width. */
+	--ms-titlebar-h: 52px;
+
+	/* Motion */
+	--ms-ease: cubic-bezier(0.16, 1, 0.3, 1);
+	--ms-fast: 140ms;
+	--ms-base: 180ms;
+}
+
+/* Tooltip surface. Portaled to <body>, so it lives here rather than in the
+   component. A raised material with a hairline, never a solid slab. */
+.tip {
+	z-index: 60;
+	padding: 5px 9px;
+	border-radius: 6px;
+	background: #1a1a1a;
+	border: 1px solid var(--ms-edge-strong);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+	color: var(--ms-text);
+	font-family: var(--ms-font);
+	font-size: 12px;
+	font-weight: 500;
+	letter-spacing: -0.006em;
+	white-space: nowrap;
+	pointer-events: none;
+}

@@ -14,6 +14,9 @@ export interface MediaAsset {
 	// Metadata for persistence
 	createdAt: number;
 	modifiedAt: number;
+	// Set only when imported via "Import Folder" — the device folder's own name.
+	// Individually-imported files have no folder.
+	folder?: string;
 }
 
 export interface Track {

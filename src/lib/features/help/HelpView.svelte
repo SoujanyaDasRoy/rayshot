@@ -6,6 +6,7 @@
 	}
 
 	const shortcuts: ShortcutItem[] = [
+		{ key: '1 – 5', action: 'Switch Sidebar Panel (Media, Record, Templates, Effects, Text)', category: 'Navigation' },
 		{ key: 'Space', action: 'Play / Pause Video Preview', category: 'Playback' },
 		{ key: 'S', action: 'Split Clip at Current Playhead', category: 'Editing' },
 		{ key: 'Delete / Backspace', action: 'Delete Selected Clip', category: 'Editing' },

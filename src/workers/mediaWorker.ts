@@ -17,7 +17,7 @@
 const THUMB_W = 120;
 const THUMB_H = 68;
 const PLACEHOLDER =
-	'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+	'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 // ── Procedural waveform generator (same algorithm as main thread) ──────────
 function generateProceduralWaveform(seed: string, samples: number): number[] {

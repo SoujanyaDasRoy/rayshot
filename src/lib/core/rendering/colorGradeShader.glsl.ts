@@ -35,25 +35,25 @@ vec3 whiteBalance(vec3 color, float temp, float tint) {
   float kelvin = tempToKelvin(temp);
 
   // Approximate black body RGB for given kelvin
-  float temp = kelvin / 100.0;
+  float t = kelvin / 100.0;
   float r, g, b;
 
-  if (temp <= 66) {
-    r = 255;
-    g = temp;
+  if (t <= 66.0) {
+    r = 255.0;
+    g = t;
     g = 99.4708025861 * log(g) - 161.1195681661;
-    if (temp <= 19) {
-      b = 0;
+    if (t <= 19.0) {
+      b = 0.0;
     } else {
-      b = temp - 10;
+      b = t - 10.0;
       b = 138.5177312231 * log(b) - 305.0447927307;
     }
   } else {
-    r = temp - 60;
+    r = t - 60.0;
     r = 329.698727446 * pow(r, -0.1332047592);
-    g = temp - 60;
+    g = t - 60.0;
     g = 288.1221695283 * pow(g, -0.0755148492);
-    b = 255;
+    b = 255.0;
   }
 
   vec3 whiteBalanceColor = vec3(r/255.0, g/255.0, b/255.0);
@@ -79,9 +79,9 @@ vec3 vibranceAdjust(vec3 color, float vibrance) {
   float saturation = max - avg;
 
   // Less saturation means more vibrance effect
-  float vibranceFactor = saturate(saturation * vibrance);
+  float vibranceFactor = clamp(saturation * vibrance, 0.0, 1.0);
 
-  return mix(color, avg, 1.0 - vibranceFactor);
+  return mix(color, vec3(avg), 1.0 - vibranceFactor);
 }
 
 // Vignette effect
@@ -97,27 +97,6 @@ float grain(vec2 texCoord, float amount) {
   // Simple hash-based noise
   float noise = fract(sin(dot(texCoord * vec2(12.9898, 78.233), vec2(43758.5453, 12345.6789))) * 43758.5453);
   return noise * amount;
-}
-
-// RGB to HSL conversion
-vec3 rgb2hsl(vec3 c) {
-  vec3 K = vec3(0.0, -1.0 / 3.0, 2.0 / 3.0);
-  vec3 p = mix(vec3(c.bg, c.wz), vec3(c.gb, c.xy), step(c.b, c.g));
-  vec3 q = mix(vec3(p.xyw, c.r), vec3(c.r, p.yzx), step(p.x, c.r));
-
-  float d = q.x - min(q.y, q.z);
-  float e = 1.0e-10;
-  float l = (q.y + q.z) * 0.5;
-  float s = d / (l + e);
-
-  return vec3(abs(q.z + (q.x - q.y) / (6.0 * d + e)), s, l);
-}
-
-// HSL to RGB conversion
-vec3 hsl2rgb(vec3 c) {
-  vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
-  rgb = rgb * (1.0 - clamp(c.y, 0.0, 1.0)) + c.z;
-  return rgb;
 }
 
 void main() {
@@ -166,15 +145,8 @@ void main() {
   curved.g = texture(u_curves, vec2(vibrant.g, 0.5)).g;
   curved.b = texture(u_curves, vec2(vibrant.b, 0.5)).b;
 
-  // Apply LUT if provided
+  // LUT sampling isn't wired from JS yet (u_lut is always an empty texture) — deferred, not a P0 concern
   vec3 finalColor = curved;
-  if (texture(u_lut, vec2(0.0, 0.0)).r > 0.0) { // Check if LUT is valid
-    // Sample LUT using RGB as coordinates
-    vec3 lutCoord = vibrant.rgb;
-    vec3 lutColor = texture(u_lut, lutCoord).rgb;
-    // Blend between original and LUT color
-    finalColor = mix(vibrant.rgb, lutColor, 0.5); // Parameter for LUT strength would go here
-  }
 
   // Apply vignette
   float vignetteAmount = vignette(v_texCoord, u_vignette);

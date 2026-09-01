@@ -2,10 +2,11 @@
 	import { playbackStore } from '$lib/stores/playback.svelte';
 	import { projectStore } from '$lib/stores/project.svelte';
 	import { derived } from 'svelte/store';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import type { Clip, MediaAsset } from '$lib/types/project';
 	import { audioEngine } from '$lib/core/audioEngine';
 	import { WebGLCompositor } from '$lib/core/rendering/webglCompositor';
+	import { getLayerOpacity } from '$lib/utils/canvasUtils';
 
 	interface LayerClipInfo {
 		clip: Clip;
@@ -81,7 +82,7 @@
 
 	$effect(() => {
 		const layers = $activeLayers;
-		const currentMap = new Map(objectUrls);
+		const currentMap = untrack(() => new Map(objectUrls));
 		const activeAssetIds = new Set<string>();
 
 		for (const l of layers) {
@@ -253,10 +254,6 @@
 			}
 		}
 		return filterParts.length > 0 ? filterParts.join(' ') : 'none';
-	}
-
-	function getLayerOpacity(clip: Clip): number {
-		return clip.filters?.opacity ?? (clip.filters?.alpha ?? 1);
 	}
 
 	// Function to create or get a WebGL compositor for a video clip
