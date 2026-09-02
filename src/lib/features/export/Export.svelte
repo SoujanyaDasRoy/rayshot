@@ -10,6 +10,7 @@
 	} from '$lib/core/rendering/layerCompositing';
 	import { getLayerOpacity } from '$lib/utils/canvasUtils';
 	import { audibleTrackIds } from '$lib/utils/trackModel';
+	import { audioChainSpec, connectAudioChain } from '$lib/core/audioChain';
 	import { Dialog } from 'bits-ui';
 	import { projectStore } from '$lib/stores/project.svelte';
 	import { exportStore, exportActions } from '$lib/stores/export.svelte';
@@ -106,6 +107,26 @@
 		const exportAudioCtx = new AudioContext();
 		const audioDestination = exportAudioCtx.createMediaStreamDestination();
 
+		// ponytail: elements are keyed by asset, so an asset used by two clips
+		// with different effects gets the first clip's chain. Key by clip when
+		// that matters — it needs one element per clip, not per asset.
+		function chainForAsset(assetId: string) {
+			for (const clip of project!.clips.values()) {
+				if (clip.mediaAssetId !== assetId) continue;
+				const chain = audioChainSpec(
+					clip.effects ?? [],
+					(clip.filters ?? {}) as Record<string, number>
+				);
+				if (chain.length > 0) return chain;
+			}
+			return [];
+		}
+
+		function connectWithEffects(el: HTMLMediaElement, assetId: string) {
+			const source = exportAudioCtx.createMediaElementSource(el);
+			connectAudioChain(exportAudioCtx, source, audioDestination, chainForAsset(assetId));
+		}
+
 		type ElementInfo = { el: HTMLMediaElement | HTMLImageElement; kind: 'video' | 'audio' | 'image' };
 		const mediaElements = new Map<string, ElementInfo>();
 		const objectUrls: string[] = [];
@@ -126,7 +147,7 @@
 						video.onerror = () => resolve(false);
 					});
 					try {
-						exportAudioCtx.createMediaElementSource(video).connect(audioDestination);
+						connectWithEffects(video, assetId);
 					} catch {
 						/* ignore — this clip's audio just won't be in the export */
 					}
@@ -139,7 +160,7 @@
 						audioEl.onerror = () => resolve(false);
 					});
 					try {
-						exportAudioCtx.createMediaElementSource(audioEl).connect(audioDestination);
+						connectWithEffects(audioEl, assetId);
 					} catch {
 						/* ignore */
 					}

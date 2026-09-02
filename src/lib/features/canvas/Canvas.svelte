@@ -6,6 +6,7 @@
 	import type { Clip, MediaAsset } from '$lib/types/project';
 	import { audioEngine } from '$lib/core/audioEngine';
 	import { audibleTrackIds } from '$lib/utils/trackModel';
+	import { audioChainSpec } from '$lib/core/audioChain';
 	import { WebGLCompositor } from '$lib/core/rendering/webglCompositor';
 	import { toShaderUniforms } from '$lib/core/rendering/colorGradeUniforms';
 	// Shared with the exporter so preview and output cannot drift.
@@ -166,6 +167,10 @@
 			params.clip.audioParameters?.volume ?? 1,
 			0 // pan center
 		);
+		audioEngine.setClipEffects(
+			params.clip.id,
+			audioChainSpec(params.clip.effects ?? [], (params.clip.filters ?? {}) as Record<string, number>)
+		);
 
 		return {
 			update(newParams: { clip: Clip; sourceTime: number; trackAudible?: boolean }) {
@@ -199,6 +204,14 @@
 			const el = mediaElements.get(layer.clip.id);
 			if (el) {
 				syncElement(el, layer.clip, layer.sourceTime, layer.trackAudible);
+				// Cheap when nothing changed: the engine compares the chain first.
+				audioEngine.setClipEffects(
+					layer.clip.id,
+					audioChainSpec(
+						layer.clip.effects ?? [],
+						(layer.clip.filters ?? {}) as Record<string, number>
+					)
+				);
 				// If it's a video layer, update the WebGL output
 				if (layer.asset.type === 'video') {
 					renderWebgl(layer.clip.id, el as HTMLVideoElement, layer.clip);

@@ -838,4 +838,47 @@ test.describe('editor workspace smoke test', () => {
 
 		rmSync(fixtureDir, { recursive: true, force: true });
 	});
+	test('a voice effect builds a real Web Audio chain, not just a slider', async ({ page }) => {
+		// The unit tests prove the graph against a fake AudioContext. This is the
+		// half a fake cannot check: that the real Web Audio API accepts every node
+		// we ask it for, on a page where an AudioContext genuinely exists.
+		const errors: string[] = [];
+		page.on('pageerror', (e) => errors.push(e.message));
+		page.on('console', (m) => {
+			if (m.type() === 'error') errors.push(m.text());
+		});
+
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-voicefx-'));
+		const audioPath = path.join(fixtureDir, 'voice.wav');
+		writeFileSync(audioPath, 'fake-wav-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(audioPath);
+		await page.locator('.filename-pill', { hasText: 'voice.wav' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		await page.locator('.timeline-clip-block').first().click();
+		await page.locator('.effect-card', { hasText: 'Voice Clarity' }).click();
+		// Room is the awkward one: a convolver with a generated impulse response
+		// plus a wet/dry split, rather than a single filter node.
+		await page.locator('.effect-card', { hasText: 'Room' }).click();
+
+		const inspector = page.locator('.inspector-sidebar');
+		await expect(inspector.getByRole('slider', { name: 'Voice Clarity High-pass' })).toBeVisible();
+		await expect(inspector.getByRole('slider', { name: 'Room Mix' })).toBeVisible();
+
+		// Changing a parameter rebuilds the chain; that is where a bad node type
+		// or an out-of-range value would throw.
+		await inspector.getByRole('slider', { name: 'Room Decay' }).fill('2.5');
+		await page.waitForTimeout(200);
+
+		// The fixture is not real audio, so the decode worker fails on it by
+		// design. Everything else must be silent — a bad node type or an
+		// out-of-range AudioParam would show up here and nowhere else.
+		const unexpected = errors.filter((e) => !e.includes('MediaWorker'));
+		expect(unexpected).toEqual([]);
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
 });

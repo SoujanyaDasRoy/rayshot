@@ -219,6 +219,68 @@
 
 </script>
 
+{#snippet effectsSection(clip: Clip)}
+				<!-- Collapsible Accordion: Effects -->
+	<div class="foldable-section">
+		<div class="section-header-row">
+			<button class="section-toggle-btn" onclick={() => (effectsOpen = !effectsOpen)}>
+				<span class="chevron">{effectsOpen ? '▾' : '▸'}</span>
+				<span class="section-name">Effects</span>
+			</button>
+			{#if $appliedEffects.length > 0}
+				<span class="section-count font-mono">{$appliedEffects.length}</span>
+			{/if}
+		</div>
+
+		{#if effectsOpen}
+			<div class="section-fields">
+				{#if $appliedEffects.length === 0}
+					<!-- An empty panel is an instruction, not a shrug. -->
+					<p class="effects-empty">
+						Drag an effect from the library onto this clip to add one.
+					</p>
+				{:else}
+					{#each $appliedEffects as effect (effect.id)}
+						<div class="applied-effect">
+							<div class="applied-effect-head">
+								<span class="applied-effect-name">{effect.name}</span>
+								<button
+									class="applied-effect-remove"
+									onclick={() => removeEffect(effect.id)}
+									title="Remove {effect.name}"
+									aria-label="Remove {effect.name}"
+								>&times;</button>
+							</div>
+
+							{#each Object.keys(effect.params) as param (param)}
+								{@const meta = paramMeta(param)}
+								{@const value = (clip.filters?.[param] ?? effect.params[param]) as number}
+								<div class="slider-field">
+									<div class="slider-top-label">
+										<span class="field-label">{meta.label}</span>
+										<span class="slider-number font-mono">{value}{meta.unit ?? ''}</span>
+									</div>
+									<input
+										type="range"
+										min={meta.min}
+										max={meta.max}
+										step={meta.step}
+										{value}
+										oninput={(e) =>
+											handleFilterChange(param, parseFloat((e.target as HTMLInputElement).value))}
+										class="accent-slider"
+										aria-label="{effect.name} {meta.label}"
+									/>
+								</div>
+							{/each}
+						</div>
+					{/each}
+				{/if}
+			</div>
+		{/if}
+	</div>
+{/snippet}
+
 <aside class="inspector-sidebar" aria-label="Properties Inspector">
 	<!-- Inspector Top Header Bar -->
 	<div class="sidebar-top-title">
@@ -451,65 +513,7 @@
 					{/if}
 				</div>
 
-				<!-- Collapsible Accordion: Effects -->
-				<div class="foldable-section">
-					<div class="section-header-row">
-						<button class="section-toggle-btn" onclick={() => (effectsOpen = !effectsOpen)}>
-							<span class="chevron">{effectsOpen ? '▾' : '▸'}</span>
-							<span class="section-name">Effects</span>
-						</button>
-						{#if $appliedEffects.length > 0}
-							<span class="section-count font-mono">{$appliedEffects.length}</span>
-						{/if}
-					</div>
-
-					{#if effectsOpen}
-						<div class="section-fields">
-							{#if $appliedEffects.length === 0}
-								<!-- An empty panel is an instruction, not a shrug. -->
-								<p class="effects-empty">
-									Drag an effect from the library onto this clip to add one.
-								</p>
-							{:else}
-								{#each $appliedEffects as effect (effect.id)}
-									<div class="applied-effect">
-										<div class="applied-effect-head">
-											<span class="applied-effect-name">{effect.name}</span>
-											<button
-												class="applied-effect-remove"
-												onclick={() => removeEffect(effect.id)}
-												title="Remove {effect.name}"
-												aria-label="Remove {effect.name}"
-											>&times;</button>
-										</div>
-
-										{#each Object.keys(effect.params) as param (param)}
-											{@const meta = paramMeta(param)}
-											{@const value = (clip.filters?.[param] ?? effect.params[param]) as number}
-											<div class="slider-field">
-												<div class="slider-top-label">
-													<span class="field-label">{meta.label}</span>
-													<span class="slider-number font-mono">{value}{meta.unit ?? ''}</span>
-												</div>
-												<input
-													type="range"
-													min={meta.min}
-													max={meta.max}
-													step={meta.step}
-													{value}
-													oninput={(e) =>
-														handleFilterChange(param, parseFloat((e.target as HTMLInputElement).value))}
-													class="accent-slider"
-													aria-label="{effect.name} {meta.label}"
-												/>
-											</div>
-										{/each}
-									</div>
-								{/each}
-							{/if}
-						</div>
-					{/if}
-				</div>
+				{@render effectsSection(clip)}
 
 				<!-- Collapsible Accordion: Opacity & Blend -->
 				<div class="foldable-section">
@@ -620,6 +624,8 @@
 						</div>
 					</div>
 				</div>
+
+				{@render effectsSection(clip)}
 			{/if}
 		</div>
 	{/if}
