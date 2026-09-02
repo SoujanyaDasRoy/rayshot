@@ -2205,7 +2205,7 @@
 	.audio-preview-toggle-btn.playing {
 		background: var(--ms-text);
 		border-color: var(--ms-text);
-		color: var(--ms-text);
+		color: var(--ms-void);
 	}
 
 	.preview-play-icon {

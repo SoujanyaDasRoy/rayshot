@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/features/shell/Icon.svelte';
 	import { projectStore } from '$lib/stores/project.svelte';
 	import { timelineStore } from '$lib/stores/timeline.svelte';
 	import { playbackStore } from '$lib/stores/playback.svelte';
@@ -30,7 +31,7 @@
 			aspectRatio: '16:9',
 			duration: 10.0,
 			description: 'Dynamic subscribe circle + 2 video recommendation placeholders with animated progress bar.',
-			gradient: 'linear-gradient(135deg, #1e1b4b, #312e81)',
+			gradient: 'linear-gradient(135deg, var(--ms-raised), var(--ms-raised))',
 			badge: 'YouTube'
 		},
 		{
@@ -40,7 +41,7 @@
 			aspectRatio: '9:16',
 			duration: 15.0,
 			description: '50/50 dual split-screen layout with centered bold caption banner.',
-			gradient: 'linear-gradient(135deg, #831843, #be185d)',
+			gradient: 'linear-gradient(135deg, var(--ms-raised), var(--ms-edge-strong))',
 			badge: '9:16 Shorts'
 		},
 		{
@@ -50,7 +51,7 @@
 			aspectRatio: '16:9',
 			duration: 8.0,
 			description: 'Clean broadcast layout with waveform graphic, guest handle, and topic tag.',
-			gradient: 'linear-gradient(135deg, #064e3b, #047857)',
+			gradient: 'linear-gradient(135deg, var(--ms-raised), var(--ms-edge-strong))',
 			badge: 'Podcast'
 		},
 		{
@@ -60,7 +61,7 @@
 			aspectRatio: '2.39:1',
 			duration: 6.0,
 			description: 'Deep anamorphic bars with centered minimalist gold typography and subtle vignette.',
-			gradient: 'linear-gradient(135deg, #18181b, #27272a)',
+			gradient: 'linear-gradient(135deg, var(--ms-raised), var(--ms-edge-strong))',
 			badge: 'Cinematic'
 		},
 		{
@@ -70,7 +71,7 @@
 			aspectRatio: '1:1',
 			duration: 7.0,
 			description: 'High-contrast square format for Instagram & LinkedIn with bold quotation highlights.',
-			gradient: 'linear-gradient(135deg, #4c1d95, #6d28d9)',
+			gradient: 'linear-gradient(135deg, var(--ms-raised), var(--ms-edge-strong))',
 			badge: '1:1 Square'
 		},
 		{
@@ -80,7 +81,7 @@
 			aspectRatio: '16:9',
 			duration: 12.0,
 			description: 'Mac window container mockup with title, callout arrows, and CTA badge.',
-			gradient: 'linear-gradient(135deg, #0f172a, #1e293b)',
+			gradient: 'linear-gradient(135deg, var(--ms-void), var(--ms-raised))',
 			badge: 'Product'
 		}
 	];
@@ -104,20 +105,20 @@
 
 		// Draw aesthetic template graphic
 		const grad = ctx.createLinearGradient(0, 0, 1920, 1080);
-		grad.addColorStop(0, '#0f1017');
-		grad.addColorStop(1, '#1b1d28');
+		grad.addColorStop(0, 'var(--ms-void)');
+		grad.addColorStop(1, 'var(--ms-edge)');
 		ctx.fillStyle = grad;
 		ctx.fillRect(0, 0, 1920, 1080);
 
-		ctx.fillStyle = '#8b5cf6';
+		ctx.fillStyle = 'var(--ms-text)';
 		ctx.fillRect(160, 200, 8, 120);
 
 		ctx.font = 'bold 64px system-ui, sans-serif';
-		ctx.fillStyle = '#ffffff';
+		ctx.fillStyle = 'var(--ms-text)';
 		ctx.fillText(tmpl.name.toUpperCase(), 190, 260);
 
 		ctx.font = '32px system-ui, sans-serif';
-		ctx.fillStyle = '#94a3b8';
+		ctx.fillStyle = 'var(--ms-text-secondary)';
 		ctx.fillText(tmpl.description.slice(0, 60) + '...', 190, 310);
 
 		const dataUrl = canvas.toDataURL('image/png');
@@ -242,7 +243,7 @@
 						class="btn-apply-template"
 						onclick={() => applyTemplate(tmpl)}
 					>
-						<span class="material-symbols-outlined text-sm">dashboard_customize</span>
+						<Icon name="templates" size={14} />
 						<span>Use Template</span>
 					</button>
 				</div>
@@ -257,8 +258,8 @@
 		flex-direction: column;
 		width: 100%;
 		height: 100%;
-		background: #0f1015;
-		color: #f1f5f9;
+		background: var(--ms-void);
+		color: var(--ms-text);
 		padding: 24px 32px;
 		overflow-y: auto;
 		box-sizing: border-box;
@@ -269,7 +270,7 @@
 		align-items: center;
 		justify-content: space-between;
 		margin-bottom: 24px;
-		border-bottom: 1px solid #1a1c26;
+		border-bottom: 1px solid var(--ms-material);
 		padding-bottom: 16px;
 		gap: 16px;
 	}
@@ -277,20 +278,20 @@
 	.templates-title {
 		font-size: 1.35rem;
 		font-weight: 700;
-		color: #ffffff;
+		color: var(--ms-text);
 		margin: 0 0 4px 0;
 	}
 
 	.templates-subtitle {
 		font-size: 0.8rem;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 		margin: 0;
 	}
 
 	.category-pills-row {
 		display: flex;
-		background: #141620;
-		border: 1px solid #232738;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
 		border-radius: 8px;
 		padding: 4px;
 		gap: 4px;
@@ -301,7 +302,7 @@
 		border-radius: 6px;
 		border: none;
 		background: transparent;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 		font-size: 0.78rem;
 		font-weight: 600;
 		cursor: pointer;
@@ -309,8 +310,8 @@
 	}
 
 	.cat-pill.active {
-		background: #8b5cf6;
-		color: #ffffff;
+		background: var(--ms-text);
+		color: var(--ms-void);
 		box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
 	}
 
@@ -327,8 +328,8 @@
 	}
 
 	.template-card {
-		background: #141620;
-		border: 1px solid #202434;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
 		border-radius: 12px;
 		overflow: hidden;
 		display: flex;
@@ -338,7 +339,7 @@
 	}
 
 	.template-card:hover {
-		border-color: #3b425e;
+		border-color: var(--ms-edge-strong);
 		transform: translateY(-3px);
 		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 	}
@@ -377,19 +378,19 @@
 		background: rgba(255, 255, 255, 0.12);
 		padding: 2px 8px;
 		border-radius: 20px;
-		color: #e2e8f0;
+		color: var(--ms-text-secondary);
 	}
 
 	.mock-title {
 		font-size: 0.85rem;
 		font-weight: 700;
-		color: #ffffff;
+		color: var(--ms-text);
 		text-align: center;
 	}
 
 	.mock-dur {
 		font-size: 0.7rem;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 	}
 
 	.template-info-box {
@@ -410,23 +411,23 @@
 	.template-name {
 		font-size: 0.95rem;
 		font-weight: 700;
-		color: #f1f5f9;
+		color: var(--ms-text);
 		margin: 0;
 	}
 
 	.aspect-badge {
 		font-size: 0.68rem;
 		font-weight: 700;
-		background: #1e2130;
-		border: 1px solid #2a3044;
-		color: #38bdf8;
+		background: var(--ms-raised);
+		border: 1px solid var(--ms-edge-strong);
+		color: var(--ms-text);
 		padding: 2px 6px;
 		border-radius: 4px;
 	}
 
 	.template-desc {
 		font-size: 0.78rem;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 		line-height: 1.4;
 		margin: 0;
 		flex: 1;
@@ -437,8 +438,8 @@
 		align-items: center;
 		justify-content: center;
 		gap: 6px;
-		background: #8b5cf6;
-		color: #ffffff;
+		background: var(--ms-text);
+		color: var(--ms-void);
 		border: none;
 		border-radius: 6px;
 		padding: 8px 14px;
@@ -450,7 +451,7 @@
 	}
 
 	.btn-apply-template:hover {
-		background: #9d71fd;
+		background: var(--ms-text);
 	}
 
 	.toast-popup {
@@ -458,9 +459,9 @@
 		bottom: 24px;
 		left: 50%;
 		transform: translateX(-50%);
-		background: #1e2130;
-		border: 1px solid #3b425e;
-		color: #f1f5f9;
+		background: var(--ms-raised);
+		border: 1px solid var(--ms-edge-strong);
+		color: var(--ms-text);
 		padding: 10px 20px;
 		border-radius: 8px;
 		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);

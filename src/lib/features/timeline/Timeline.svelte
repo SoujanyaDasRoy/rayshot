@@ -1165,7 +1165,7 @@
 		left: 0;
 		transform: translateX(-50%);
 		background: var(--ms-text);
-		color: var(--ms-text);
+		color: var(--ms-void);
 		font-size: 0.65rem;
 		font-weight: 700;
 		padding: 2px 6px;

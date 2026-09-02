@@ -491,7 +491,11 @@ test.describe('editor workspace smoke test', () => {
 
 		// Now it's real: the sidebar shows exactly the folder that was imported.
 		await expect(page.getByText('Folders', { exact: true })).toBeVisible();
-		await expect(page.getByRole('button', { name: new RegExp(`^${folderName} 1$`) })).toBeVisible();
+		// Scoped to the rail: the library's folder card carries the same
+		// accessible name now that its icon is an SVG rather than ligature text.
+		await expect(
+			page.locator('.rail').getByRole('button', { name: new RegExp(`^${folderName} 1$`) })
+		).toBeVisible();
 
 		rmSync(fixtureDir, { recursive: true, force: true });
 	});

@@ -99,6 +99,38 @@ export const ICONS = {
 		outline: `<path d="M3.6 12h1.8"/><path d="M7.6 8.4v7.2"/><path d="M11.2 5.6v12.8"/><path d="M14.8 9.2v5.6"/><path d="M18.4 7v10"/><path d="M20.6 12h-0.2"/>`,
 		solid: `<path d="M3.6 12h1.8"/><path d="M7.6 8.4v7.2"/><path d="M11.2 5.6v12.8"/><path d="M14.8 9.2v5.6"/><path d="M18.4 7v10"/><path d="M20.6 12h-0.2"/>`
 	},
+	close: {
+		outline: `<path d="M6.2 6.2 17.8 17.8"/><path d="M17.8 6.2 6.2 17.8"/>`,
+		solid: `<path d="M6.2 6.2 17.8 17.8"/><path d="M17.8 6.2 6.2 17.8"/>`
+	},
+	search: {
+		outline: `<circle cx="10.8" cy="10.8" r="6.4"/><path d="m15.6 15.6 4.2 4.2"/>`,
+		solid: `<circle cx="10.8" cy="10.8" r="6.4"/><path d="m15.6 15.6 4.2 4.2"/>`
+	},
+	check: {
+		outline: `<path d="m5 12.6 4.6 4.4L19 7.4"/>`,
+		solid: `<path d="m5 12.6 4.6 4.4L19 7.4"/>`
+	},
+	image: {
+		outline: `<rect x="3.2" y="5" width="17.6" height="14" rx="2.6"/><circle cx="9" cy="10.2" r="1.7"/><path d="m4.6 17.4 4.8-4.6 4 3.6 3-2.6 4 3.6" stroke-linejoin="round"/>`,
+		solid: `<rect x="3.2" y="5" width="17.6" height="14" rx="2.6"/><circle cx="9" cy="10.2" r="1.7"/><path d="m4.6 17.4 4.8-4.6 4 3.6 3-2.6 4 3.6" stroke-linejoin="round"/>`
+	},
+	clock: {
+		outline: `<circle cx="12" cy="12" r="8.4"/><path d="M12 7.2V12l3.2 2"/>`,
+		solid: `<circle cx="12" cy="12" r="8.4"/><path d="M12 7.2V12l3.2 2"/>`
+	},
+	screen: {
+		outline: `<rect x="3" y="5" width="18" height="12" rx="2.4"/><path d="M9 20h6"/><path d="M12 17v3"/>`,
+		solid: `<rect x="3" y="5" width="18" height="12" rx="2.4"/><path d="M9 20h6"/><path d="M12 17v3"/>`
+	},
+	mic: {
+		outline: `<rect x="9.2" y="3.2" width="5.6" height="10.4" rx="2.8"/><path d="M5.6 11.4a6.4 6.4 0 0 0 12.8 0"/><path d="M12 17.8v3"/>`,
+		solid: `<rect x="9.2" y="3.2" width="5.6" height="10.4" rx="2.8"/><path d="M5.6 11.4a6.4 6.4 0 0 0 12.8 0"/><path d="M12 17.8v3"/>`
+	},
+	'mic-off': {
+		outline: `<rect x="9.2" y="3.2" width="5.6" height="10.4" rx="2.8"/><path d="M5.6 11.4a6.4 6.4 0 0 0 12.8 0"/><path d="M12 17.8v3"/><path d="M4 4l16 16"/>`,
+		solid: `<rect x="9.2" y="3.2" width="5.6" height="10.4" rx="2.8"/><path d="M5.6 11.4a6.4 6.4 0 0 0 12.8 0"/><path d="M12 17.8v3"/><path d="M4 4l16 16"/>`
+	},
 	chevron: {
 		outline: `<path d="m9.5 6.5 5.5 5.5-5.5 5.5"/>`,
 		solid: `<path d="m9.5 6.5 5.5 5.5-5.5 5.5"/>`
@@ -130,5 +162,13 @@ export const SOLID_PAINT = {
 	'page-edit': 'stroke',
 	'page-color': 'stroke',
 	'page-audio': 'stroke',
+	close: 'stroke',
+	search: 'stroke',
+	check: 'stroke',
+	image: 'fill',
+	clock: 'stroke',
+	screen: 'stroke',
+	mic: 'stroke',
+	'mic-off': 'stroke',
 	chevron: 'stroke'
 } as const satisfies Record<IconName, 'fill' | 'stroke'>;

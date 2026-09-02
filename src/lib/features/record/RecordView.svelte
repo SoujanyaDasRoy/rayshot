@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/features/shell/Icon.svelte';
 	import { onDestroy, onMount } from 'svelte';
 	import { importMediaFiles } from '$lib/utils/mediaUtils';
 
@@ -121,7 +122,7 @@
 				class:active={recordMode === 'screen'}
 				onclick={() => { recordMode = 'screen'; if (!isRecording) startPreview(); }}
 			>
-				<span class="material-symbols-outlined text-sm">desktop_windows</span>
+				<Icon name="screen" size={14} />
 				<span>Screen</span>
 			</button>
 			<button
@@ -130,7 +131,7 @@
 				class:active={recordMode === 'camera'}
 				onclick={() => { recordMode = 'camera'; if (!isRecording) startPreview(); }}
 			>
-				<span class="material-symbols-outlined text-sm">videocam</span>
+				<Icon name="record" size={14} />
 				<span>Camera</span>
 			</button>
 		</div>
@@ -145,9 +146,7 @@
 				{:else}
 					<div class="empty-preview">
 						<div class="pulse-ring">
-							<span class="material-symbols-outlined text-4xl text-primary">
-								{recordMode === 'screen' ? 'screen_share' : 'videocam'}
-							</span>
+							<Icon name={recordMode === 'screen' ? 'screen' : 'record'} size={36} />
 						</div>
 						<span class="text-sm font-semibold text-white mt-3">
 							Ready to record {recordMode === 'screen' ? 'Screen' : 'Camera'}
@@ -176,9 +175,7 @@
 						onclick={() => (audioMuted = !audioMuted)}
 						title={audioMuted ? 'Unmute microphone' : 'Mute microphone'}
 					>
-						<span class="material-symbols-outlined text-lg">
-							{audioMuted ? 'mic_off' : 'mic'}
-						</span>
+						<Icon name={audioMuted ? 'mic-off' : 'mic'} size={18} />
 					</button>
 
 					<div class="resolution-select-box">
@@ -213,8 +210,8 @@
 		flex-direction: column;
 		width: 100%;
 		height: 100%;
-		background: #0d0e14;
-		color: #f1f5f9;
+		background: var(--ms-void);
+		color: var(--ms-text);
 		padding: 24px 32px;
 		overflow-y: auto;
 		box-sizing: border-box;
@@ -225,27 +222,27 @@
 		align-items: center;
 		justify-content: space-between;
 		margin-bottom: 24px;
-		border-bottom: 1px solid #1a1c26;
+		border-bottom: 1px solid var(--ms-material);
 		padding-bottom: 16px;
 	}
 
 	.record-title {
 		font-size: 1.35rem;
 		font-weight: 700;
-		color: #ffffff;
+		color: var(--ms-text);
 		margin: 0 0 4px 0;
 	}
 
 	.record-subtitle {
 		font-size: 0.8rem;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 		margin: 0;
 	}
 
 	.record-mode-toggle {
 		display: flex;
-		background: #141620;
-		border: 1px solid #232738;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
 		border-radius: 8px;
 		padding: 4px;
 		gap: 4px;
@@ -259,7 +256,7 @@
 		border-radius: 6px;
 		border: none;
 		background: transparent;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 		font-size: 0.8rem;
 		font-weight: 600;
 		cursor: pointer;
@@ -267,8 +264,8 @@
 	}
 
 	.mode-btn.active {
-		background: #8b5cf6;
-		color: #ffffff;
+		background: var(--ms-text);
+		color: var(--ms-void);
 		box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
 	}
 
@@ -283,8 +280,8 @@
 	.preview-monitor-card {
 		width: 100%;
 		max-width: 960px;
-		background: #141620;
-		border: 1px solid #202434;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
 		border-radius: 12px;
 		overflow: hidden;
 		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
@@ -296,7 +293,7 @@
 		position: relative;
 		width: 100%;
 		aspect-ratio: 16 / 9;
-		background: #07080c;
+		background: var(--ms-void);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -333,7 +330,7 @@
 		left: 16px;
 		background: rgba(220, 38, 38, 0.85);
 		backdrop-filter: blur(4px);
-		color: #ffffff;
+		color: var(--ms-text);
 		padding: 4px 12px;
 		border-radius: 20px;
 		font-size: 0.75rem;
@@ -348,17 +345,17 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 16px 24px;
-		background: #12131b;
-		border-top: 1px solid #1c1f2e;
+		background: var(--ms-material);
+		border-top: 1px solid var(--ms-raised);
 	}
 
 	.mic-toggle-btn {
 		width: 38px;
 		height: 38px;
 		border-radius: 8px;
-		background: #1a1c26;
-		border: 1px solid #282c3c;
-		color: #38bdf8;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
+		color: var(--ms-text);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -367,15 +364,15 @@
 	}
 
 	.mic-toggle-btn.muted {
-		color: #ef4444;
-		border-color: #ef444444;
+		color: var(--ms-text-tertiary);
+		border-color: rgba(255, 255, 255, 0.27);
 	}
 
 	.resolution-select {
-		background: #1a1c26;
-		border: 1px solid #282c3c;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
 		border-radius: 6px;
-		color: #cbd5e1;
+		color: var(--ms-text-secondary);
 		font-size: 0.8rem;
 		padding: 8px 12px;
 		outline: none;
@@ -386,10 +383,10 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 10px;
-		background: #dc2626;
+		background: var(--ms-text);
 		border: none;
 		border-radius: 8px;
-		color: #ffffff;
+		color: var(--ms-void);
 		font-size: 0.85rem;
 		font-weight: 700;
 		padding: 10px 24px;
@@ -399,7 +396,7 @@
 	}
 
 	.btn-start-record:hover {
-		background: #ef4444;
+		background: rgba(255, 255, 255, 0.88);
 		transform: scale(1.02);
 	}
 
@@ -407,17 +404,17 @@
 		width: 12px;
 		height: 12px;
 		border-radius: 50%;
-		background: #ffffff;
+		background: var(--ms-text);
 	}
 
 	.btn-stop-record {
 		display: inline-flex;
 		align-items: center;
 		gap: 10px;
-		background: #8b5cf6;
+		background: var(--ms-text);
 		border: none;
 		border-radius: 8px;
-		color: #ffffff;
+		color: var(--ms-void);
 		font-size: 0.85rem;
 		font-weight: 700;
 		padding: 10px 24px;
@@ -430,6 +427,6 @@
 		width: 12px;
 		height: 12px;
 		border-radius: 2px;
-		background: #ffffff;
+		background: var(--ms-text);
 	}
 </style>

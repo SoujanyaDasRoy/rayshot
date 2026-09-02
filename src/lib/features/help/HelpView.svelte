@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/features/shell/Icon.svelte';
 	interface ShortcutItem {
 		key: string;
 		action: string;
@@ -31,7 +32,7 @@
 			rel="noreferrer"
 			class="btn-discord-join"
 		>
-			<span class="material-symbols-outlined text-sm">forum</span>
+			<Icon name="help" size={14} />
 			<span>Join Discord Community</span>
 		</a>
 	</div>
@@ -105,8 +106,8 @@
 		flex-direction: column;
 		width: 100%;
 		height: 100%;
-		background: #0f1015;
-		color: #f1f5f9;
+		background: var(--ms-void);
+		color: var(--ms-text);
 		padding: 24px 32px;
 		overflow-y: auto;
 		box-sizing: border-box;
@@ -117,20 +118,20 @@
 		align-items: center;
 		justify-content: space-between;
 		margin-bottom: 24px;
-		border-bottom: 1px solid #1a1c26;
+		border-bottom: 1px solid var(--ms-material);
 		padding-bottom: 16px;
 	}
 
 	.help-title {
 		font-size: 1.35rem;
 		font-weight: 700;
-		color: #ffffff;
+		color: var(--ms-text);
 		margin: 0 0 4px 0;
 	}
 
 	.help-subtitle {
 		font-size: 0.8rem;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 		margin: 0;
 	}
 
@@ -138,8 +139,8 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 8px;
-		background: #5865f2;
-		color: #ffffff;
+		background: var(--ms-text);
+		color: var(--ms-void);
 		text-decoration: none;
 		border-radius: 8px;
 		padding: 8px 16px;
@@ -150,7 +151,7 @@
 	}
 
 	.btn-discord-join:hover {
-		background: #6d78f5;
+		background: var(--ms-text);
 		transform: translateY(-1px);
 	}
 
@@ -162,8 +163,8 @@
 	}
 
 	.help-card {
-		background: #141620;
-		border: 1px solid #202434;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
 		border-radius: 12px;
 		padding: 20px;
 		display: flex;
@@ -174,9 +175,9 @@
 	.card-title {
 		font-size: 0.95rem;
 		font-weight: 700;
-		color: #ffffff;
+		color: var(--ms-text);
 		margin: 0;
-		border-bottom: 1px solid #1e2230;
+		border-bottom: 1px solid var(--ms-raised);
 		padding-bottom: 10px;
 	}
 
@@ -190,25 +191,25 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		background: #10121a;
-		border: 1px solid #1e2230;
+		background: var(--ms-void);
+		border: 1px solid var(--ms-raised);
 		padding: 8px 12px;
 		border-radius: 6px;
 	}
 
 	.shortcut-desc {
 		font-size: 0.78rem;
-		color: #cbd5e1;
+		color: var(--ms-text-secondary);
 	}
 
 	.shortcut-kbd {
-		background: #1e2232;
-		border: 1px solid #333a50;
+		background: var(--ms-raised);
+		border: 1px solid var(--ms-edge-strong);
 		border-radius: 4px;
 		padding: 2px 6px;
 		font-size: 0.72rem;
 		font-family: monospace;
-		color: #38bdf8;
+		color: var(--ms-text);
 		font-weight: 600;
 	}
 
@@ -220,30 +221,30 @@
 		flex-direction: column;
 		gap: 10px;
 		font-size: 0.8rem;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 	}
 
 	.guide-steps-list strong {
-		color: #f1f5f9;
+		color: var(--ms-text);
 	}
 
 	.guide-steps-list kbd {
-		background: #1e2232;
-		border: 1px solid #333a50;
+		background: var(--ms-raised);
+		border: 1px solid var(--ms-edge-strong);
 		border-radius: 3px;
 		padding: 1px 4px;
-		color: #38bdf8;
+		color: var(--ms-text);
 	}
 
 	.community-link-btn {
 		display: flex;
 		flex-direction: column;
-		background: #10121a;
-		border: 1px solid #1e2230;
+		background: var(--ms-void);
+		border: 1px solid var(--ms-raised);
 		border-radius: 8px;
 		padding: 10px 14px;
 		text-decoration: none;
-		color: #f1f5f9;
+		color: var(--ms-text);
 		font-size: 0.82rem;
 		font-weight: 600;
 		gap: 3px;
@@ -251,8 +252,8 @@
 	}
 
 	.community-link-btn:hover {
-		background: #191c28;
-		border-color: #32384e;
+		background: var(--ms-material);
+		border-color: var(--ms-edge-strong);
 	}
 
 	.col-span-2 {

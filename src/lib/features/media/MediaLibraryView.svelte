@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/features/shell/Icon.svelte';
 	import { Collapsible } from 'bits-ui';
 	import { projectStore } from '$lib/stores/project.svelte';
 	import { timelineStore } from '$lib/stores/timeline.svelte';
@@ -112,7 +113,7 @@
 			<div class="header-actions">
 				<!-- Search Input -->
 				<div class="search-box">
-					<span class="material-symbols-outlined search-icon">search</span>
+					<Icon name="search" size={16} />
 					<input
 						type="text"
 						placeholder="Search media..."
@@ -153,7 +154,7 @@
 								onclick={() => (activeFolder = activeFolder === folder.name ? 'all' : folder.name)}
 							>
 								<div class="folder-icon-box">
-									<span class="material-symbols-outlined folder-icon">folder</span>
+									<Icon name="folder" size={16} />
 								</div>
 								<span class="folder-title">{folder.name}</span>
 								<span class="folder-count">{folder.count}</span>
@@ -216,7 +217,7 @@
 								<!-- Selected Purple Checkmark Circle (Top Right) -->
 								{#if isSelected}
 									<div class="selected-checkmark-badge">
-										<span class="material-symbols-outlined check-icon">check</span>
+										<Icon name="check" size={16} />
 									</div>
 								{/if}
 
@@ -224,11 +225,11 @@
 								<div class="bottom-badges-row">
 									{#if asset.type === 'image'}
 										<div class="type-icon-badge">
-											<span class="material-symbols-outlined">image</span>
+											<Icon name="image" size={16} />
 										</div>
 									{:else if asset.type === 'audio'}
 										<div class="type-icon-badge">
-											<span class="material-symbols-outlined">audio_file</span>
+											<Icon name="page-audio" size={16} />
 										</div>
 										<div class="duration-badge font-mono">
 											{formatDurationShort(asset.duration)}
@@ -277,7 +278,7 @@
 				     no invented codec/color-space claims about a file it never probed. -->
 				<Collapsible.Root bind:open={fileSectionOpen} class="inspector-section">
 					<Collapsible.Trigger class="inspector-section-trigger">
-						<span class="material-symbols-outlined chev" class:open={fileSectionOpen}>chevron_right</span>
+						<Icon name="chevron" size={12} class={fileSectionOpen ? 'chev open' : 'chev'} />
 						<span>File</span>
 					</Collapsible.Trigger>
 					<Collapsible.Content class="inspector-section-content">
@@ -306,7 +307,7 @@
 				{#if activeAsset.type === 'video' || activeAsset.type === 'image'}
 					<Collapsible.Root bind:open={videoSectionOpen} class="inspector-section">
 						<Collapsible.Trigger class="inspector-section-trigger">
-							<span class="material-symbols-outlined chev" class:open={videoSectionOpen}>chevron_right</span>
+							<Icon name="chevron" size={12} class={videoSectionOpen ? 'chev open' : 'chev'} />
 							<span>Video</span>
 						</Collapsible.Trigger>
 						<Collapsible.Content class="inspector-section-content">
@@ -335,13 +336,13 @@
 					class="btn-add-timeline"
 					onclick={() => handleAddActiveToTimeline(activeAsset.id)}
 				>
-					<span class="material-symbols-outlined">playlist_add</span>
+					<Icon name="add" size={16} />
 					<span>Add to Timeline</span>
 				</button>
 			</div>
 		{:else}
 			<div class="empty-selection">
-				<span class="material-symbols-outlined text-4xl text-outline mb-2">folder_open</span>
+				<Icon name="folder" size={36} />
 				<span class="text-xs text-on-surface-variant">Select an asset to view details</span>
 			</div>
 		{/if}
@@ -412,10 +413,6 @@
 		border-color: var(--ms-edge-strong);
 	}
 
-	.search-icon {
-		font-size: 16px;
-		color: var(--ms-text-tertiary);
-	}
 
 	.search-input {
 		background: transparent;
@@ -517,10 +514,6 @@
 		box-shadow: inset 0 1px 0 var(--ms-edge-lit);
 	}
 
-	.folder-icon {
-		font-size: 18px;
-		color: var(--ms-text-secondary);
-	}
 
 	.folder-title {
 		font-size: 0.85rem;
@@ -641,11 +634,6 @@
 		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
 	}
 
-	.check-icon {
-		font-size: 14px;
-		color: var(--ms-void);
-		font-weight: 700;
-	}
 
 	.bottom-badges-row {
 		position: absolute;
@@ -774,12 +762,11 @@
 		color: var(--ms-text);
 	}
 
-	.chev {
-		font-size: 15px;
+	:global(.inspector-section-trigger .chev) {
 		transition: transform var(--ms-base) var(--ms-ease);
 	}
 
-	.chev.open {
+	:global(.inspector-section-trigger .chev.open) {
 		transform: rotate(90deg);
 	}
 

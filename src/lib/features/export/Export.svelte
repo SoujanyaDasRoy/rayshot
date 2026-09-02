@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/features/shell/Icon.svelte';
 	import { WebGLCompositor } from '$lib/core/rendering/webglCompositor';
 	import { toShaderUniforms } from '$lib/core/rendering/colorGradeUniforms';
 	import { getLayerFilter, getLayerDrawRect } from '$lib/core/rendering/layerCompositing';
@@ -311,14 +312,14 @@
 			<!-- Modal Header -->
 			<div class="px-6 py-4 border-b border-outline-variant/60 flex justify-between items-center bg-surface-container-high/40">
 				<div class="flex items-center gap-2">
-					<span class="material-symbols-outlined text-primary">movie</span>
+					<Icon name="library" size={16} />
 					<Dialog.Title class="text-lg font-bold text-on-surface">Export Project</Dialog.Title>
 				</div>
 				<Dialog.Close
 					class="text-on-surface-variant hover:text-primary transition-colors p-1 rounded-md hover:bg-surface-container-highest disabled:opacity-40"
 					disabled={isExporting}
 				>
-					<span class="material-symbols-outlined text-xl">close</span>
+					<Icon name="close" size={20} />
 				</Dialog.Close>
 			</div>
 
@@ -396,9 +397,9 @@
 				<!-- Right Column: Preview & Status -->
 				<div class="flex flex-col justify-between">
 					<div class="bg-surface-container-lowest rounded-lg border border-outline-variant overflow-hidden relative p-4 flex flex-col items-center justify-center min-h-40">
-						<span class="material-symbols-outlined text-4xl text-primary/70 mb-2">video_library</span>
+						<Icon name="library" size={36} />
 						<div class="flex items-center gap-2 text-xs text-on-surface-variant font-mono">
-							<span class="material-symbols-outlined text-sm">schedule</span>
+							<Icon name="clock" size={14} />
 							<span>{formatTimecode($sequenceDuration)}</span>
 							<span class="mx-1">•</span>
 							<span>~{formatFileSize(estimatedBytes)}</span>
@@ -433,7 +434,7 @@
 								disabled={$sequenceDuration <= 0}
 								onclick={startExport}
 							>
-								<span class="material-symbols-outlined text-base">download</span>
+								<Icon name="import" size={16} />
 								Export Video
 							</button>
 						</div>
