@@ -3,7 +3,10 @@
 export interface MediaAsset {
 	id: string;
 	filename: string;
-	sourceBlob: Blob; // Blob of the file
+	// Absent when a project is restored before its bytes are rehydrated from
+	// IndexedDB, or when the media is genuinely gone (imported on another
+	// device). Callers must guard — see rehydrateAssetBlobs.
+	sourceBlob?: Blob;
 	type: 'video' | 'audio' | 'image';
 	duration: number; // in seconds
 	width?: number;

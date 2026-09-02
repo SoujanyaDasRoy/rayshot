@@ -4,7 +4,7 @@
 	import { playbackStore } from '$lib/stores/playback.svelte';
 	import { commandProcessor } from '$lib/core/commands/processor';
 	import { AddClipCommand } from '$lib/core/commands/addClip';
-	import { thumbnailCache, placeholderThumbnail } from '$lib/utils/mediaUtils';
+	import { thumbnailCache, placeholderThumbnail, addAsset } from '$lib/utils/mediaUtils';
 	import { get } from 'svelte/store';
 	import type { MediaAsset } from '$lib/types/project';
 
@@ -131,17 +131,13 @@
 			duration: tmpl.duration,
 			width: 1920,
 			height: 1080,
+			mimeType: 'image/png',
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
 			sourceBlob: blob
 		};
 
-		projectStore.update((proj) => {
-			if (!proj) return proj;
-			const newAssets = new Map(proj.assets);
-			newAssets.set(assetId, mediaAsset);
-			return { ...proj, assets: newAssets, modifiedAt: Date.now() };
-		});
+		addAsset(mediaAsset);
 
 		thumbnailCache.set(assetId, dataUrl);
 

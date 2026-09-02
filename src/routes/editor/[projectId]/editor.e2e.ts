@@ -82,6 +82,65 @@ test.describe('editor workspace smoke test', () => {
 		rmSync(fixtureDir, { recursive: true, force: true });
 	});
 
+	test('a restored project gets its media bytes back and is actually playable', async ({ page }) => {
+		// The bug: the autosave strips sourceBlob by design (IndexedDB owns the
+		// bytes) but nothing ever read them back, so a restored project showed
+		// clips, durations and thumbnails while rendering an empty frame. It
+		// looked restored and was unplayable — which a DOM-presence assertion
+		// cannot tell apart from success. Hence asserting on the blob: URL.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-restore-'));
+		const clipPath = path.join(fixtureDir, 'restored.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[type="file"]:not([webkitdirectory])').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'restored.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+
+		// Auto-save is debounced 800ms after a command executes.
+		await page.waitForTimeout(1500);
+		await page.reload();
+
+		await page.getByRole('button', { name: 'Restore' }).click();
+		await page.getByRole('button', { name: 'Effects' }).click();
+
+		const layer = page.locator('.canvas-layer').first();
+		await expect(layer).toBeVisible();
+		await expect(page.locator('.media-offline')).toHaveCount(0);
+
+		const src = await layer.locator('video, img').first().getAttribute('src');
+		expect(src).toMatch(/^blob:/);
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
+	test('media whose bytes are gone reports itself offline instead of rendering blank', async ({ page }) => {
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-offline-'));
+		const clipPath = path.join(fixtureDir, 'vanished.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[type="file"]:not([webkitdirectory])').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'vanished.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.waitForTimeout(1500);
+
+		// Drop the blob cache but keep the auto-save: exactly the state of
+		// opening someone else's project file, or a cache the browser evicted.
+		await page.evaluate(
+			() => new Promise<void>((resolve) => {
+				const req = indexedDB.deleteDatabase('RayShotDB');
+				req.onsuccess = req.onerror = req.onblocked = () => resolve();
+			})
+		);
+		await page.reload();
+		await page.getByRole('button', { name: 'Restore' }).click();
+
+		await expect(page.locator('.offline-badge').first()).toBeVisible();
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
 	test('/ redirects into the editor, and the editing surface is actually reachable', async ({ page }) => {
 		const errors: string[] = [];
 		page.on('pageerror', (err) => errors.push(err.message));

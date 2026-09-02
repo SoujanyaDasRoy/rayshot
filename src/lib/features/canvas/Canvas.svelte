@@ -301,7 +301,14 @@
 					class="canvas-layer"
 					style="transform: {getLayerTransform(layer.clip)}; filter: {getLayerFilter(layer.clip)}; opacity: {getLayerOpacity(layer.clip)}; z-index: {layer.trackOrder};"
 				>
-					{#if layer.asset.type === 'video'}
+					{#if !layer.asset.sourceBlob}
+						<!-- Bytes are gone (imported on another device, or evicted from
+						     the cache). Say so instead of rendering an empty frame. -->
+						<div class="media-offline">
+							<span class="media-offline-title">Media offline</span>
+							<span class="media-offline-name">{layer.asset.filename}</span>
+						</div>
+					{:else if layer.asset.type === 'video'}
 						{#if webglUrl}
 							<!-- Use WebGL output -->
 							<img
@@ -415,6 +422,35 @@
 		justify-content: center;
 		pointer-events: none;
 		transform-origin: center center;
+	}
+
+	/* Monochrome and quiet — a missing file is a state to report, not an alarm. */
+	.media-offline {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 4px;
+		padding: 14px 20px;
+		border: 1px dashed var(--ms-edge-strong);
+		border-radius: var(--ms-radius);
+		background: var(--ms-material);
+		font-family: var(--ms-font);
+		text-align: center;
+	}
+
+	.media-offline-title {
+		font-size: 12px;
+		font-weight: 590;
+		color: var(--ms-text-secondary);
+	}
+
+	.media-offline-name {
+		max-width: 260px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 11px;
+		color: var(--ms-text-tertiary);
 	}
 
 	.canvas-media-element {

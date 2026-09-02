@@ -207,6 +207,12 @@
 									{asset.filename}
 								</div>
 
+								{#if !asset.sourceBlob}
+									<div class="offline-badge" title="Media bytes not found in this browser">
+										Offline
+									</div>
+								{/if}
+
 								<!-- Selected Purple Checkmark Circle (Top Right) -->
 								{#if isSelected}
 									<div class="selected-checkmark-badge">
@@ -604,6 +610,21 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		border: 1px solid var(--ms-edge);
+	}
+
+	.offline-badge {
+		position: absolute;
+		bottom: 8px;
+		left: 8px;
+		padding: 1px 7px;
+		border: 1px dashed var(--ms-edge-strong);
+		border-radius: 999px;
+		background: rgba(0, 0, 0, 0.65);
+		backdrop-filter: blur(4px);
+		font-size: 0.65rem;
+		font-weight: 590;
+		letter-spacing: 0.02em;
+		color: var(--ms-text-tertiary);
 	}
 
 	.selected-checkmark-badge {

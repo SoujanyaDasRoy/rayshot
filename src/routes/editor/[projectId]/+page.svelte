@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { projectStore } from '$lib/stores/project.svelte';
 	import { commandProcessor } from '$lib/core/commands/processor';
-	import { importMediaFiles, restoreCachedAssets } from '$lib/utils/mediaUtils';
+	import { importMediaFiles, restoreCachedAssets, rehydrateAssetBlobs } from '$lib/utils/mediaUtils';
 	import { opfsGetAutoSaveMeta, opfsLoadAutoSave } from '$lib/core/persistence/opfsAdapter';
 	import { CURRENT_PROJECT_VERSION } from '$lib/core/persistence/migrateProject';
 	import type { Project } from '$lib/types/project';
@@ -79,6 +79,9 @@
 		});
 
 		restoreCachedAssets().catch(() => {});
+		// Reattach media bytes to whatever project is already loaded. The
+		// restore-from-autosave path needs its own call — see handleRestoreProject.
+		rehydrateAssetBlobs().catch(() => {});
 
 		opfsGetAutoSaveMeta()
 			.then((meta) => {
@@ -128,7 +131,13 @@
 		try {
 			// Already migrated and Map-rehydrated by opfsLoadAutoSave — no cast needed.
 			const saved = await opfsLoadAutoSave();
-			if (saved) projectStore.set(saved);
+			if (saved) {
+				projectStore.set(saved);
+				// Await before the next paint: the restored project has no blobs
+				// yet, so rendering it first would flash an empty, unplayable
+				// timeline that looks restored.
+				await rehydrateAssetBlobs();
+			}
 		} catch { /* ignore */ }
 		restorePrompt = { show: false, projectName: '', savedAt: 0 };
 	}

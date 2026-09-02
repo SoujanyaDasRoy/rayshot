@@ -9,7 +9,7 @@
 	import { SetClipFilterCommand } from '$lib/core/commands/setClipFilter';
 	import { AddClipEffectCommand } from '$lib/core/commands/addClipEffect';
 	import { SetClipTransitionCommand } from '$lib/core/commands/setClipTransition';
-	import { importMediaFiles, thumbnailCache, placeholderThumbnail } from '$lib/utils/mediaUtils';
+	import { importMediaFiles, thumbnailCache, placeholderThumbnail, addAsset } from '$lib/utils/mediaUtils';
 	import { get } from 'svelte/store';
 	import type { MediaAsset, Project, Clip } from '$lib/types/project';
 
@@ -597,16 +597,12 @@
 				sourceBlob: wavBlob,
 				type: 'audio',
 				duration: preset.duration,
+				mimeType: 'audio/wav',
 				createdAt: Date.now(),
 				modifiedAt: Date.now()
 			};
 
-			projectStore.update((project) => {
-				if (!project) return project;
-				const newAssets = new Map(project.assets);
-				newAssets.set(assetId, mediaAsset);
-				return { ...project, assets: newAssets, modifiedAt: Date.now() };
-			});
+			addAsset(mediaAsset);
 
 			const thumb = generateAudioWaveformThumbnail();
 			thumbnailCache.set(assetId, thumb);
@@ -776,16 +772,12 @@
 				duration: preset.duration,
 				width: 1920,
 				height: 1080,
+				mimeType: 'image/png',
 				createdAt: Date.now(),
 				modifiedAt: Date.now()
 			};
 
-			projectStore.update((project) => {
-				if (!project) return project;
-				const newAssets = new Map(project.assets);
-				newAssets.set(assetId, mediaAsset);
-				return { ...project, assets: newAssets, modifiedAt: Date.now() };
-			});
+			addAsset(mediaAsset);
 
 			thumbnailCache.set(assetId, dataUrl);
 
