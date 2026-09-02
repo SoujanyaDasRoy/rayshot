@@ -1,5 +1,11 @@
 <script lang="ts">
-	import { trackLabels, trackHeight, trackColor, TRACK_COLORS } from '$lib/utils/trackModel';
+	import {
+		trackLabels,
+		trackHeight,
+		trackColor,
+		timelineOrder,
+		TRACK_COLORS
+	} from '$lib/utils/trackModel';
 	import {
 		SetTrackPropertyCommand,
 		type TrackProperty
@@ -73,6 +79,20 @@
 	// Each type numbers independently, so a subtitle track is S1 and not a
 	// mis-numbered audio track.
 	const labels = $derived(trackLabels($tracks));
+
+	// Labels are numbered from the model's own order; the rows are then arranged
+	// the way an editor reads them. Both columns iterate this one list, so the
+	// names can never drift out of step with the lanes.
+	const rows = $derived(
+		timelineOrder(
+			$tracks.map((track, i) => ({
+				track,
+				label: labels[i],
+				type: track.type,
+				order: track.order ?? i
+			}))
+		)
+	);
 
 	// The ruler decides its own density: labels never crowd and never vanish.
 	const ticks = $derived(rulerTicks($sequenceDuration, $timelineStore.zoomLevel));
@@ -654,11 +674,13 @@
 		<!-- Left Track Labels Sidebar -->
 		<div class="track-labels-sidebar">
 			<div class="ruler-corner-cell">
-				<span class="tracks-header-label">TRACKS</span>
+				<!-- The word "TRACKS" labelled a column whose contents already say
+				     what they are. The position does need saying, and it belongs
+				     where your eye already goes for the track it applies to. -->
+				<span class="playhead-readout font-mono">{formatTimecode($playbackStore.currentTime)}</span>
 			</div>
 			<div class="track-label-rows" bind:this={labelRowsEl}>
-				{#each $tracks as track, index}
-				{@const trackLabel = labels[index]}
+				{#each rows as { track, label: trackLabel } (track.id)}
 				<div
 					class="track-label-row {track.type}"
 					style="height: {trackHeight(track)}px; --track-color: {trackColor(track)};"
@@ -807,7 +829,7 @@
 
 				<!-- Track Lanes Layer -->
 				<div class="track-lanes-stack">
-					{#each $tracks as track, laneIndex}
+					{#each rows as { track, label } (track.id)}
 						<div
 							class="track-row-lane {track.type}"
 							class:drop-target={dragOverTrackId === track.id}
@@ -818,7 +840,7 @@
 							ondragover={(e) => e.preventDefault()}
 							ondrop={(e) => handleTrackDrop(e, track.id)}
 							role="group"
-							aria-label="{labels[laneIndex]} track"
+							aria-label="{label} track"
 						>
 							{#each track.clipInstances as clipId}
 								{#if $clips.has(clipId)}
@@ -1053,6 +1075,14 @@
 		display: flex;
 		align-items: center;
 		padding: 0 10px;
+	}
+
+	.playhead-readout {
+		font-size: 12px;
+		font-weight: 500;
+		letter-spacing: 0.02em;
+		color: var(--ms-text);
+		font-variant-numeric: tabular-nums;
 	}
 
 	.tracks-header-label {

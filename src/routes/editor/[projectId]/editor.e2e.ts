@@ -632,7 +632,11 @@ test.describe('editor workspace smoke test', () => {
 
 		await expect.poll(volume).toBeGreaterThan(0);
 
-		const videoRow = page.locator('.track-label-row').first();
+		// By name, not by position: video counts up the screen now, so the first
+		// row is the highest video track rather than the one holding the clip.
+		const videoRow = page
+			.locator('.track-label-row')
+			.filter({ has: page.locator('.track-name', { hasText: 'Video 1' }) });
 		await videoRow.getByRole('button', { name: 'Mute track' }).click();
 		await expect.poll(volume).toBe(0);
 
@@ -641,7 +645,9 @@ test.describe('editor workspace smoke test', () => {
 
 		// Solo elsewhere silences everything that is not soloed — the rule that
 		// makes solo mean anything at all.
-		const audioRow = page.locator('.track-label-row.audio').first();
+		const audioRow = page
+			.locator('.track-label-row')
+			.filter({ has: page.locator('.track-name', { hasText: 'Audio 1' }) });
 		await audioRow.getByRole('button', { name: 'Solo track' }).click();
 		await expect.poll(volume).toBe(0);
 
@@ -1031,5 +1037,49 @@ test.describe('editor workspace smoke test', () => {
 		// One undo, not one per keystroke.
 		await page.keyboard.press('Control+z');
 		await expect(layer).toHaveText(original);
+	});
+	test('picture sits above sound, and the higher track is the one on top', async ({ page }) => {
+		// The canvas gives a higher track order a higher z-index, so Video 2
+		// covers Video 1 in the viewer. The timeline drew Video 2 *below* Video 1,
+		// which meant the row underneath was covering the row above it. Nothing
+		// in the model was wrong; the picture of it was upside down.
+		await page.goto('/');
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await page.getByRole('button', { name: '+ Subtitle' }).click();
+
+		const readRows = () =>
+			page.locator('.track-label-row').evaluateAll((els) =>
+				els.map((el) => ({
+					name: el.querySelector('.track-name')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+					top: el.getBoundingClientRect().top
+				}))
+			);
+
+		const rows = await readRows();
+		const names = rows.map((r) => r.name);
+
+		// Captions above, then video, then audio.
+		expect(names[0]).toContain('Caption');
+		const firstAudio = names.findIndex((n) => n.startsWith('Audio'));
+		const lastVideo = names.map((n) => n.startsWith('Video')).lastIndexOf(true);
+		expect(lastVideo).toBeLessThan(firstAudio);
+
+		// Video counts up the screen: Video 2 is drawn above Video 1.
+		const v1 = rows.find((r) => r.name === 'Video 1')!;
+		const v2 = rows.find((r) => r.name === 'Video 2')!;
+		expect(v2.top).toBeLessThan(v1.top);
+
+		// Audio counts down it.
+		const a1 = rows.find((r) => r.name === 'Audio 1')!;
+		const a2 = rows.find((r) => r.name === 'Audio 2')!;
+		expect(a1.top).toBeLessThan(a2.top);
+
+		// The lanes must agree with the labels, or every name points at the
+		// wrong track.
+		const lanes = await page
+			.locator('.track-row-lane')
+			.evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')));
+		expect(lanes[0]).toContain('S1');
+		expect(lanes.at(-1)).toContain('A2');
 	});
 });

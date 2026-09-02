@@ -6,6 +6,7 @@ import {
 	trackLabels,
 	trackHeight,
 	trackColor,
+	timelineOrder,
 	audibleTrackIds,
 	isValidTrackColor,
 	TRACK_TYPES
@@ -181,5 +182,49 @@ describe('trackColor', () => {
 	test('a track from before type colours keeps the colour it was given', () => {
 		const legacy = { ...makeTrack('audio', 0), color: '#7c8592' };
 		expect(trackColor(legacy)).toBe('#7c8592');
+	});
+});
+
+describe('timelineOrder', () => {
+	const t = (type: 'video' | 'audio' | 'subtitle', order: number) => ({
+		...makeTrack(type, order),
+		id: `${type}${order}`,
+		order
+	});
+
+	test('picture sits above sound, whatever order they were made in', () => {
+		const rows = timelineOrder([t('audio', 0), t('video', 1), t('audio', 2), t('video', 3)]);
+		const types = rows.map((r) => r.type);
+		expect(types.slice(0, 2)).toEqual(['video', 'video']);
+		expect(types.slice(2)).toEqual(['audio', 'audio']);
+	});
+
+	test('video stacks upward: the higher track is the higher row', () => {
+		// This is the one that was actually wrong. Canvas gives a higher track
+		// order a higher z-index, so Video 2 covers Video 1 — but the timeline
+		// drew Video 2 *below* Video 1, so the lower row covered the upper one.
+		const rows = timelineOrder([t('video', 1), t('video', 2), t('video', 3)]);
+		expect(rows.map((r) => r.order)).toEqual([3, 2, 1]);
+	});
+
+	test('audio stacks downward from the divider', () => {
+		const rows = timelineOrder([t('audio', 1), t('audio', 2), t('audio', 3)]);
+		expect(rows.map((r) => r.order)).toEqual([1, 2, 3]);
+	});
+
+	test('captions ride above the picture, where you can read them', () => {
+		const rows = timelineOrder([t('video', 1), t('subtitle', 2), t('audio', 3)]);
+		expect(rows.map((r) => r.type)).toEqual(['subtitle', 'video', 'audio']);
+	});
+
+	test('every track survives the reordering exactly once', () => {
+		const input = [t('video', 1), t('audio', 2), t('subtitle', 3), t('video', 4)];
+		const rows = timelineOrder(input);
+		expect(rows).toHaveLength(4);
+		expect(new Set(rows.map((r) => r.id))).toEqual(new Set(input.map((r) => r.id)));
+	});
+
+	test('an empty sequence orders to nothing', () => {
+		expect(timelineOrder([])).toEqual([]);
 	});
 });

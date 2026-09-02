@@ -134,3 +134,27 @@ export function audibleTrackIds(tracks: Track[]): Set<string> {
 	}
 	return audible;
 }
+
+/**
+ * Tracks in the order an editor expects to see them, top to bottom.
+ *
+ * Every NLE puts picture above sound and stacks video upward, so the track
+ * that covers the others is the one drawn highest. RayShot listed tracks in
+ * creation order while the canvas gave a higher track order a higher z-index —
+ * so Video 2 sat *below* Video 1 on the timeline and covered it in the
+ * viewer. The row you were looking at was hidden by the row beneath it.
+ *
+ * Captions ride above the picture, which is both where Resolve puts them and
+ * where you can actually read them against the clips they caption.
+ *
+ * This is display only: the model keeps its own order, and so does labelling.
+ */
+export function timelineOrder<T extends Pick<Track, 'type' | 'order'>>(tracks: T[]): T[] {
+	const rank: Record<TrackType, number> = { subtitle: 0, video: 1, audio: 2 };
+	return [...tracks].sort((a, b) => {
+		const byType = (rank[a.type] ?? 3) - (rank[b.type] ?? 3);
+		if (byType !== 0) return byType;
+		// Video counts up the screen; audio counts down it.
+		return a.type === 'audio' ? a.order - b.order : b.order - a.order;
+	});
+}
