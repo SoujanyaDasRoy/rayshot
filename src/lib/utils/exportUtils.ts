@@ -104,3 +104,25 @@ export function isCodecSupported(codec: string): boolean {
 
 	return MediaRecorder.isTypeSupported(mimeType);
 }
+
+/**
+ * Turn a user-supplied name into something safe for a filesystem.
+ * Phase 2's .rayshot save needs exactly this, which is why it is here rather
+ * than inline in the export dialog where it used to live.
+ */
+export function sanitizeExportFilename(name: string): string {
+	const cleaned = (name || '').toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/^_+|_+$/g, '');
+	return cleaned || 'rayshot_export';
+}
+
+/** Hand a Blob to the user as a download. The only Blob-to-disk path in the app. */
+export function downloadBlob(blob: Blob, filename: string): void {
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	URL.revokeObjectURL(url);
+}

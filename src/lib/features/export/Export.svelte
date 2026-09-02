@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { getLayerFilter, getLayerDrawRect } from '$lib/core/rendering/layerCompositing';
+	import { getLayerOpacity } from '$lib/utils/canvasUtils';
 	import { Dialog } from 'bits-ui';
 	import { projectStore } from '$lib/stores/project.svelte';
 	import { exportStore, exportActions } from '$lib/stores/export.svelte';
-	import { estimateFileSize, formatFileSize } from '$lib/utils/exportUtils';
+	import { estimateFileSize, formatFileSize, downloadBlob, sanitizeExportFilename } from '$lib/utils/exportUtils';
 	import { derived } from 'svelte/store';
 	import type { Clip } from '$lib/types/project';
 
@@ -211,10 +213,23 @@
 								if (el.paused) el.play().catch(() => {});
 							}
 
-							if (info.kind === 'video') {
-								ctx.drawImage(info.el as HTMLVideoElement, 0, 0, width, height);
-							} else if (info.kind === 'image') {
-								ctx.drawImage(info.el as HTMLImageElement, 0, 0, width, height);
+							if (info.kind === 'video' || info.kind === 'image') {
+								// Same parameters the preview uses, so what you saw is what gets
+								// encoded. This was a bare drawImage: no transform, opacity,
+								// filter or colour grade reached the exported file at all.
+								const rect = getLayerDrawRect(clip, width, height);
+								const cssFilter = getLayerFilter(clip);
+								ctx.save();
+								ctx.globalAlpha = getLayerOpacity(clip);
+								ctx.filter = cssFilter;
+								if (rect.rotationRad !== 0) {
+									ctx.translate(rect.dx + rect.dw / 2, rect.dy + rect.dh / 2);
+									ctx.rotate(rect.rotationRad);
+									ctx.drawImage(info.el as CanvasImageSource, -rect.dw / 2, -rect.dh / 2, rect.dw, rect.dh);
+								} else {
+									ctx.drawImage(info.el as CanvasImageSource, rect.dx, rect.dy, rect.dw, rect.dh);
+								}
+								ctx.restore();
 							}
 						}
 					}
@@ -234,15 +249,7 @@
 			recorder.stop();
 			const finalBlob = await stopped;
 
-			const downloadUrl = URL.createObjectURL(finalBlob);
-			const a = document.createElement('a');
-			a.href = downloadUrl;
-			const sanitizedName = (fileName || 'rayshot_export').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-			a.download = `${sanitizedName}.webm`;
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			URL.revokeObjectURL(downloadUrl);
+			downloadBlob(finalBlob, `${sanitizeExportFilename(fileName)}.webm`);
 
 			exportStatusText = 'Export complete!';
 			exportActions.setExportProgress(100);

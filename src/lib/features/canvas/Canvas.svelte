@@ -6,7 +6,9 @@
 	import type { Clip, MediaAsset } from '$lib/types/project';
 	import { audioEngine } from '$lib/core/audioEngine';
 	import { WebGLCompositor } from '$lib/core/rendering/webglCompositor';
-	import { toShaderUniforms, colorGradeToCssFilter } from '$lib/core/rendering/colorGradeUniforms';
+	import { toShaderUniforms } from '$lib/core/rendering/colorGradeUniforms';
+	// Shared with the exporter so preview and output cannot drift.
+	import { getLayerFilter } from '$lib/core/rendering/layerCompositing';
 	import { getLayerOpacity } from '$lib/utils/canvasUtils';
 
 	interface LayerClipInfo {
@@ -206,54 +208,6 @@
 		return `translate(${x}px, ${y}px) scale(${scale}) rotate(${rotation}deg)`;
 	}
 
-	function getLayerFilter(clip: Clip): string {
-		const filterParts: string[] = [];
-		if (clip.filters) {
-			if (clip.filters.brightness !== undefined && clip.filters.brightness !== 0) {
-				filterParts.push(`brightness(${100 + Number(clip.filters.brightness)}%)`);
-			}
-			if (clip.filters.contrast !== undefined && clip.filters.contrast !== 0) {
-				filterParts.push(`contrast(${100 + Number(clip.filters.contrast)}%)`);
-			}
-			if (clip.filters.saturate !== undefined && clip.filters.saturate !== 0) {
-				filterParts.push(`saturate(${100 + Number(clip.filters.saturate)}%)`);
-			}
-			if (clip.filters.lut && clip.filters.lut !== 'none') {
-				// Inline fast LUT lookup
-				const lutFilters: Record<string, string> = {
-					teal_orange: 'contrast(1.18) saturate(1.25) hue-rotate(-8deg) sepia(0.12)',
-					vintage_film: 'sepia(0.28) contrast(0.95) brightness(1.04) saturate(0.85)',
-					cinema_noir: 'grayscale(1) contrast(1.35) brightness(0.92)',
-					golden_hour: 'sepia(0.2) saturate(1.3) hue-rotate(-5deg) brightness(1.05)',
-					cyber_matrix: 'saturate(1.6) hue-rotate(18deg) contrast(1.22)'
-				};
-				if (lutFilters[clip.filters.lut]) {
-					filterParts.push(lutFilters[clip.filters.lut]);
-				}
-			}
-			if (clip.filters.blur !== undefined && clip.filters.blur !== 0) {
-				filterParts.push(`blur(${Number(clip.filters.blur)}px)`);
-			}
-			if (clip.filters.grayscale !== undefined && clip.filters.grayscale !== 0) {
-				filterParts.push(`grayscale(${Number(clip.filters.grayscale)}%)`);
-			}
-			if (clip.filters.sepia !== undefined && clip.filters.sepia !== 0) {
-				filterParts.push(`sepia(${Number(clip.filters.sepia)}%)`);
-			}
-			if (clip.filters.hueRotate !== undefined && clip.filters.hueRotate !== 0) {
-				filterParts.push(`hue-rotate(${Number(clip.filters.hueRotate)}deg)`);
-			}
-		}
-
-		// The colour grade rides the same CSS path. Its 12 sliders wrote to
-		// clip.colorGrade for a long time while nothing read it; this is the
-		// read. Only the CSS-expressible subset lands here - curves, LUTs,
-		// vignette, grain and per-channel white balance need the shader (W7).
-		const grade = colorGradeToCssFilter(clip.colorGrade);
-		if (grade) filterParts.push(grade);
-
-		return filterParts.length > 0 ? filterParts.join(' ') : 'none';
-	}
 
 	// Function to create or get a WebGL compositor for a video clip
 	function getVideoCompositor(clipId: string): WebGLCompositor {
