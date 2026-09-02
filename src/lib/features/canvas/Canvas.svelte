@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { playbackStore } from '$lib/stores/playback.svelte';
 	import { projectStore } from '$lib/stores/project.svelte';
+	import { timelineStore, timelineActions } from '$lib/stores/timeline.svelte';
 	import { derived } from 'svelte/store';
 	import { onDestroy, untrack } from 'svelte';
 	import type { Clip, MediaAsset } from '$lib/types/project';
@@ -12,7 +13,9 @@
 	import { toShaderUniforms } from '$lib/core/rendering/colorGradeUniforms';
 	// Shared with the exporter so preview and output cannot drift.
 	import { getLayerFilter, getLayerBlendMode } from '$lib/core/rendering/layerCompositing';
+	import { getLayerPreviewTransform } from '$lib/core/rendering/transformHandles';
 	import { getLayerOpacity } from '$lib/utils/canvasUtils';
+	import TransformOverlay from './TransformOverlay.svelte';
 
 	interface LayerClipInfo {
 		clip: Clip;
@@ -22,6 +25,7 @@
 		/** False when the track is muted, or when another track is soloed. */
 		trackAudible: boolean;
 		trackHidden: boolean;
+		trackLocked: boolean;
 	}
 
 	const activeSequence = derived(projectStore, ($project) => {
@@ -57,7 +61,8 @@
 								sourceTime: sourceTimeAt(clip, time),
 								trackOrder: track.order ?? i,
 								trackAudible: audible.has(track.id),
-								trackHidden: !!track.hidden
+								trackHidden: !!track.hidden,
+								trackLocked: !!track.locked
 							});
 						}
 					}
@@ -228,14 +233,23 @@
 		glCanvases.clear();
 	});
 
-	function getLayerTransform(clip: Clip): string {
-		const x = clip.transform?.x ?? 0;
-		const y = clip.transform?.y ?? 0;
-		const scale = clip.transform?.scale ?? 1;
-		const rotation = clip.transform?.rotation ?? 0;
-		return `translate(${x}px, ${y}px) scale(${scale}) rotate(${rotation}deg)`;
-	}
+	// The clip currently selected on the timeline, if it is one of the
+	// layers actually on screen right now (the playhead may have moved past
+	// it since it was selected).
+	const selectedLayer = derived(
+		[visualLayers, timelineStore],
+		([$visualLayers, $timeline]) =>
+			$visualLayers.find((l) => l.clip.id === $timeline.selectedClipId) ?? null
+	);
 
+	let stageEl = $state<HTMLDivElement | null>(null);
+
+	const sequenceWidth = derived(activeSequence, ($seq) => $seq?.resolution.width ?? 1920);
+	const sequenceHeight = derived(activeSequence, ($seq) => $seq?.resolution.height ?? 1080);
+
+	function selectLayer(clipId: string) {
+		timelineActions.selectClip(clipId);
+	}
 
 	/**
 	 * Register the visible <canvas> a clip renders into. The compositor draws
@@ -329,7 +343,7 @@
 
 <div class="video-canvas-stage" role="region" aria-label="Video Canvas Stage">
 	<!-- 16:9 Viewport Stage Frame -->
-	<div class="stage-viewport-16-9">
+	<div class="stage-viewport-16-9" bind:this={stageEl}>
 		{#if $visualLayers.length > 0}
 			{#each $visualLayers as layer (layer.clip.id)}
 				{@const url = objectUrls.get(layer.asset.id)}
@@ -337,9 +351,15 @@
 					webglUnavailable ||
 					layer.asset.type !== 'video' ||
 					!glRendered.has(layer.clip.id)}
+				{@const isSelected = layer.clip.id === $timelineStore.selectedClipId}
 				<div
 					class="canvas-layer"
-					style="transform: {getLayerTransform(layer.clip)}; filter: {getLayerFilter(layer.clip, { colorGradeInCss: gradeInCss })}; opacity: {getLayerOpacity(layer.clip)}; mix-blend-mode: {getLayerBlendMode(layer.clip)}; z-index: {layer.trackOrder};"
+					style="transform: {getLayerPreviewTransform(layer.clip, $sequenceWidth, $sequenceHeight)}; filter: {getLayerFilter(layer.clip, { colorGradeInCss: gradeInCss })}; opacity: {getLayerOpacity(layer.clip)}; mix-blend-mode: {getLayerBlendMode(layer.clip)}; z-index: {layer.trackOrder};"
+					onmousedown={() => selectLayer(layer.clip.id)}
+					role="button"
+					tabindex="-1"
+					aria-label="{layer.asset.filename} on canvas"
+					aria-pressed={isSelected}
 				>
 					{#if layer.asset.type === 'text'}
 						<!-- Drawn, not decoded: the words are the clip. -->
@@ -400,6 +420,16 @@
 					{/if}
 				</div>
 			{/each}
+
+			{#if $selectedLayer && stageEl}
+				<TransformOverlay
+					clip={$selectedLayer.clip}
+					sequenceWidth={$sequenceWidth}
+					sequenceHeight={$sequenceHeight}
+					{stageEl}
+					interactive={!$selectedLayer.trackLocked}
+				/>
+			{/if}
 		{:else if $audioLayers.length > 0}
 			<div class="audio-stage-visualizer">
 				<div class="audio-pulse-ring">
@@ -491,7 +521,11 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		pointer-events: none;
+		/* Clicking the picture selects the clip under it — the same thing
+		   clicking its bar on the timeline does. Was pointer-events:none from
+		   when the viewport had nothing to click at all. */
+		pointer-events: auto;
+		cursor: pointer;
 		transform-origin: center center;
 	}
 

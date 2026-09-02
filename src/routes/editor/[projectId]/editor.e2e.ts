@@ -141,6 +141,211 @@ test.describe('editor workspace smoke test', () => {
 		rmSync(fixtureDir, { recursive: true, force: true });
 	});
 
+	test('clicking a clip on the viewport selects it, the same as clicking its bar', async ({
+		page
+	}) => {
+		// Before this, the viewport had nothing to click at all: the only way
+		// to select a clip was through the timeline. An editor whose picture
+		// you cannot click is missing the most direct path to the thing on
+		// screen.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-viewportclick-'));
+		const clipPath = path.join(fixtureDir, 'scene.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'scene.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		const inspector = page.locator('.inspector-sidebar');
+		await expect(inspector.getByText('Nothing selected')).toBeVisible();
+
+		await page.locator('.canvas-layer').first().click();
+
+		await expect(inspector.getByText('Nothing selected')).toHaveCount(0);
+		await expect(inspector.getByRole('slider', { name: 'Scale Slider' })).toBeVisible();
+		await expect(page.locator('.transform-box')).toBeVisible();
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
+	test('dragging the transform box moves the clip, and undo takes back the whole drag', async ({
+		page
+	}) => {
+		// clip.transform.x/y are native sequence pixels — the same contract
+		// export already uses. The preview used to apply them as raw CSS
+		// pixels of whatever size the stage happened to render at on screen,
+		// so the same stored value moved a different visual distance
+		// depending on the window size, and disagreed with the exported
+		// file. This drags a known screen distance and checks the stored
+		// value lands where the stage's own actual on-screen size implies it
+		// should, not wherever a fixed pixel count would have put it.
+		//
+		// It also guards the merge fix: a drag fires one SetTransformCommand
+		// per mousemove, and without merging that buries dozens of entries in
+		// the undo stack for a single gesture.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-dragmove-'));
+		const clipPath = path.join(fixtureDir, 'scene.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'scene.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await page.locator('.canvas-layer').first().click();
+
+		const box = page.locator('.transform-box');
+		await expect(box).toBeVisible();
+		const stageBox = (await page.locator('.stage-viewport-16-9').boundingBox())!;
+		const start = {
+			x: stageBox.x + stageBox.width / 2,
+			y: stageBox.y + stageBox.height / 2
+		};
+		const dragPx = 80;
+
+		await page.mouse.move(start.x, start.y);
+		await page.mouse.down();
+		await page.mouse.move(start.x + dragPx, start.y, { steps: 8 });
+		await page.mouse.up();
+
+		const positionX = page.locator('.inspector-sidebar').getByLabel('Position X');
+		const xAfterDrag = parseFloat(await positionX.inputValue());
+
+		// The stage is narrower on screen than the 1920px sequence it
+		// represents, so an 80px screen drag must move the stored value by
+		// more than 80 native px — this is the assertion a fixed-pixel bug
+		// would fail.
+		const expectedX = dragPx * (1920 / stageBox.width);
+		expect(xAfterDrag).toBeGreaterThan(dragPx);
+		expect(Math.abs(xAfterDrag - expectedX)).toBeLessThan(expectedX * 0.15);
+
+		await page.keyboard.press('Control+z');
+		await expect.poll(() => positionX.inputValue()).toBe('0');
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
+	test('dragging a corner handle scales the clip from wherever it was grabbed', async ({
+		page
+	}) => {
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-dragscale-'));
+		const clipPath = path.join(fixtureDir, 'scene.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'scene.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await page.locator('.canvas-layer').first().click();
+
+		const handle = page.locator('.scale-handle').first();
+		const handleBox = (await handle.boundingBox())!;
+		const stageBox = (await page.locator('.stage-viewport-16-9').boundingBox())!;
+		const center = { x: stageBox.x + stageBox.width / 2, y: stageBox.y + stageBox.height / 2 };
+		const start = { x: handleBox.x + handleBox.width / 2, y: handleBox.y + handleBox.height / 2 };
+
+		// Move twice as far from centre as the drag's own starting point —
+		// scale is relative to where the drag began, not an absolute
+		// distance, so this must double it from 100% however close the
+		// click actually landed to the true corner.
+		const target = {
+			x: center.x + (start.x - center.x) * 2,
+			y: center.y + (start.y - center.y) * 2
+		};
+
+		await page.mouse.move(start.x, start.y);
+		await page.mouse.down();
+		await page.mouse.move(target.x, target.y, { steps: 8 });
+		await page.mouse.up();
+
+		const scaleValue = page.locator('.inspector-sidebar').getByLabel('Scale Input');
+		const scaleAfter = parseFloat(await scaleValue.inputValue());
+		expect(scaleAfter).toBeGreaterThan(1.7);
+		expect(scaleAfter).toBeLessThan(2.3);
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
+	test('dragging the rotate handle turns the clip, snapping near clean angles', async ({
+		page
+	}) => {
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-dragrotate-'));
+		const clipPath = path.join(fixtureDir, 'scene.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'scene.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await page.locator('.canvas-layer').first().click();
+
+		const handle = page.locator('.rotate-handle');
+		const handleBox = (await handle.boundingBox())!;
+		const stageBox = (await page.locator('.stage-viewport-16-9').boundingBox())!;
+		const center = { x: stageBox.x + stageBox.width / 2, y: stageBox.y + stageBox.height / 2 };
+		const radius = Math.hypot(
+			handleBox.x + handleBox.width / 2 - center.x,
+			handleBox.y + handleBox.height / 2 - center.y
+		);
+
+		await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+		await page.mouse.down();
+		// Directly right of centre is 90 degrees clockwise from "up".
+		await page.mouse.move(center.x + radius, center.y, { steps: 8 });
+		await page.mouse.up();
+
+		const rotationValue = page.locator('.inspector-sidebar').getByLabel('Rotation Input');
+		expect(parseFloat(await rotationValue.inputValue())).toBeCloseTo(90, 0);
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
+	test('a locked track shows the box without handles, and it refuses to drag', async ({
+		page
+	}) => {
+		// Locking a track already refuses timeline drops; a viewport that let
+		// you drag a locked clip anyway would be a second, contradictory way
+		// to edit the same thing.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-lockeddrag-'));
+		const clipPath = path.join(fixtureDir, 'scene.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'scene.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		await page
+			.locator('.track-label-row')
+			.filter({ has: page.locator('.track-name', { hasText: 'Video 1' }) })
+			.getByRole('button', { name: 'Lock track' })
+			.click();
+
+		await page.locator('.canvas-layer').first().click();
+
+		const box = page.locator('.transform-box');
+		await expect(box).toHaveClass(/locked/);
+		await expect(page.locator('.scale-handle')).toHaveCount(0);
+		await expect(page.locator('.rotate-handle')).toHaveCount(0);
+
+		const stageBox = (await page.locator('.stage-viewport-16-9').boundingBox())!;
+		const center = { x: stageBox.x + stageBox.width / 2, y: stageBox.y + stageBox.height / 2 };
+		await page.mouse.move(center.x, center.y);
+		await page.mouse.down();
+		await page.mouse.move(center.x + 100, center.y, { steps: 6 });
+		await page.mouse.up();
+
+		const positionX = page.locator('.inspector-sidebar').getByLabel('Position X');
+		await expect.poll(() => positionX.inputValue()).toBe('0');
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
 	test('the colour grade sliders actually change the picture', async ({ page }) => {
 		// For a long time all 12 sliders wrote to clip.colorGrade and nothing
 		// read it — Canvas fabricated its own object and read clip.filters
