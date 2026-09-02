@@ -9,6 +9,8 @@
 		projectName,
 		onRenameProject,
 		onExport,
+		drawerVisible = true,
+		onToggleDrawer,
 		inspectorVisible = true,
 		onToggleInspector,
 		activePage = 'media',
@@ -17,6 +19,8 @@
 		projectName: string;
 		onRenameProject: (name: string) => void;
 		onExport: () => void;
+		drawerVisible?: boolean;
+		onToggleDrawer?: () => void;
 		inspectorVisible?: boolean;
 		onToggleInspector: () => void;
 		activePage?: PageId;
@@ -93,6 +97,21 @@
 			style="display: none;"
 		/>
 
+		<!-- Only Edit and Audio have a drawer to hide — Color has none, and
+		     Media is a different layout entirely. -->
+		{#if (activePage === 'edit' || activePage === 'audio') && onToggleDrawer}
+			<button
+				type="button"
+				class="ghost-btn"
+				class:active={drawerVisible}
+				onclick={onToggleDrawer}
+				aria-pressed={drawerVisible}
+				aria-label={drawerVisible ? 'Hide panel' : 'Show panel'}
+			>
+				<Icon name="sidebar" size={16} />
+			</button>
+		{/if}
+
 		<button
 			type="button"
 			class="ghost-btn"
@@ -133,6 +152,15 @@
 		display: flex;
 		align-items: center;
 		min-width: 0;
+		/* The name pill is `position: fixed` so it stays centred on the whole
+		   window rather than drifting when a side panel toggles — but that
+		   also means it paints above a plain static sibling regardless of DOM
+		   order. On a ~1280px window with the rail expanded, the true window
+		   centre lands inside the page switcher, and the pill silently won
+		   every click meant for Color or Audio. Real controls have to win
+		   that collision, even if the pill's edge sits behind them. */
+		position: relative;
+		z-index: 6;
 	}
 
 	/* Centered on the whole window, not just this bar's own share of it — a

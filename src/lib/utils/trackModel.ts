@@ -68,6 +68,22 @@ const DEFAULT_HEIGHTS: Record<TrackType, number> = {
 const MIN_HEIGHT = 24;
 const MAX_HEIGHT = 240;
 
+/**
+ * A track with nothing on it collapses to this, whatever type it is. The
+ * per-type defaults above answer "how much room does this kind of content
+ * need"; an empty lane has no content yet, so it doesn't need that room —
+ * a fresh project ships with four tracks and typically one or two clips,
+ * and the rest were previously full-height dead space.
+ *
+ * Pinned to the timeline's own switches-row threshold (Timeline.svelte
+ * renders lock/enable/solo/mute/colour/delete only at 48px and up) rather
+ * than to some smaller "looks collapsed enough" number. An empty track is
+ * exactly where you reach for lock or colour *before* anything lands on it
+ * — collapsing it past the point those controls disappear would trade a
+ * real capability for a few extra pixels.
+ */
+export const EMPTY_TRACK_HEIGHT = 48;
+
 const LABEL_PREFIX: Record<TrackType, string> = {
 	video: 'V',
 	audio: 'A',
@@ -105,8 +121,11 @@ export function trackLabels(tracks: Pick<Track, 'type'>[]): string[] {
 	});
 }
 
-export function trackHeight(track: Pick<Track, 'type' | 'height'>): number {
-	const fallback = DEFAULT_HEIGHTS[track.type as TrackType] ?? DEFAULT_HEIGHTS.video;
+export function trackHeight(track: Pick<Track, 'type' | 'height' | 'clipInstances'>): number {
+	const isEmpty = (track.clipInstances?.length ?? 0) === 0;
+	const fallback = isEmpty
+		? EMPTY_TRACK_HEIGHT
+		: (DEFAULT_HEIGHTS[track.type as TrackType] ?? DEFAULT_HEIGHTS.video);
 	const raw = typeof track.height === 'number' && Number.isFinite(track.height) ? track.height : fallback;
 	return Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, raw));
 }

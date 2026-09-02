@@ -1214,9 +1214,13 @@
 		flex-direction: column;
 		align-items: stretch;
 		justify-content: center;
-		gap: 4px;
 		padding: 0 8px;
 		gap: 6px;
+		/* A lane collapsing because its last clip was deleted (or opening
+		   because one just landed) reads as the row responding to what you
+		   did, not the layout snapping under you. Matched on the lane below
+		   so the two columns move together. */
+		transition: height 160ms var(--ms-ease);
 		border-bottom: 1px solid var(--ms-edge);
 		background: var(--ms-void); /* surface-container-lowest */
 	}
@@ -1330,6 +1334,7 @@
 		flex-shrink: 0;
 		box-sizing: border-box;
 		border-bottom: 1px solid var(--ms-edge);
+		transition: height 160ms var(--ms-ease);
 		background: repeating-linear-gradient(
 			90deg,
 			transparent,
@@ -1486,5 +1491,12 @@
 
 	.font-mono {
 		font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.track-label-row,
+		.track-row-lane {
+			transition: none;
+		}
 	}
 </style>

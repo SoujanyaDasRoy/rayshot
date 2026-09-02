@@ -429,15 +429,31 @@ test.describe('editor workspace smoke test', () => {
 	});
 
 	test('tracks have real lanes, real labels and a subtitle type', async ({ page }) => {
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-lanes-'));
+		const clipPath = path.join(fixtureDir, 'scene.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
 		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'scene.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
 		await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
 		// Lanes were 24/20/16px because Tailwind class names (w-48, h-24) were
 		// transcribed into CSS as literal pixels, making the whole timeline about
-		// a quarter of its intended size.
-		const lane = page.locator('.track-row-lane').first();
+		// a quarter of its intended size. Checked on the lane that just got a
+		// clip: an empty lane collapses on purpose now (below), so it would no
+		// longer catch this regression the way it used to.
+		const lane = page.locator('.track-row-lane').filter({ has: page.locator('.timeline-clip-block') });
 		const laneHeight = await lane.evaluate((el) => parseFloat(getComputedStyle(el).height));
 		expect(laneHeight).toBeGreaterThan(40);
+
+		// A track with nothing on it collapses instead of costing the same
+		// room as one that's actually being used.
+		const emptyLane = page.locator('.track-row-lane').filter({ hasNot: page.locator('.timeline-clip-block') }).first();
+		const emptyHeight = await emptyLane.evaluate((el) => parseFloat(getComputedStyle(el).height));
+		expect(emptyHeight).toBeLessThan(laneHeight);
+		expect(emptyHeight).toBeGreaterThanOrEqual(24);
 
 		// Every label row must match its lane exactly, or the two columns drift
 		// apart and the error compounds down the stack. Checked across all rows,
@@ -463,6 +479,8 @@ test.describe('editor workspace smoke test', () => {
 		await page.getByRole('button', { name: '+ Subtitle' }).click();
 		await expect(page.locator('.track-label-row.subtitle')).toHaveCount(1);
 		await expect(page.locator('.track-name', { hasText: 'Caption 1' })).toBeVisible();
+
+		rmSync(fixtureDir, { recursive: true, force: true });
 	});
 
 	test('track mute and lock survive a reload, and colour is user-chosen', async ({ page }) => {
@@ -869,7 +887,14 @@ test.describe('editor workspace smoke test', () => {
 		// hide until hover, which reads as tidy and means a track's state is
 		// invisible: you could not tell a locked track from an unlocked one
 		// without pointing at it.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-headerstate-'));
+		const clipPath = path.join(fixtureDir, 'scene.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
 		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'scene.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
 		await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
 		const row = page
@@ -886,7 +911,11 @@ test.describe('editor workspace smoke test', () => {
 			)
 			.toBe(true);
 
-		// Index, name and clip count all read without interaction.
+		// Index, name and clip count all read without interaction. Checked on
+		// a track that actually has something on it: an empty one collapses
+		// far enough to drop the clip-count row on purpose (trackModel.test.ts
+		// covers that on its own), which would make this assertion fail for a
+		// reason unrelated to what this test is actually about.
 		await expect(row.locator('.track-index-badge')).toHaveText('V1');
 		await expect(row.locator('.track-clip-count')).toContainText('Clip');
 
@@ -898,6 +927,8 @@ test.describe('editor workspace smoke test', () => {
 			'aria-pressed',
 			'true'
 		);
+
+		rmSync(fixtureDir, { recursive: true, force: true });
 	});
 
 	test('the timeline can be resized, and remembers it across a reload', async ({ page }) => {
@@ -1125,6 +1156,9 @@ test.describe('editor workspace smoke test', () => {
 		await clip.click();
 		const widthBefore = (await clip.boundingBox())!.width;
 
+		// Speed now lives in Playback, which starts closed: it is a set-once
+		// field, unlike Transform and Effects which get touched constantly.
+		await page.getByRole('button', { name: 'Playback' }).click();
 		await page
 			.locator('.inspector-sidebar')
 			.getByRole('combobox', { name: 'Clip Speed' })
@@ -1299,5 +1333,117 @@ test.describe('editor workspace smoke test', () => {
 			.evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')));
 		expect(lanes[0]).toContain('S1');
 		expect(lanes.at(-1)).toContain('A2');
+	});
+
+	test('the drawer and inspector panels can be hidden, and remember it across a reload', async ({
+		page
+	}) => {
+		// Neither panel could get out of the way before: the drawer had no
+		// toggle at all, and the inspector's forgot its state on every reload.
+		// The picture should be able to take that space back when you are
+		// watching rather than fiddling.
+		await page.goto('/');
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		await expect(page.locator('.left-mediabin-col')).toBeVisible();
+		await expect(page.locator('.right-inspector-col')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Hide panel' }).click();
+		await expect(page.locator('.left-mediabin-col')).toHaveCount(0);
+
+		await page.getByRole('button', { name: 'Hide inspector' }).click();
+		await expect(page.locator('.right-inspector-col')).toHaveCount(0);
+
+		await page.reload();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await expect(page.locator('.left-mediabin-col')).toHaveCount(0);
+		await expect(page.locator('.right-inspector-col')).toHaveCount(0);
+
+		// And back, so the same reload-survival applies in both directions.
+		await page.getByRole('button', { name: 'Show panel' }).click();
+		await page.getByRole('button', { name: 'Show inspector' }).click();
+		await page.reload();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await expect(page.locator('.left-mediabin-col')).toBeVisible();
+		await expect(page.locator('.right-inspector-col')).toBeVisible();
+	});
+
+	test('the panel toggle only appears where there is a panel to toggle', async ({ page }) => {
+		// Color has no drawer at all, and Media is a different layout entirely
+		// — a button that toggles nothing would be a dead control.
+		await page.goto('/');
+		await page.getByRole('button', { name: 'Color', exact: true }).click();
+		await expect(page.getByRole('button', { name: /Hide panel|Show panel/ })).toHaveCount(0);
+
+		await page.getByRole('button', { name: 'Media', exact: true }).click();
+		await expect(page.getByRole('button', { name: /Hide panel|Show panel/ })).toHaveCount(0);
+
+		await page.getByRole('button', { name: 'Audio', exact: true }).click();
+		await expect(page.getByRole('button', { name: /Hide panel|Show panel/ })).toBeVisible();
+	});
+
+	test('splitting lives on the timeline only, not duplicated in the inspector', async ({
+		page
+	}) => {
+		// The inspector used to carry its own "Split at Playhead" button —
+		// the same action as the timeline's razor, with no way for the two to
+		// ever disagree, but also no reason to ask twice.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-splithome-'));
+		const clipPath = path.join(fixtureDir, 'scene.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'scene.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await page.locator('.timeline-clip-block').first().click();
+
+		await expect(page.locator('.inspector-sidebar')).not.toContainText('Split at Playhead');
+
+		// The one remaining home for it still works: select, seek, split.
+		await page.locator('.timeline-clip-block').first().click();
+		const ruler = page.locator('.timecode-ruler');
+		const rulerBox = (await ruler.boundingBox())!;
+		await page.mouse.click(rulerBox.x + 80, rulerBox.y + rulerBox.height / 2);
+
+		await expect(page.locator('.timeline-clip-block')).toHaveCount(1);
+		await page.locator('.split-action-btn').click();
+		await expect(page.locator('.timeline-clip-block')).toHaveCount(2);
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
+	test('the playback section groups trim, volume and speed, closed until asked for', async ({
+		page
+	}) => {
+		// Transform and Effects are what get touched while composing a shot;
+		// these are set-once fields that used to sit above both, first in the
+		// scroll, permanently open.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-playback-'));
+		const clipPath = path.join(fixtureDir, 'scene.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'scene.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await page.locator('.timeline-clip-block').first().click();
+
+		const inspector = page.locator('.inspector-sidebar');
+		await expect(inspector.getByLabel('Trim in point')).toHaveCount(0);
+		await expect(inspector.getByLabel('Clip Speed')).toHaveCount(0);
+
+		// Transform is reachable without opening anything — it is the section
+		// that starts open.
+		await expect(inspector.getByRole('slider', { name: 'Scale Slider' })).toBeVisible();
+
+		await page.getByRole('button', { name: 'Playback' }).click();
+		await expect(inspector.getByLabel('Trim in point')).toBeVisible();
+		await expect(inspector.getByLabel('Trim out point')).toBeVisible();
+		await expect(inspector.getByLabel('Clip Speed')).toBeVisible();
+
+		rmSync(fixtureDir, { recursive: true, force: true });
 	});
 });

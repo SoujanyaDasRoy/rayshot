@@ -3,7 +3,6 @@
 	import { projectStore } from '$lib/stores/project.svelte';
 	import { playbackStore } from '$lib/stores/playback.svelte';
 	import { commandProcessor } from '$lib/core/commands/processor';
-	import { SplitClipCommand } from '$lib/core/commands/splitClip';
 	import { TrimClipCommand } from '$lib/core/commands/trimClip';
 	import { DeleteClipCommand } from '$lib/core/commands/deleteClip';
 	import { SetClipVolumeCommand } from '$lib/core/commands/setClipVolume';
@@ -61,6 +60,7 @@
 	let opacityOpen = $state(false);
 	let colorOpen = $state(false);
 	let audioFadesOpen = $state(false);
+	let playbackOpen = $state(false);
 
 	/** Applied effects, resolved against the registry so unknown ids just vanish. */
 	const appliedEffects = derived(selectedClipData, ($data) =>
@@ -85,17 +85,6 @@
 		const clipId = $timelineStore.selectedClipId;
 		if (!clipId) return;
 		commandProcessor.execute(new RemoveClipEffectCommand({ clipId, effectId }));
-	}
-
-	function handleSplit() {
-		const clipId = $timelineStore.selectedClipId;
-		if (!clipId) return;
-		const playhead = $playbackStore.currentTime;
-		const splitCmd = new SplitClipCommand({
-			clipId,
-			splitTime: playhead
-		});
-		commandProcessor.execute(splitCmd);
 	}
 
 	function handleTrimStart() {
@@ -390,97 +379,6 @@
 			<!-- 1. VIDEO / IMAGE CLIP INSPECTOR -->
 			<!-- ================================================================= -->
 			{#if $clipType === 'video' || $clipType === 'image' || $clipType === 'text'}
-				<!-- Primary Quick Controls Box (Always Visible) -->
-				<div class="primary-controls-card">
-					<div class="card-header-label">Primary Actions</div>
-
-					<!-- Quick Split at Playhead -->
-					<button class="primary-action-btn split-btn" onclick={handleSplit}>
-						<span class="btn-icon">✂</span>
-						<span>Split at Playhead</span>
-					</button>
-
-					<!-- In / Out Trim Controls -->
-					<div class="trim-inputs-row">
-						<div class="trim-input-group">
-							<div class="trim-label-row">
-								<span class="sub-label">In (Head)</span>
-								<button class="mini-trim-btn" title="Trim head to current playhead" onclick={handleTrimStart}>⇤</button>
-							</div>
-							<div class="num-input-wrap">
-								<input
-									type="number"
-									step="0.1"
-									min="0"
-									value={clip.sourceIn.toFixed(2)}
-									onchange={(e) => handleSourceInInput(parseFloat((e.target as HTMLInputElement).value))}
-									class="font-mono"
-								/>
-								<span class="unit-tag">s</span>
-							</div>
-						</div>
-
-						<div class="trim-input-group">
-							<div class="trim-label-row">
-								<span class="sub-label">Out (Tail)</span>
-								<button class="mini-trim-btn" title="Trim tail to current playhead" onclick={handleTrimEnd}>⇥</button>
-							</div>
-							<div class="num-input-wrap">
-								<input
-									type="number"
-									step="0.1"
-									min="0"
-									value={clip.sourceOut.toFixed(2)}
-									onchange={(e) => handleSourceOutInput(parseFloat((e.target as HTMLInputElement).value))}
-									class="font-mono"
-								/>
-								<span class="unit-tag">s</span>
-							</div>
-						</div>
-					</div>
-
-					<!-- Volume Slider (0 - 200%) if video -->
-					{#if $clipType === 'video'}
-						<div class="slider-field">
-							<div class="slider-top-label">
-								<span class="slider-title">Volume</span>
-								<span class="slider-number font-mono">{Math.round((clip.audioParameters?.volume ?? 1) * 100)}%</span>
-							</div>
-							<input
-								type="range"
-								min="0"
-								max="2"
-								step="0.01"
-								value={clip.audioParameters?.volume ?? 1}
-								oninput={(e) => handleVolumeChange(parseFloat((e.target as HTMLInputElement).value))}
-								class="accent-slider"
-								aria-label="Volume"
-							/>
-						</div>
-					{/if}
-
-					<!-- Playback Speed Dropdown -->
-					<div class="select-field-row">
-						<span class="sub-label">Clip Speed</span>
-						<div class="select-wrap">
-							<select
-								value={clipRate(clip)}
-								onchange={(e) => handleRateChange(parseFloat((e.target as HTMLSelectElement).value))}
-								class="dropdown-select font-mono"
-								aria-label="Clip Speed"
-							>
-								<option value={0.5}>0.5x (Slow)</option>
-								<option value={1.0}>1.0x (Normal)</option>
-								<option value={1.5}>1.5x (Fast)</option>
-								<option value={2.0}>2.0x (Double)</option>
-								{#if ![0.5, 1.0, 1.5, 2.0].includes(clipRate(clip))}
-									<option value={clipRate(clip)}>{clipRate(clip).toFixed(2)}x (Custom)</option>
-								{/if}
-							</select>
-						</div>
-					</div>
-				</div>
-
 				<!-- Collapsible Accordion: Transform -->
 				<div class="foldable-section">
 					<div class="section-header-row">
@@ -648,6 +546,105 @@
 						<ColorGradePanel {clip} onChange={() => {}} />
 					{/if}
 				</div>
+
+				<!-- Collapsible Accordion: Playback. Set-once fields — precise
+				     trim entry, level, speed — grouped last because Transform
+				     and Effects are what actually get touched while a shot is
+				     being composed. -->
+				<div class="foldable-section">
+					<div class="section-header-row">
+						<button class="section-toggle-btn" onclick={() => (playbackOpen = !playbackOpen)}>
+							<span class="chevron">{playbackOpen ? '▾' : '▸'}</span>
+							<span class="section-name">Playback</span>
+						</button>
+					</div>
+
+					{#if playbackOpen}
+						<div class="section-fields">
+							<!-- In / Out Trim Controls -->
+							<div class="trim-inputs-row">
+								<div class="trim-input-group">
+									<div class="trim-label-row">
+										<span class="sub-label">In (Head)</span>
+										<button class="mini-trim-btn" title="Trim head to current playhead" onclick={handleTrimStart}>⇤</button>
+									</div>
+									<div class="num-input-wrap">
+										<input
+											type="number"
+											step="0.1"
+											min="0"
+											value={clip.sourceIn.toFixed(2)}
+											onchange={(e) => handleSourceInInput(parseFloat((e.target as HTMLInputElement).value))}
+											class="font-mono"
+											aria-label="Trim in point"
+										/>
+										<span class="unit-tag">s</span>
+									</div>
+								</div>
+
+								<div class="trim-input-group">
+									<div class="trim-label-row">
+										<span class="sub-label">Out (Tail)</span>
+										<button class="mini-trim-btn" title="Trim tail to current playhead" onclick={handleTrimEnd}>⇥</button>
+									</div>
+									<div class="num-input-wrap">
+										<input
+											type="number"
+											step="0.1"
+											min="0"
+											value={clip.sourceOut.toFixed(2)}
+											onchange={(e) => handleSourceOutInput(parseFloat((e.target as HTMLInputElement).value))}
+											class="font-mono"
+											aria-label="Trim out point"
+										/>
+										<span class="unit-tag">s</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Volume Slider (0 - 200%) if video -->
+							{#if $clipType === 'video'}
+								<div class="slider-field">
+									<div class="slider-top-label">
+										<span class="slider-title">Volume</span>
+										<span class="slider-number font-mono">{Math.round((clip.audioParameters?.volume ?? 1) * 100)}%</span>
+									</div>
+									<input
+										type="range"
+										min="0"
+										max="2"
+										step="0.01"
+										value={clip.audioParameters?.volume ?? 1}
+										oninput={(e) => handleVolumeChange(parseFloat((e.target as HTMLInputElement).value))}
+										class="accent-slider"
+										aria-label="Volume"
+									/>
+								</div>
+							{/if}
+
+							<!-- Playback Speed Dropdown -->
+							<div class="select-field-row">
+								<span class="sub-label">Clip Speed</span>
+								<div class="select-wrap">
+									<select
+										value={clipRate(clip)}
+										onchange={(e) => handleRateChange(parseFloat((e.target as HTMLSelectElement).value))}
+										class="dropdown-select font-mono"
+										aria-label="Clip Speed"
+									>
+										<option value={0.5}>0.5x (Slow)</option>
+										<option value={1.0}>1.0x (Normal)</option>
+										<option value={1.5}>1.5x (Fast)</option>
+										<option value={2.0}>2.0x (Double)</option>
+										{#if ![0.5, 1.0, 1.5, 2.0].includes(clipRate(clip))}
+											<option value={clipRate(clip)}>{clipRate(clip).toFixed(2)}x (Custom)</option>
+										{/if}
+									</select>
+								</div>
+							</div>
+						</div>
+					{/if}
+				</div>
 			{/if}
 
 			<!-- ================================================================= -->
@@ -750,8 +747,7 @@
 		color: var(--ms-text-tertiary);
 	}
 
-	.icon-btn,
-	.btn-icon {
+	.icon-btn {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
@@ -768,8 +764,7 @@
 			color var(--ms-fast) var(--ms-ease);
 	}
 
-	.icon-btn:hover,
-	.btn-icon:hover {
+	.icon-btn:hover {
 		background: var(--ms-hover);
 		color: var(--ms-text);
 	}
@@ -1084,7 +1079,6 @@
 	}
 
 	.mini-trim-btn,
-	.primary-action-btn,
 	.deselect-btn {
 		border: 1px solid var(--ms-edge);
 		border-radius: var(--ms-radius);
@@ -1102,18 +1096,6 @@
 	.mini-trim-btn {
 		height: 24px;
 		padding: 0 8px;
-	}
-
-	.primary-action-btn {
-		height: 30px;
-		padding: 0 14px;
-		border: none;
-		background: var(--ms-text);
-		color: var(--ms-void);
-	}
-
-	.primary-action-btn:hover {
-		background: rgba(255, 255, 255, 0.88);
 	}
 
 	.mini-trim-btn:hover,

@@ -59,7 +59,14 @@
 	}
 
 	const assets = derived(projectStore, ($project) => $project?.assets ?? new Map());
-	const asset = derived([assets], ([$assets]) => $assets.get(clip.mediaAssetId));
+	// `clip` is a rune-reactive prop; this derived is a plain svelte/store one,
+	// subscribed independently to `assets`. A command that removes this exact
+	// clip from the project (a split, replacing one clip with two others)
+	// notifies that store synchronously, and can do so in the same tick this
+	// component is mid-teardown — reading `clip` at that instant threw
+	// "Cannot read properties of undefined (reading 'mediaAssetId')" instead
+	// of quietly returning nothing for a component that is on its way out.
+	const asset = derived([assets], ([$assets]) => (clip ? $assets.get(clip.mediaAssetId) : undefined));
 	const assetName = derived(asset, ($asset) => $asset?.filename ?? 'Clip');
 	const assetType = derived(asset, ($asset) => $asset?.type ?? trackType);
 	const isSelected = derived(timelineStore, ($timeline) => $timeline.selectedClipId === clip.id);

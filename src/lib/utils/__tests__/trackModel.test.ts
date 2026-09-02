@@ -65,18 +65,58 @@ describe('trackLabels', () => {
 });
 
 describe('trackHeight', () => {
-	test('falls back to a readable per-type default', () => {
-		expect(trackHeight(t({ type: 'video' }))).toBeGreaterThan(40);
-		expect(trackHeight(t({ type: 'subtitle' }))).toBeGreaterThan(0);
+	test('falls back to a readable per-type default once a track holds something', () => {
+		expect(trackHeight(t({ type: 'video', clipInstances: ['c1'] }))).toBeGreaterThan(40);
+		expect(trackHeight(t({ type: 'subtitle', clipInstances: ['c1'] }))).toBeGreaterThan(0);
 	});
 
-	test('an explicit height wins', () => {
+	test('an explicit height wins, empty or not', () => {
 		expect(trackHeight(t({ height: 120 }))).toBe(120);
+		expect(trackHeight(t({ height: 120, clipInstances: ['c1'] }))).toBe(120);
 	});
 
 	test('clamps absurd heights rather than letting a lane fill the screen', () => {
 		expect(trackHeight(t({ height: 5000 }))).toBeLessThanOrEqual(240);
 		expect(trackHeight(t({ height: 1 }))).toBeGreaterThanOrEqual(24);
+	});
+
+	// A fresh project ships with four tracks and usually one or two clips
+	// between them — every empty lane at full height was dead space nobody
+	// asked for, on the same screen where the picture itself was flagged as
+	// too small.
+	test('collapses a track with nothing on it', () => {
+		const empty = trackHeight(t({ type: 'video', clipInstances: [] }));
+		const full = trackHeight(t({ type: 'video', clipInstances: ['c1'] }));
+		expect(empty).toBeLessThan(full);
+		expect(empty).toBeGreaterThanOrEqual(24);
+	});
+
+	test('every track type collapses the same amount when empty', () => {
+		// The point is "this lane has nothing", not "this lane is a video
+		// lane" — the collapsed heights should not re-introduce a size
+		// hierarchy that empty tracks don't need.
+		const heights = TRACK_TYPES.map((type) => trackHeight(t({ type, clipInstances: [] })));
+		expect(new Set(heights).size).toBe(1);
+	});
+
+	test('expands back the moment a clip lands on it', () => {
+		const track = t({ type: 'audio', clipInstances: [] });
+		const collapsed = trackHeight(track);
+		const withClip = trackHeight({ ...track, clipInstances: ['c1'] });
+		expect(withClip).toBeGreaterThan(collapsed);
+	});
+
+	// Timeline.svelte hides its lock/enable/solo/mute/colour/delete row below
+	// 48px. The first version of this collapse used 32 and passed every test
+	// here — none of them rendered the actual row, so none of them noticed it
+	// had gone missing. An empty track is exactly where you reach for lock or
+	// colour before anything lands on it, so losing those controls the moment
+	// a track becomes empty would be a real capability regression, not a
+	// cosmetic one.
+	test('stays tall enough for the track to remain operable while empty', () => {
+		for (const type of TRACK_TYPES) {
+			expect(trackHeight(t({ type, clipInstances: [] }))).toBeGreaterThanOrEqual(48);
+		}
 	});
 });
 

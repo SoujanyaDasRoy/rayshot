@@ -34,7 +34,41 @@
 	let activeTool = $state<ToolId>('import');
 	let sidebarExpanded = $state(true);
 	let activeMediaFolder = $state<string>('all');
+
+	// Whether the picture dominates the window, or shares it with tool
+	// panels, is a per-browser working preference — restored on load, same
+	// as the timeline's own height below.
+	const DRAWER_VISIBLE_KEY = 'rayshot:drawer-visible';
+	const INSPECTOR_VISIBLE_KEY = 'rayshot:inspector-visible';
+	let drawerVisible = $state(true);
 	let inspectorVisible = $state(true);
+
+	function readStoredVisible(key: string): boolean | null {
+		try {
+			const raw = localStorage.getItem(key);
+			return raw === null ? null : raw === 'true';
+		} catch {
+			return null;
+		}
+	}
+
+	function writeStoredVisible(key: string, value: boolean) {
+		try {
+			localStorage.setItem(key, String(value));
+		} catch {
+			// Private mode, or storage full. The toggle still worked this session.
+		}
+	}
+
+	function toggleDrawer() {
+		drawerVisible = !drawerVisible;
+		writeStoredVisible(DRAWER_VISIBLE_KEY, drawerVisible);
+	}
+
+	function toggleInspector() {
+		inspectorVisible = !inspectorVisible;
+		writeStoredVisible(INSPECTOR_VISIBLE_KEY, inspectorVisible);
+	}
 	// Settings and Help are things you open and close, not workspaces you work
 	// in, so they overlay the current page instead of pretending to be one.
 	let utilityView = $state<'settings' | 'help' | null>(null);
@@ -123,6 +157,11 @@
 		} catch {
 			// No stored preference; the stylesheet's 36vh stands.
 		}
+
+		const storedDrawer = readStoredVisible(DRAWER_VISIBLE_KEY);
+		if (storedDrawer !== null) drawerVisible = storedDrawer;
+		const storedInspector = readStoredVisible(INSPECTOR_VISIBLE_KEY);
+		if (storedInspector !== null) inspectorVisible = storedInspector;
 
 		const onResizeMove = (event: MouseEvent) => {
 			if (!resizingTimeline) return;
@@ -278,8 +317,10 @@
 			projectName={$projectStore?.name ?? 'RayShot_Project_1'}
 			onRenameProject={updateProjectName}
 			onExport={() => (exportDialogOpen = true)}
+			{drawerVisible}
+			onToggleDrawer={toggleDrawer}
 			{inspectorVisible}
-			onToggleInspector={() => (inspectorVisible = !inspectorVisible)}
+			onToggleInspector={toggleInspector}
 			{activePage}
 			onSelectPage={selectPage}
 		/>
@@ -302,7 +343,7 @@
 				{:else}
 					<!-- Edit / Color / Audio share a viewer; what flanks it is the page. -->
 					<div class="flex h-full w-full overflow-hidden">
-						{#if activePage !== 'color'}
+						{#if activePage !== 'color' && drawerVisible}
 							<aside class="left-mediabin-col">
 								<MediaBin activePillar={activeTool as any} />
 							</aside>
