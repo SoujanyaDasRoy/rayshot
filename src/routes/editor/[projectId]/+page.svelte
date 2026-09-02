@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { projectStore } from '$lib/stores/project.svelte';
+	import { timelineStore } from '$lib/stores/timeline.svelte';
 	import { commandProcessor } from '$lib/core/commands/processor';
 	import { importMediaFiles, restoreCachedAssets, rehydrateAssetBlobs } from '$lib/utils/mediaUtils';
 	import { opfsGetAutoSaveMeta, opfsLoadAutoSave } from '$lib/core/persistence/opfsAdapter';
@@ -19,26 +20,47 @@
 	import Export from '$lib/features/export/Export.svelte';
 	import Sidebar from '$lib/features/shell/Sidebar.svelte';
 	import TopBar from '$lib/features/shell/TopBar.svelte';
+	import ColorGradePanel from '$lib/features/colorgrade/ColorGradePanel.svelte';
+	import { pageById, type PageId, type ToolId } from '$lib/features/shell/pages';
 
 	let { data }: { data: { projectId: string } } = $props();
 
 	const history = commandProcessor.getHistoryStore();
 
-	type NavTab = 'media' | 'record' | 'effects' | 'templates' | 'text' | 'transitions' | 'settings' | 'help';
-
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let exportDialogOpen = $state(false);
 	let isGlobalDragOver = $state(false);
-	let activeNavTab = $state<NavTab>('media');
+	let activePage = $state<PageId>('media');
+	let activeTool = $state<ToolId>('import');
 	let sidebarExpanded = $state(true);
 	let activeMediaFolder = $state<string>('all');
 	let inspectorVisible = $state(true);
+	// Settings and Help are things you open and close, not workspaces you work
+	// in, so they overlay the current page instead of pretending to be one.
+	let utilityView = $state<'settings' | 'help' | null>(null);
 
-	// Timeline lives alongside the actual editing surface (effects/text/transitions),
-	// not the full-screen library/record/templates/settings/help views.
-	const isEditingView = $derived(
-		activeNavTab === 'effects' || activeNavTab === 'text' || activeNavTab === 'transitions'
-	);
+	const showsTimeline = $derived(pageById(activePage).showsTimeline);
+
+	function selectPage(id: PageId) {
+		activePage = id;
+		utilityView = null;
+		const first = pageById(id).tools[0];
+		if (first) activeTool = first;
+	}
+
+	function selectTool(id: ToolId) {
+		activeTool = id;
+		utilityView = null;
+	}
+
+	// The clip inspector and the grade panel occupy the same column; which one
+	// you get is the difference between the Edit room and the Color room.
+	const selectedClip = $derived.by(() => {
+		const project = $projectStore;
+		const id = $timelineStore.selectedClipId;
+		if (!project || !id) return null;
+		return project.clips.get(id) ?? null;
+	});
 
 	let restorePrompt = $state<{ show: boolean; projectName: string; savedAt: number }>({
 		show: false,
@@ -162,9 +184,14 @@
 <div class="app-layout-shell flex flex-row h-screen w-screen overflow-hidden text-white" style="background: var(--ms-void);">
 
 	<Sidebar
-		bind:activeTab={activeNavTab}
+		{activePage}
+		{activeTool}
+		onSelectTool={selectTool}
+		{utilityView}
+		onSelectUtility={(v) => (utilityView = utilityView === v ? null : v)}
 		bind:expanded={sidebarExpanded}
 		bind:activeFolder={activeMediaFolder}
+		onSelectFolder={() => selectPage('media')}
 		canUndo={$history.canUndo}
 		canRedo={$history.canRedo}
 		onUndo={handleUndo}
@@ -181,26 +208,34 @@
 			onExport={() => (exportDialogOpen = true)}
 			{inspectorVisible}
 			onToggleInspector={() => (inspectorVisible = !inspectorVisible)}
+			{activePage}
+			onSelectPage={selectPage}
 		/>
 
 		<div class="middle-work-row flex flex-1 min-h-0 overflow-hidden">
 			<div class="flex-1 h-full min-w-0 overflow-hidden relative">
-				{#if activeNavTab === 'media'}
-					<MediaLibraryView bind:activeFolder={activeMediaFolder} {inspectorVisible} />
-				{:else if activeNavTab === 'record'}
-					<RecordView />
-				{:else if activeNavTab === 'templates'}
-					<TemplatesView />
-				{:else if activeNavTab === 'settings'}
+				{#if utilityView === 'settings'}
 					<SettingsView />
-				{:else if activeNavTab === 'help'}
+				{:else if utilityView === 'help'}
 					<HelpView />
+				{:else if activePage === 'media'}
+					<!-- Media: the library, or whichever way you are bringing media in. -->
+					{#if activeTool === 'record'}
+						<RecordView />
+					{:else if activeTool === 'templates'}
+						<TemplatesView />
+					{:else}
+						<MediaLibraryView bind:activeFolder={activeMediaFolder} {inspectorVisible} />
+					{/if}
 				{:else}
-					<!-- Effects / Text / Transitions → canvas view -->
+					<!-- Edit / Color / Audio share a viewer; what flanks it is the page. -->
 					<div class="flex h-full w-full overflow-hidden">
-						<aside class="left-mediabin-col">
-							<MediaBin activePillar={activeNavTab as any} />
-						</aside>
+						{#if activePage !== 'color'}
+							<aside class="left-mediabin-col">
+								<MediaBin activePillar={activeTool as any} />
+							</aside>
+						{/if}
+
 						<main class="center-canvas-col">
 							<section class="flex-1 flex flex-col p-3 items-center justify-center relative min-h-0 bg-surface-container-lowest">
 								<div class="w-full flex-1 min-h-0 relative flex items-center justify-center bg-black rounded-lg shadow-2xl overflow-hidden border border-surface-container">
@@ -211,9 +246,21 @@
 								</div>
 							</section>
 						</main>
+
 						{#if inspectorVisible}
 							<aside class="right-inspector-col">
-								<Inspector />
+								{#if activePage === 'color'}
+									{#if selectedClip}
+										<ColorGradePanel clip={selectedClip} onChange={() => {}} />
+									{:else}
+										<div class="panel-empty">
+											<span class="panel-empty-title">No clip selected</span>
+											<span class="panel-empty-hint">Select a clip on the timeline to grade it.</span>
+										</div>
+									{/if}
+								{:else}
+									<Inspector />
+								{/if}
 							</aside>
 						{/if}
 					</div>
@@ -221,8 +268,8 @@
 			</div>
 		</div>
 
-		<!-- Bottom Timeline (shown for the active editing surface) -->
-		{#if isEditingView}
+		<!-- The timeline belongs to the pages that edit a sequence, not the library. -->
+		{#if showsTimeline && !utilityView}
 			<section class="bottom-timeline-row">
 				<Timeline />
 			</section>
@@ -237,24 +284,156 @@
 
 	<!-- Restore Toast -->
 	{#if restorePrompt.show}
-		<div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#1e2030] border border-[#2a2d3e] rounded-xl px-4 py-3 shadow-2xl text-xs text-white">
-			<span class="material-symbols-outlined text-[#8b5cf6] text-lg">save</span>
-			<span>Restore auto-saved project <strong>{restorePrompt.projectName}</strong>?</span>
-			<div class="flex items-center gap-2 ml-2">
-				<button type="button" class="bg-[#8b5cf6] text-white font-bold px-3 py-1 rounded-md hover:bg-[#9d71fd] transition-colors" onclick={handleRestoreProject}>Restore</button>
-				<button type="button" class="bg-[#181b28] border border-[#2a2d3e] text-[#94a3b8] px-3 py-1 rounded-md hover:text-white transition-colors" onclick={handleDismissRestore}>Dismiss</button>
+		<div class="restore-toast">
+			<span class="restore-text">
+				Auto-saved project <strong>{restorePrompt.projectName}</strong> is available.
+			</span>
+			<div class="restore-actions">
+				<button type="button" class="restore-primary" onclick={handleRestoreProject}>Restore</button>
+				<button type="button" class="restore-secondary" onclick={handleDismissRestore}>Dismiss</button>
 			</div>
 		</div>
 	{/if}
 
 	<!-- Drag & Drop Overlay -->
 	{#if isGlobalDragOver}
-		<div class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center pointer-events-none">
-			<div class="border-2 border-dashed border-[#8b5cf6] bg-[#111219]/90 rounded-2xl p-10 flex flex-col items-center gap-3 text-center shadow-2xl">
-				<span class="material-symbols-outlined text-5xl text-[#8b5cf6] animate-pulse">cloud_upload</span>
-				<h3 class="text-lg font-bold text-white">Drop Media Files to Import</h3>
-				<p class="text-xs text-[#94a3b8] max-w-xs">Videos, audio tracks, and images will be automatically added to your RayShot media library.</p>
+		<div class="drop-overlay">
+			<div class="drop-card">
+				<h3 class="drop-title">Drop to import</h3>
+				<p class="drop-hint">Video, audio and images are added to your media library.</p>
 			</div>
 		</div>
 	{/if}
 </div>
+
+<style>
+	/* Monochrome, and phrased as a state plus an action rather than a question
+	   ("Restore auto-saved project X?"), so the buttons carry the verbs. */
+	.restore-toast {
+		position: fixed;
+		bottom: 16px;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 50;
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		padding: 10px 12px 10px 16px;
+		border: 1px solid var(--ms-edge-strong);
+		border-radius: 999px;
+		background: var(--ms-raised);
+		backdrop-filter: blur(30px) saturate(0%);
+		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+		font-family: var(--ms-font);
+		font-size: 12px;
+		color: var(--ms-text-secondary);
+	}
+
+	.restore-text strong {
+		color: var(--ms-text);
+		font-weight: 590;
+	}
+
+	.restore-actions {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.restore-primary,
+	.restore-secondary {
+		height: 26px;
+		padding: 0 14px;
+		border-radius: 999px;
+		font-family: inherit;
+		font-size: 12px;
+		font-weight: 590;
+		cursor: pointer;
+		transition: background var(--ms-fast) var(--ms-ease);
+	}
+
+	.restore-primary {
+		border: none;
+		background: var(--ms-text);
+		color: var(--ms-void);
+	}
+
+	.restore-primary:hover {
+		background: rgba(255, 255, 255, 0.88);
+	}
+
+	.restore-secondary {
+		border: 1px solid var(--ms-edge);
+		background: transparent;
+		color: var(--ms-text-secondary);
+	}
+
+	.restore-secondary:hover {
+		background: var(--ms-hover);
+		color: var(--ms-text);
+	}
+
+	.drop-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 50;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(0, 0, 0, 0.8);
+		backdrop-filter: blur(6px);
+		pointer-events: none;
+	}
+
+	.drop-card {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
+		padding: 32px 40px;
+		border: 1px dashed var(--ms-edge-strong);
+		border-radius: var(--ms-radius-lg);
+		background: var(--ms-material);
+		text-align: center;
+		font-family: var(--ms-font);
+	}
+
+	.drop-title {
+		margin: 0;
+		font-size: 15px;
+		font-weight: 590;
+		color: var(--ms-text);
+	}
+
+	.drop-hint {
+		margin: 0;
+		max-width: 34ch;
+		font-size: 12px;
+		color: var(--ms-text-tertiary);
+	}
+	/* An empty panel is an instruction, not a shrug: say what to do next. */
+	.panel-empty {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		align-items: center;
+		justify-content: center;
+		height: 100%;
+		padding: 24px;
+		text-align: center;
+		font-family: var(--ms-font);
+	}
+
+	.panel-empty-title {
+		font-size: 13px;
+		font-weight: 590;
+		color: var(--ms-text-secondary);
+	}
+
+	.panel-empty-hint {
+		max-width: 22ch;
+		font-size: 11.5px;
+		line-height: 1.5;
+		color: var(--ms-text-tertiary);
+	}
+</style>

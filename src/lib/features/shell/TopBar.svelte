@@ -3,19 +3,24 @@
 	import Icon from './Icon.svelte';
 	import { exportStore } from '$lib/stores/export.svelte';
 	import { importMediaFiles } from '$lib/utils/mediaUtils';
+	import { PAGES, type PageId } from './pages';
 
 	let {
 		projectName,
 		onRenameProject,
 		onExport,
 		inspectorVisible = true,
-		onToggleInspector
+		onToggleInspector,
+		activePage = 'media',
+		onSelectPage
 	}: {
 		projectName: string;
 		onRenameProject: (name: string) => void;
 		onExport: () => void;
 		inspectorVisible?: boolean;
 		onToggleInspector: () => void;
+		activePage?: PageId;
+		onSelectPage: (id: PageId) => void;
 	} = $props();
 
 	const exportProgress = $derived($exportStore.currentExport?.progress ?? 0);
@@ -40,7 +45,37 @@
 	header's so the two dividers line up in one line across the app.
 -->
 <header class="topbar">
+	<!--
+		Pages are modes, not menu items: each one rearranges the window for a
+		different job. They sit apart from the actions on the right so the two
+		never read as the same kind of control.
+	-->
 	<div class="side">
+		<nav class="pages" aria-label="Workspace">
+			{#each PAGES as page (page.id)}
+				<button
+					type="button"
+					class="page-btn"
+					class:active={activePage === page.id}
+					aria-current={activePage === page.id ? 'page' : undefined}
+					title={`${page.label} (${page.key})`}
+					onclick={() => onSelectPage(page.id)}
+				>
+					<Icon name={page.icon} size={16} selected={activePage === page.id} />
+					<span class="page-label">{page.label}</span>
+				</button>
+			{/each}
+		</nav>
+	</div>
+
+	<input
+		class="name-input"
+		value={projectName}
+		oninput={(e) => onRenameProject((e.currentTarget as HTMLInputElement).value)}
+		aria-label="Project name"
+	/>
+
+	<div class="side actions">
 		<button
 			type="button"
 			class="ghost-btn"
@@ -57,16 +92,7 @@
 			accept="video/*,audio/*,image/*"
 			style="display: none;"
 		/>
-	</div>
 
-	<input
-		class="name-input"
-		value={projectName}
-		oninput={(e) => onRenameProject((e.currentTarget as HTMLInputElement).value)}
-		aria-label="Project name"
-	/>
-
-	<div class="side actions">
 		<button
 			type="button"
 			class="ghost-btn"
@@ -152,6 +178,67 @@
 	.name-input:focus-visible {
 		outline: 2px solid var(--ms-text);
 		outline-offset: 2px;
+	}
+
+	/* Segmented, and quiet: the active page is raised with a lit top edge,
+	   the same selection language the sidebar rows already use. */
+	.pages {
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		padding: 2px;
+		border: 1px solid var(--ms-edge);
+		border-radius: 999px;
+		background: var(--ms-material);
+	}
+
+	.page-btn {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		height: 24px;
+		padding: 0 10px;
+		border: none;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--ms-text-tertiary);
+		font-family: inherit;
+		font-size: 11.5px;
+		font-weight: 590;
+		letter-spacing: -0.006em;
+		white-space: nowrap;
+		cursor: pointer;
+		transition:
+			background var(--ms-fast) var(--ms-ease),
+			color var(--ms-fast) var(--ms-ease);
+	}
+
+	.page-btn:hover:not(.active) {
+		color: var(--ms-text-secondary);
+		background: var(--ms-hover);
+	}
+
+	.page-btn.active {
+		background: var(--ms-selected);
+		box-shadow: inset 0 1px 0 var(--ms-edge-lit);
+		color: var(--ms-text);
+	}
+
+	.page-btn:focus-visible {
+		outline: 2px solid var(--ms-text);
+		outline-offset: 2px;
+	}
+
+	/* Below this the labels crowd the project name; the glyphs still carry
+	   the meaning, which is why they diagram the layout rather than a topic. */
+	@media (max-width: 1180px) {
+		.page-label {
+			display: none;
+		}
+
+		.page-btn {
+			padding: 0 8px;
+		}
 	}
 
 	.actions {

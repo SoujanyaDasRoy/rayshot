@@ -6,55 +6,54 @@
 	import { getImportedFolders, filterMediaFiles, folderNameFromRelativePath } from '$lib/utils/mediaFilters';
 	import { importMediaFiles } from '$lib/utils/mediaUtils';
 
-	type NavTab =
-		| 'media'
-		| 'record'
-		| 'effects'
-		| 'templates'
-		| 'text'
-		| 'transitions'
-		| 'settings'
-		| 'help';
+	import { pageById, type PageId, type ToolId } from './pages';
 
 	let {
-		activeTab = $bindable('media' as NavTab),
+		activePage = 'media',
+		activeTool = 'import',
+		onSelectTool,
+		utilityView = null,
+		onSelectUtility,
 		expanded = $bindable(true),
 		activeFolder = $bindable('all'),
+		onSelectFolder,
 		canUndo = false,
 		canRedo = false,
 		onUndo,
 		onRedo
 	}: {
-		activeTab?: NavTab;
+		activePage?: PageId;
+		activeTool?: ToolId;
+		onSelectTool: (id: ToolId) => void;
+		utilityView?: 'settings' | 'help' | null;
+		onSelectUtility: (v: 'settings' | 'help') => void;
 		expanded?: boolean;
 		activeFolder?: string;
+		onSelectFolder: (id: string) => void;
 		canUndo?: boolean;
 		canRedo?: boolean;
 		onUndo: () => void;
 		onRedo: () => void;
 	} = $props();
 
-	type NavItem = { id: NavTab; label: string; icon: IconName; key?: string };
+	type ToolDef = { id: ToolId; label: string; icon: IconName };
 
-	// Two levels of hierarchy, no more, with succinct group titles (Apple HIG).
-	// `key` is this item's number-key shortcut — order here IS shortcut order.
-	const libraryNav: NavItem[] = [
-		{ id: 'media', label: 'Media', icon: 'library', key: '1' },
-		{ id: 'record', label: 'Record', icon: 'record', key: '2' },
-		{ id: 'templates', label: 'Templates', icon: 'templates', key: '3' }
-	];
+	// The rail is contextual now: it shows the tools of the page you are in.
+	// Record, Templates, Effects and Text used to sit here as if they were
+	// destinations in their own right, which is what made pages unreadable.
+	const TOOLS: Record<ToolId, ToolDef> = {
+		// The Media page's views. Import Files/Folder above are actions, not
+		// views, which is why they are a separate group.
+		import: { id: 'import', label: 'Library', icon: 'library' },
+		record: { id: 'record', label: 'Record', icon: 'record' },
+		templates: { id: 'templates', label: 'Templates', icon: 'templates' },
+		effects: { id: 'effects', label: 'Effects', icon: 'effects' },
+		text: { id: 'text', label: 'Text', icon: 'text' },
+		transitions: { id: 'transitions', label: 'Transitions', icon: 'chevron' },
+		audio: { id: 'audio', label: 'Sound', icon: 'page-audio' }
+	};
 
-	const editNav: NavItem[] = [
-		{ id: 'effects', label: 'Effects', icon: 'effects', key: '4' },
-		{ id: 'text', label: 'Text', icon: 'text', key: '5' }
-	];
-
-	const utilityNav: NavItem[] = [
-		{ id: 'settings', label: 'Settings', icon: 'settings' },
-		{ id: 'help', label: 'Help', icon: 'help' }
-	];
-
-	const shortcutable = [...libraryNav, ...editNav];
+	const pageTools = $derived(pageById(activePage).tools.map((id) => TOOLS[id]));
 
 	// Real imported folders only (see mediaFilters.ts) — the same source
 	// MediaLibraryView reads, so the two can't drift. Empty means no Folders
@@ -83,40 +82,26 @@
 		input.value = '';
 	}
 
-	// Exactly one row is ever lit. Media owns the unfiltered library, so it
-	// dims as soon as a folder narrows the view.
-	function isSelected(id: NavTab) {
-		if (id === 'media') return activeTab === 'media' && activeFolder === 'all';
-		return activeTab === id;
-	}
-
-	function selectNav(id: NavTab) {
-		if (id === 'media') activeFolder = 'all';
-		activeTab = id;
-	}
-
 	function selectFolder(id: string) {
-		activeTab = 'media';
+		onSelectFolder(id);
 		activeFolder = id;
 	}
 
-	// ── Preferences persist across reloads — collapsed state and the last tab
-	// you were on, the same way a real desktop app remembers its window state.
-	// Read synchronously at init (not in onMount) so there's no flash of the
-	// default state before this corrects it.
+	// ── Preferences persist across reloads, the way a desktop app remembers
+	// its window state. Read synchronously at init (not onMount) so there is
+	// no flash of the default first.
 	const STORAGE_KEY = 'rayshot:sidebar';
 	if (typeof localStorage !== 'undefined') {
 		try {
 			const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
 			if (typeof saved.expanded === 'boolean') expanded = saved.expanded;
-			if (typeof saved.activeTab === 'string') activeTab = saved.activeTab;
 		} catch {
 			/* corrupt or absent — defaults stand */
 		}
 	}
 	$effect(() => {
 		if (typeof localStorage === 'undefined') return;
-		localStorage.setItem(STORAGE_KEY, JSON.stringify({ expanded, activeTab }));
+		localStorage.setItem(STORAGE_KEY, JSON.stringify({ expanded }));
 	});
 
 	// ── Keyboard: number keys jump panels, Ctrl/Cmd+Z undoes, Ctrl+Y /
@@ -147,10 +132,12 @@
 		}
 
 		if (e.metaKey || e.ctrlKey || e.altKey) return;
-		const item = shortcutable.find((i) => i.key === e.key);
-		if (item) {
+		// Digits pick a tool within the current page. Page switching lives in
+		// the title bar, where the pages themselves are.
+		const index = Number(e.key) - 1;
+		if (Number.isInteger(index) && index >= 0 && index < pageTools.length) {
 			e.preventDefault();
-			selectNav(item.id);
+			onSelectTool(pageTools[index].id);
 			return;
 		}
 
@@ -187,32 +174,43 @@
 	const redoHint = $derived(isMac ? '⌘⇧Z' : 'Ctrl+Y');
 </script>
 
-{#snippet navGroup(title: string, items: NavItem[])}
-	<div class="group" role="group" aria-label={title || undefined}>
-		{#if expanded && title}<h2 class="group-title">{title}</h2>{/if}
-		{#each items as item (item.id)}
-			<Tooltip.Root disabled={expanded}>
-				<Tooltip.Trigger
-					class="row"
-					data-selected={isSelected(item.id) ? '' : undefined}
-					aria-current={isSelected(item.id) ? 'page' : undefined}
-					aria-label={expanded ? undefined : item.label}
-					onclick={() => selectNav(item.id)}
-				>
-					<Icon name={item.icon} size={18} selected={isSelected(item.id)} />
-					{#if expanded}
-						<span class="row-label">{item.label}</span>
-						{#if item.key}<kbd class="key-hint">{item.key}</kbd>{/if}
-					{/if}
-				</Tooltip.Trigger>
-				<Tooltip.Portal>
-					<Tooltip.Content class="tip" side="right" sideOffset={10}
-						>{item.label}{shortcutHint(item.key)}</Tooltip.Content
-					>
-				</Tooltip.Portal>
-			</Tooltip.Root>
-		{/each}
-	</div>
+{#snippet toolRow(tool: ToolDef, index: number)}
+	<Tooltip.Root disabled={expanded}>
+		<Tooltip.Trigger
+			class="row"
+			data-selected={activeTool === tool.id && !utilityView ? '' : undefined}
+			aria-current={activeTool === tool.id && !utilityView ? 'page' : undefined}
+			aria-label={expanded ? undefined : tool.label}
+			onclick={() => onSelectTool(tool.id)}
+		>
+			<Icon name={tool.icon} size={18} selected={activeTool === tool.id && !utilityView} />
+			{#if expanded}
+				<span class="row-label">{tool.label}</span>
+				<kbd class="key-hint">{index + 1}</kbd>
+			{/if}
+		</Tooltip.Trigger>
+		<Tooltip.Portal>
+			<Tooltip.Content class="tip" side="right" sideOffset={10}>{tool.label} ({index + 1})</Tooltip.Content>
+		</Tooltip.Portal>
+	</Tooltip.Root>
+{/snippet}
+
+{#snippet utilityRow(id: 'settings' | 'help', label: string, icon: IconName)}
+	<Tooltip.Root disabled={expanded}>
+		<Tooltip.Trigger
+			class="row"
+			data-selected={utilityView === id ? '' : undefined}
+			aria-current={utilityView === id ? 'page' : undefined}
+			aria-label={expanded ? undefined : label}
+			onclick={() => onSelectUtility(id)}
+		>
+			<Icon name={icon} size={18} selected={utilityView === id} />
+			{#if expanded}<span class="row-label">{label}</span>{/if}
+		</Tooltip.Trigger>
+		<Tooltip.Portal>
+			<Tooltip.Content class="tip" side="right" sideOffset={10}>{label}</Tooltip.Content>
+		</Tooltip.Portal>
+	</Tooltip.Root>
 {/snippet}
 
 <Tooltip.Provider delayDuration={450} disableHoverableContent>
@@ -272,6 +270,7 @@
 
 		<!-- Navigation -->
 		<nav class="nav">
+			{#if activePage === 'media'}
 			<div class="group" role="group" aria-label="Import">
 				{#if expanded}<h2 class="group-title">Import</h2>{/if}
 				<Tooltip.Root disabled={expanded}>
@@ -301,13 +300,22 @@
 					</Tooltip.Portal>
 				</Tooltip.Root>
 			</div>
+			{/if}
 
-			{@render navGroup('Library', libraryNav)}
-			{@render navGroup('Edit', editNav)}
+			<!-- The tools of the page you are in. Empty on Color, which needs the
+			     whole width for the viewer and its grade panel. -->
+			{#if pageTools.length > 0}
+				<div class="group" role="group" aria-label="Tools">
+					{#if expanded}<h2 class="group-title">{pageById(activePage).label}</h2>{/if}
+					{#each pageTools as tool, i (tool.id)}
+						{@render toolRow(tool, i)}
+					{/each}
+				</div>
+			{/if}
 
 			<!-- Disclosure keeps the rail's vertical space manageable (Apple HIG).
 			     Real imported folders only — nothing to show, nothing rendered. -->
-			{#if expanded && folders.length > 0}
+			{#if activePage === 'media' && expanded && folders.length > 0}
 				<Collapsible.Root bind:open={foldersOpen} class="group">
 					<Collapsible.Trigger class="group-title disclosure">
 						<Icon name="chevron" size={12} class={foldersOpen ? 'chev open' : 'chev'} />
@@ -317,13 +325,13 @@
 						{#each folders as folder (folder.name)}
 							<button
 								class="row folder"
-								data-selected={activeTab === 'media' && activeFolder === folder.name ? '' : undefined}
+								data-selected={activePage === 'media' && activeFolder === folder.name ? '' : undefined}
 								onclick={() => selectFolder(folder.name)}
 							>
 								<Icon
 									name="folder"
 									size={16}
-									selected={activeTab === 'media' && activeFolder === folder.name}
+									selected={activePage === 'media' && activeFolder === folder.name}
 								/>
 								<span class="row-label">{folder.name}</span>
 								<span class="count">{folder.count}</span>
@@ -335,7 +343,8 @@
 
 			<div class="spacer"></div>
 
-			{@render navGroup('', utilityNav)}
+			{@render utilityRow('settings', 'Settings', 'settings')}
+			{@render utilityRow('help', 'Help', 'help')}
 		</nav>
 
 		<input

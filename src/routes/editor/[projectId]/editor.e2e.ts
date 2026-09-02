@@ -63,8 +63,8 @@ test.describe('editor workspace smoke test', () => {
 		await page.locator('.filename-pill', { hasText: 'tone.wav' }).click();
 		await page.getByRole('button', { name: 'Add to Timeline' }).click();
 
-		// The timeline only exists on the editing surface, not the library view.
-		await page.getByRole('button', { name: 'Effects' }).click();
+		// The timeline belongs to the pages that edit a sequence, not the library.
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
 		const bars = page.locator('.clip-waveform-bar');
 		await expect(bars.first()).toBeVisible();
@@ -102,7 +102,7 @@ test.describe('editor workspace smoke test', () => {
 		await page.reload();
 
 		await page.getByRole('button', { name: 'Restore' }).click();
-		await page.getByRole('button', { name: 'Effects' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
 		const layer = page.locator('.canvas-layer').first();
 		await expect(layer).toBeVisible();
@@ -153,7 +153,7 @@ test.describe('editor workspace smoke test', () => {
 		await page.locator('.rail input[type="file"]:not([webkitdirectory])').setInputFiles(clipPath);
 		await page.locator('.filename-pill', { hasText: 'graded.mp4' }).click();
 		await page.getByRole('button', { name: 'Add to Timeline' }).click();
-		await page.getByRole('button', { name: 'Effects' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
 		const layer = page.locator('.canvas-layer').first();
 		await expect(layer).toBeVisible();
@@ -208,7 +208,7 @@ test.describe('editor workspace smoke test', () => {
 		for (let i = 0; i < 20; i++) {
 			await page.getByRole('button', { name: 'Add to Timeline' }).click();
 		}
-		await page.getByRole('button', { name: 'Effects' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
 		const lost = await page.evaluate(() => {
 			const probe = document.createElement('canvas');
@@ -227,12 +227,11 @@ test.describe('editor workspace smoke test', () => {
 		await page.goto('/');
 		await expect(page).toHaveURL(/\/editor\/default-project$/);
 
-		// Timeline is not part of the full-screen Library view...
+		// The Media page is the library: no timeline.
 		await expect(page.locator('.bottom-timeline-row')).toHaveCount(0);
 
-		// ...but appears once you're on the actual editing surface (the bug this
-		// whole pass exists to fix: this view used to be permanently unreachable).
-		await page.getByRole('button', { name: 'Effects' }).click();
+		// Switching page rearranges the window — that is what a page is.
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
 		await expect(page.locator('.bottom-timeline-row')).toBeVisible();
 		await expect(page.locator('.bottom-timeline-row')).toContainText('V1');
 		await expect(page.locator('.bottom-timeline-row')).toContainText('A1');
@@ -278,54 +277,65 @@ test.describe('editor workspace smoke test', () => {
 		expect(support.vp9).toBe(true);
 	});
 
-	test('number keys jump panels, but not while typing in a field', async ({ page }) => {
+	test('number keys pick a tool in the current page, but not while typing', async ({ page }) => {
 		await page.goto('/');
 
-		await page.keyboard.press('4');
-		await expect(page.getByRole('button', { name: 'Effects' })).toHaveAttribute('aria-current', 'page');
+		// Media's tools are Import Files (1), Record (2), Templates (3).
+		// Scoped to the rail: opening Record also renders a "Start Recording"
+		// button, which substring-matches the same name.
+		const recordRow = page.locator('.rail .row', { hasText: 'Record' });
+		await page.keyboard.press('2');
+		await expect(recordRow).toHaveAttribute('aria-current', 'page');
 
-		// Typing "1" into the project name field must not also switch panels.
-		// pressSequentially (not fill) so real per-character keydown events fire.
+		// Typing "1" into the project name must not also switch tools.
 		await page.getByLabel('Project name').click();
 		await page.getByLabel('Project name').pressSequentially('11');
-		await expect(page.getByRole('button', { name: 'Effects' })).toHaveAttribute('aria-current', 'page');
-		await expect(page.getByRole('button', { name: 'Media' })).not.toHaveAttribute('aria-current', 'page');
+		await expect(recordRow).toHaveAttribute('aria-current', 'page');
 	});
 
-	test('arrow keys move focus between panel rows', async ({ page }) => {
+	test('arrow keys move focus between rail rows', async ({ page }) => {
 		await page.goto('/');
 
-		await page.getByRole('button', { name: 'Media' }).focus();
+		await page.getByRole('button', { name: 'Import Files' }).focus();
 		await page.keyboard.press('ArrowDown');
-		await expect(page.getByRole('button', { name: 'Record' })).toBeFocused();
-		await page.keyboard.press('ArrowDown');
-		await expect(page.getByRole('button', { name: 'Templates' })).toBeFocused();
+		await expect(page.getByRole('button', { name: 'Import Folder' })).toBeFocused();
 		await page.keyboard.press('ArrowUp');
-		await expect(page.getByRole('button', { name: 'Record' })).toBeFocused();
+		await expect(page.getByRole('button', { name: 'Import Files' })).toBeFocused();
 	});
 
-	test('sidebar remembers collapsed state and last panel across a reload', async ({ page }) => {
-		// Isolate from whatever a previous test in this worker left behind —
-		// this is exactly the scenario being tested (a returning user's saved
-		// preference), so it must not depend on starting from a blank slate.
-		// A plain evaluate (not addInitScript, which would re-fire and wipe our
-		// own write on the reload later in this same test).
+	test('sidebar remembers its collapsed state across a reload', async ({ page }) => {
+		// The page you are on is deliberately NOT persisted any more: it used to
+		// be restored from localStorage with no validation at all, so any string
+		// became the active tab.
 		await page.goto('/');
 		await page.evaluate(() => localStorage.removeItem('rayshot:sidebar'));
 		await page.reload();
-		await expect(page.getByRole('button', { name: 'Media' })).toBeVisible(); // hydrated and ready
+		await expect(page.getByRole('button', { name: 'Import Files' })).toBeVisible();
 
-		await page.keyboard.press('3'); // Templates
-		await page.locator('.rail .toggle-sidebar').click(); // starts expanded, so this collapses it
-		// Persisting to localStorage happens in an $effect, a tick after the
-		// click — wait for the visible result before reloading, or the reload
-		// can race ahead of the write.
+		await page.locator('.rail .toggle-sidebar').click();
 		await expect(page.locator('.rail')).toHaveClass(/collapsed/);
 
 		await page.reload();
 
 		await expect(page.locator('.rail')).toHaveClass(/collapsed/);
-		await expect(page.getByRole('button', { name: 'Templates' })).toHaveAttribute('aria-current', 'page');
+	});
+
+	test('pages rearrange the window, and reach what the old nav could not', async ({ page }) => {
+		await page.goto('/');
+
+		// Transitions had no route into it at all: it was in the tab union and
+		// in no nav array, so the drawer was unreachable dead code.
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await expect(page.getByRole('button', { name: 'Transitions' })).toBeVisible();
+
+		// Colour gets the viewer and the grade panel, and no media bin.
+		await page.getByRole('button', { name: 'Color', exact: true }).click();
+		await expect(page.locator('.left-mediabin-col')).toHaveCount(0);
+		await expect(page.locator('.bottom-timeline-row')).toBeVisible();
+
+		// Media is the library: no timeline.
+		await page.getByRole('button', { name: 'Media', exact: true }).click();
+		await expect(page.locator('.bottom-timeline-row')).toHaveCount(0);
 	});
 
 	test('sidebar has no Folders section until a folder is actually imported', async ({ page }) => {
