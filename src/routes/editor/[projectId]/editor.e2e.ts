@@ -40,7 +40,7 @@ test.describe('editor workspace smoke test', () => {
 		writeFileSync(filePath, 'fake-mp4-bytes');
 
 		await page.goto('/');
-		await page.locator('.rail input[type="file"]:not([webkitdirectory])').setInputFiles(filePath);
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(filePath);
 
 		await expect(page.locator('.filename-pill', { hasText: 'sidebar_clip.mp4' })).toBeVisible();
 
@@ -58,7 +58,7 @@ test.describe('editor workspace smoke test', () => {
 		writeFileSync(audioPath, 'fake-wav-bytes');
 
 		await page.goto('/');
-		await page.locator('.rail input[type="file"]:not([webkitdirectory])').setInputFiles(audioPath);
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(audioPath);
 
 		await page.locator('.filename-pill', { hasText: 'tone.wav' }).click();
 		await page.getByRole('button', { name: 'Add to Timeline' }).click();
@@ -93,7 +93,7 @@ test.describe('editor workspace smoke test', () => {
 		writeFileSync(clipPath, 'fake-mp4-bytes');
 
 		await page.goto('/');
-		await page.locator('.rail input[type="file"]:not([webkitdirectory])').setInputFiles(clipPath);
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
 		await page.locator('.filename-pill', { hasText: 'restored.mp4' }).click();
 		await page.getByRole('button', { name: 'Add to Timeline' }).click();
 
@@ -120,7 +120,7 @@ test.describe('editor workspace smoke test', () => {
 		writeFileSync(clipPath, 'fake-mp4-bytes');
 
 		await page.goto('/');
-		await page.locator('.rail input[type="file"]:not([webkitdirectory])').setInputFiles(clipPath);
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
 		await page.locator('.filename-pill', { hasText: 'vanished.mp4' }).click();
 		await page.getByRole('button', { name: 'Add to Timeline' }).click();
 		await page.waitForTimeout(1500);
@@ -150,7 +150,7 @@ test.describe('editor workspace smoke test', () => {
 		writeFileSync(clipPath, 'fake-mp4-bytes');
 
 		await page.goto('/');
-		await page.locator('.rail input[type="file"]:not([webkitdirectory])').setInputFiles(clipPath);
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
 		await page.locator('.filename-pill', { hasText: 'graded.mp4' }).click();
 		await page.getByRole('button', { name: 'Add to Timeline' }).click();
 		await page.getByRole('button', { name: 'Edit', exact: true }).click();
@@ -201,7 +201,7 @@ test.describe('editor workspace smoke test', () => {
 		writeFileSync(clipPath, 'fake-mp4-bytes');
 
 		await page.goto('/');
-		await page.locator('.rail input[type="file"]:not([webkitdirectory])').setInputFiles(clipPath);
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
 		await page.locator('.filename-pill', { hasText: 'gl.mp4' }).click();
 
 		// Stack up many clips; one context per clip would blow the cap here.
@@ -277,6 +277,55 @@ test.describe('editor workspace smoke test', () => {
 		await expect
 			.poll(() => firstRow.evaluate((el) => getComputedStyle(el).borderLeftColor))
 			.not.toBe('rgba(0, 0, 0, 0)');
+	});
+
+	test('a .rayshot bundle round-trips a project and its media', async ({ page }) => {
+		// The Excalidraw-style ask: one file that carries the project AND its
+		// bytes, so it opens on a machine that has never seen the media.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-bundle-'));
+		const clipPath = path.join(fixtureDir, 'bundled.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes-for-bundling');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await expect(page.locator('.filename-pill', { hasText: 'bundled.mp4' })).toBeVisible();
+
+		const download = page.waitForEvent('download');
+		await page.getByRole('button', { name: 'Save Project' }).click();
+		const saved = await download;
+		expect(saved.suggestedFilename()).toMatch(/\.rayshot$/);
+
+		const bundlePath = path.join(fixtureDir, 'saved.rayshot');
+		await saved.saveAs(bundlePath);
+
+		// Wipe everything a browser could be remembering, so reopening cannot be
+		// quietly served by the autosave or the blob cache.
+		await page.evaluate(async () => {
+			localStorage.clear();
+			const dbs = await indexedDB.databases();
+			await Promise.all(
+				dbs.map((d) => new Promise<void>((res) => {
+					const q = indexedDB.deleteDatabase(d.name!);
+					q.onsuccess = q.onerror = q.onblocked = () => res();
+				}))
+			);
+			try {
+				const root = await navigator.storage.getDirectory();
+				for await (const name of (root as unknown as { keys(): AsyncIterable<string> }).keys()) {
+					await root.removeEntry(name, { recursive: true });
+				}
+			} catch { /* no OPFS, nothing to clear */ }
+		});
+		await page.reload();
+		await expect(page.locator('.filename-pill')).toHaveCount(0);
+
+		await page.locator('.rail input[accept=".rayshot,application/zip"]').setInputFiles(bundlePath);
+
+		// Back, with its media: not offline, and playable.
+		await expect(page.locator('.filename-pill', { hasText: 'bundled.mp4' })).toBeVisible();
+		await expect(page.locator('.offline-badge')).toHaveCount(0);
+
+		rmSync(fixtureDir, { recursive: true, force: true });
 	});
 
 	test('/ redirects into the editor, and the editing surface is actually reachable', async ({ page }) => {

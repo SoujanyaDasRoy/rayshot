@@ -4,7 +4,10 @@
 	import type { IconName } from './icons';
 	import { projectStore } from '$lib/stores/project.svelte';
 	import { getImportedFolders, filterMediaFiles, folderNameFromRelativePath } from '$lib/utils/mediaFilters';
-	import { importMediaFiles } from '$lib/utils/mediaUtils';
+	import { importMediaFiles, addAsset } from '$lib/utils/mediaUtils';
+	import { createRayshotBundle, readRayshotBundle } from '$lib/core/persistence/rayshotFile';
+	import { downloadBlob, sanitizeExportFilename } from '$lib/utils/exportUtils';
+	import { get } from 'svelte/store';
 
 	import { pageById, type PageId, type ToolId } from './pages';
 
@@ -63,6 +66,54 @@
 	let foldersOpen = $state(true);
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let folderInput = $state<HTMLInputElement | null>(null);
+	let projectInput = $state<HTMLInputElement | null>(null);
+	let projectBusy = $state<'save' | 'open' | null>(null);
+	let projectNotice = $state<string | null>(null);
+
+	// A .rayshot bundle carries the project and its media, so it opens on
+	// someone else's machine with nothing to relink.
+	async function saveProjectFile() {
+		const project = get(projectStore);
+		if (!project || projectBusy) return;
+		projectBusy = 'save';
+		projectNotice = null;
+		try {
+			const { blob, skipped } = await createRayshotBundle(project);
+			downloadBlob(blob, `${sanitizeExportFilename(project.name)}.rayshot`);
+			projectNotice = skipped.length
+				? `Saved. ${skipped.length} offline item${skipped.length > 1 ? 's' : ''} not included.`
+				: 'Project saved.';
+		} catch (e) {
+			projectNotice = e instanceof Error ? e.message : 'Could not save the project.';
+		} finally {
+			projectBusy = null;
+		}
+	}
+
+	async function openProjectFile() {
+		const input = projectInput;
+		if (!input?.files?.length || projectBusy) return;
+		projectBusy = 'open';
+		projectNotice = null;
+		try {
+			const { project, media, missing } = await readRayshotBundle(input.files[0]);
+			// Bytes go in through the same path an import uses, so they land in
+			// the blob cache and survive the next reload too.
+			projectStore.set(project);
+			for (const [assetId, blob] of media) {
+				const asset = project.assets.get(assetId);
+				if (asset) addAsset({ ...asset, sourceBlob: blob });
+			}
+			projectNotice = missing.length
+				? `Opened. ${missing.length} item${missing.length > 1 ? 's' : ''} missing from the file.`
+				: 'Project opened.';
+		} catch (e) {
+			projectNotice = e instanceof Error ? e.message : 'Could not open that file.';
+		} finally {
+			projectBusy = null;
+			input.value = '';
+		}
+	}
 
 	async function handleFileImport() {
 		const input = fileInput;
@@ -270,6 +321,41 @@
 
 		<!-- Navigation -->
 		<nav class="nav">
+			<div class="group" role="group" aria-label="Project">
+				{#if expanded}<h2 class="group-title">Project</h2>{/if}
+				<Tooltip.Root disabled={expanded}>
+					<Tooltip.Trigger
+						class="row"
+						onclick={saveProjectFile}
+						disabled={projectBusy !== null}
+						aria-label={expanded ? undefined : 'Save project file'}
+					>
+						<Icon name="export" size={18} />
+						{#if expanded}<span class="row-label">{projectBusy === 'save' ? 'Saving…' : 'Save Project'}</span>{/if}
+					</Tooltip.Trigger>
+					<Tooltip.Portal>
+						<Tooltip.Content class="tip" side="right" sideOffset={10}>Save Project</Tooltip.Content>
+					</Tooltip.Portal>
+				</Tooltip.Root>
+				<Tooltip.Root disabled={expanded}>
+					<Tooltip.Trigger
+						class="row"
+						onclick={() => projectInput?.click()}
+						disabled={projectBusy !== null}
+						aria-label={expanded ? undefined : 'Open project file'}
+					>
+						<Icon name="import" size={18} />
+						{#if expanded}<span class="row-label">{projectBusy === 'open' ? 'Opening…' : 'Open Project'}</span>{/if}
+					</Tooltip.Trigger>
+					<Tooltip.Portal>
+						<Tooltip.Content class="tip" side="right" sideOffset={10}>Open Project</Tooltip.Content>
+					</Tooltip.Portal>
+				</Tooltip.Root>
+				{#if expanded && projectNotice}
+					<p class="project-notice">{projectNotice}</p>
+				{/if}
+			</div>
+
 			{#if activePage === 'media'}
 			<div class="group" role="group" aria-label="Import">
 				{#if expanded}<h2 class="group-title">Import</h2>{/if}
@@ -353,6 +439,13 @@
 			onchange={handleFileImport}
 			multiple
 			accept="video/*,audio/*,image/*"
+			style="display: none;"
+		/>
+		<input
+			type="file"
+			bind:this={projectInput}
+			onchange={openProjectFile}
+			accept=".rayshot,application/zip"
 			style="display: none;"
 		/>
 		<input
@@ -608,6 +701,13 @@
 		font-weight: 400;
 		font-variant-numeric: tabular-nums;
 		color: var(--ms-text-quaternary);
+	}
+
+	.project-notice {
+		margin: 4px 8px 0;
+		font-size: 11px;
+		line-height: 1.45;
+		color: var(--ms-text-tertiary);
 	}
 
 	.spacer {
