@@ -1,11 +1,11 @@
 import { describe, test, expect } from 'vitest';
 import {
 	TRACK_COLORS,
-	DEFAULT_TRACK_COLOR,
 	makeTrack,
 	trackLabel,
 	trackLabels,
 	trackHeight,
+	trackColor,
 	audibleTrackIds,
 	isValidTrackColor,
 	TRACK_TYPES
@@ -29,7 +29,7 @@ describe('makeTrack', () => {
 		expect(track.locked).toBe(false);
 		expect(track.muted).toBe(false);
 		expect(track.hidden).toBe(false);
-		expect(track.color).toBe(DEFAULT_TRACK_COLOR);
+		expect(track.color).toBeUndefined();
 		expect(track.clipInstances).toEqual([]);
 	});
 
@@ -148,5 +148,38 @@ describe('audibleTrackIds', () => {
 
 	test('survives an empty sequence', () => {
 		expect(audibleTrackIds([])).toEqual(new Set());
+	});
+});
+
+describe('trackColor', () => {
+	test('each type reads as itself before anyone has chosen anything', () => {
+		const video = trackColor(makeTrack('video', 0));
+		const audio = trackColor(makeTrack('audio', 1));
+		const subtitle = trackColor(makeTrack('subtitle', 2));
+		expect(new Set([video, audio, subtitle]).size).toBe(3);
+	});
+
+	test('every type default is a colour from the one palette', () => {
+		const palette = TRACK_COLORS.map((c) => c.value);
+		for (const type of TRACK_TYPES) {
+			expect(palette).toContain(trackColor(makeTrack(type, 0)));
+		}
+	});
+
+	test("a chosen colour always beats the type's default", () => {
+		const track = { ...makeTrack('video', 0), color: '#c2607f' };
+		expect(trackColor(track)).toBe('#c2607f');
+	});
+
+	test('a new track stores no colour, so the default stays derivable', () => {
+		// Same lesson as clip speed: do not store a value that duplicates a
+		// default. A stored copy is a second representation waiting to go stale
+		// when the default changes.
+		expect(makeTrack('video', 0).color).toBeUndefined();
+	});
+
+	test('a track from before type colours keeps the colour it was given', () => {
+		const legacy = { ...makeTrack('audio', 0), color: '#7c8592' };
+		expect(trackColor(legacy)).toBe('#7c8592');
 	});
 });

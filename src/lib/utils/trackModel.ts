@@ -31,7 +31,30 @@ export const TRACK_COLORS: TrackColor[] = [
 	{ name: 'Rose', value: '#c2607f' }
 ];
 
-export const DEFAULT_TRACK_COLOR = TRACK_COLORS[0].value;
+/**
+ * What each kind of track looks like before anyone chooses.
+ *
+ * Colour here is doing identification work, not decoration: at a glance a lane
+ * says what sort of thing lives in it. Blue for picture and green for sound
+ * follow the convention every NLE already trained people on; captions take a
+ * third hue so they never read as either.
+ */
+const DEFAULT_BY_TYPE: Record<TrackType, string> = {
+	video: '#5b8def',
+	audio: '#5aa469',
+	subtitle: '#9a6fb0'
+};
+
+/**
+ * A track's colour: what the user chose, or what its type says by default.
+ *
+ * The default is never written onto the track. Storing it would duplicate a
+ * derivable value and make "never chosen" indistinguishable from "chose this
+ * exact colour" — and it would go stale the day a default changes.
+ */
+export function trackColor(track: Pick<Track, 'type' | 'color'>): string {
+	return track.color ?? DEFAULT_BY_TYPE[track.type] ?? TRACK_COLORS[0].value;
+}
 
 /** Per-type fallbacks. Subtitles need less room than a filmstrip. */
 const DEFAULT_HEIGHTS: Record<TrackType, number> = {
@@ -55,7 +78,6 @@ export function makeTrack(type: TrackType, order: number): Track {
 		type,
 		order,
 		clipInstances: [],
-		color: DEFAULT_TRACK_COLOR,
 		locked: false,
 		muted: false,
 		solo: false,

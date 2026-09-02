@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { trackLabels, trackHeight, TRACK_COLORS, DEFAULT_TRACK_COLOR } from '$lib/utils/trackModel';
+	import { trackLabels, trackHeight, trackColor, TRACK_COLORS } from '$lib/utils/trackModel';
 	import {
 		SetTrackPropertyCommand,
 		type TrackProperty
@@ -76,6 +76,14 @@
 
 	// The ruler decides its own density: labels never crowd and never vanish.
 	const ticks = $derived(rulerTicks($sequenceDuration, $timelineStore.zoomLevel));
+
+	// "Video 1" beats "V1": the abbreviation saved eleven pixels in a column
+	// that has a hundred and seventy-six of them.
+	const TRACK_WORD: Record<'video' | 'audio' | 'subtitle', string> = {
+		video: 'Video',
+		audio: 'Audio',
+		subtitle: 'Caption'
+	};
 
 	function setTrackProp(trackId: string, property: TrackProperty, value: unknown) {
 		commandProcessor.execute(
@@ -653,7 +661,7 @@
 				{@const trackLabel = labels[index]}
 				<div
 					class="track-label-row {track.type}"
-					style="height: {trackHeight(track)}px; --track-color: {track.color ?? DEFAULT_TRACK_COLOR};"
+					style="height: {trackHeight(track)}px; --track-color: {trackColor(track)};"
 					class:locked={track.locked}
 				>
 					<button
@@ -665,63 +673,34 @@
 						aria-pressed={!track.hidden}
 					></button>
 
-					<div class="track-id-badge {track.type}">
+					<span class="track-glyph {track.type}" aria-hidden="true">
 						{#if track.type === 'video'}
-							<svg
-								class="track-svg-icon video"
-								width="13"
-								height="13"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-							>
-								<path d="m22 8-6 4 6 4V8Z" />
-								<rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+								<rect x="2" y="5" width="20" height="14" rx="2" />
+								<path d="M7 5v14M17 5v14M2 12h20" />
 							</svg>
 						{:else if track.type === 'subtitle'}
-							<svg
-								class="track-svg-icon subtitle"
-								width="13"
-								height="13"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-							>
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
 								<rect x="3" y="5" width="18" height="14" rx="2" />
-								<path d="M7 14h5" />
-								<path d="M15 14h2" />
+								<path d="M7 14h5M15 14h2" />
 							</svg>
 						{:else}
-							<svg
-								class="track-svg-icon audio"
-								width="13"
-								height="13"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-							>
-								<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-								<path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M9 18V6l10-2v12" />
+								<circle cx="6.5" cy="18" r="2.5" />
+								<circle cx="16.5" cy="16" r="2.5" />
 							</svg>
 						{/if}
-						<span class="badge-num font-mono">{trackLabel}</span>
-					</div>
+					</span>
+
+					<span class="track-name">{TRACK_WORD[track.type]} <span class="track-index font-mono">{trackLabel.slice(1)}</span></span>
 
 					<div class="track-controls" class:menu-open={colorMenuTrackId === track.id}>
 						<!-- Colour is user data, and the one place colour is allowed:
 						     it is how an editor tells dialogue from music at a glance. -->
 						<button
 							class="track-swatch"
-							style="background: {track.color ?? DEFAULT_TRACK_COLOR};"
+							style="background: {trackColor(track)};"
 							onclick={() => (colorMenuTrackId = colorMenuTrackId === track.id ? null : track.id)}
 							title="Track colour"
 							aria-label="Track colour"
@@ -733,7 +712,7 @@
 								{#each TRACK_COLORS as swatch (swatch.value)}
 									<button
 										class="swatch-option"
-										class:selected={(track.color ?? DEFAULT_TRACK_COLOR) === swatch.value}
+										class:selected={(trackColor(track)) === swatch.value}
 										style="background: {swatch.value};"
 										title={swatch.name}
 										aria-label={swatch.name}
@@ -833,7 +812,7 @@
 							class="track-row-lane {track.type}"
 							class:drop-target={dragOverTrackId === track.id}
 							class:hidden-track={track.hidden}
-							style="height: {trackHeight(track)}px; --track-color: {track.color ?? DEFAULT_TRACK_COLOR};"
+							style="height: {trackHeight(track)}px; --track-color: {trackColor(track)};"
 							data-track-id={track.id}
 							onmouseenter={() => { if (draggingClipId) dragOverTrackId = track.id; }}
 							ondragover={(e) => e.preventDefault()}
@@ -1099,28 +1078,51 @@
 		background: var(--ms-void); /* surface-container-lowest */
 	}
 
-	.track-id-badge {
+	/* The glyph carries the track's colour; the word carries its meaning. */
+	.track-glyph {
 		display: flex;
 		align-items: center;
-		gap: 4px;
-		padding: 2px 6px;
-		border-radius: 4px;
-		font-size: 0.72rem;
-		font-weight: 700;
-		color: var(--ms-text-secondary); /* on-surface-variant */
+		justify-content: center;
+		width: 15px;
+		height: 15px;
+		flex-shrink: 0;
+		color: var(--track-color);
 	}
 
-	.track-svg-icon {
-		flex-shrink: 0;
+	.track-glyph svg {
+		width: 100%;
+		height: 100%;
+	}
+
+	.track-name {
+		min-width: 0;
+		font-size: 11.5px;
+		font-weight: 590;
+		color: var(--ms-text);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.track-index {
+		color: var(--ms-text-tertiary);
 	}
 
 	/* The row shows what you need to read it — name, colour, on/off — and
 	   reveals what you need to change it only when you reach for it. Focus
 	   counts as reaching: hover-only controls do not exist for a keyboard. */
+	/* Overlaid, not in flow: while hidden they were still reserving room and
+	   squeezing "Video 1" down to "Vi...". The name gets the whole row; the
+	   controls arrive on top of its tail when you reach for them. */
 	.track-controls {
+		position: absolute;
+		right: 8px;
+		top: 50%;
+		transform: translateY(-50%);
 		display: flex;
 		gap: 3px;
-		margin-left: auto;
+		padding-left: 12px;
+		background: linear-gradient(90deg, transparent, var(--ms-material) 12px);
 		opacity: 0;
 		transition: opacity var(--ms-fast) var(--ms-ease);
 	}
@@ -1285,6 +1287,7 @@
 	}
 
 	.track-row-lane {
+		border-bottom: 1px solid var(--ms-edge);
 		position: relative;
 		flex-shrink: 0;
 		box-sizing: border-box;
@@ -1323,7 +1326,7 @@
 		border-left: 3px solid var(--track-color, transparent);
 	}
 
-	.track-label-row.locked .track-id-badge {
+	.track-label-row.locked .track-name {
 		opacity: 0.5;
 	}
 

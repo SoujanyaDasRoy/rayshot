@@ -626,6 +626,15 @@
 				{@render effectsSection(clip)}
 			{/if}
 		</div>
+	{:else}
+		<!-- An empty panel is an instruction, not a shrug. This one showed a
+		     header and then nothing at all. -->
+		<div class="inspector-empty">
+			<span class="inspector-empty-title">Nothing selected</span>
+			<span class="inspector-empty-hint">
+				Click a clip on the timeline to change its transform, effects and sound.
+			</span>
+		</div>
 	{/if}
 </aside>
 <style>
@@ -767,6 +776,30 @@
 	.applied-effect-remove:hover {
 		background: var(--ms-hover);
 		color: var(--ms-text);
+	}
+
+	.inspector-empty {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		align-items: center;
+		justify-content: center;
+		flex: 1;
+		padding: 24px;
+		text-align: center;
+	}
+
+	.inspector-empty-title {
+		font-size: 13px;
+		font-weight: 590;
+		color: var(--ms-text-secondary);
+	}
+
+	.inspector-empty-hint {
+		max-width: 26ch;
+		font-size: 11.5px;
+		line-height: 1.55;
+		color: var(--ms-text-tertiary);
 	}
 
 	.inspector-sections-scroll {

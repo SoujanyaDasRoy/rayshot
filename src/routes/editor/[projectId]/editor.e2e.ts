@@ -257,7 +257,7 @@ test.describe('editor workspace smoke test', () => {
 		// mis-numbered audio track for anything that was not video.
 		await page.getByRole('button', { name: '+ Subtitle' }).click();
 		await expect(page.locator('.track-label-row.subtitle')).toHaveCount(1);
-		await expect(page.locator('.track-id-badge', { hasText: 'S1' })).toBeVisible();
+		await expect(page.locator('.track-name', { hasText: 'Caption 1' })).toBeVisible();
 	});
 
 	test('track mute and lock survive a reload, and colour is user-chosen', async ({ page }) => {
@@ -375,8 +375,8 @@ test.describe('editor workspace smoke test', () => {
 		// Switching page rearranges the window — that is what a page is.
 		await page.getByRole('button', { name: 'Edit', exact: true }).click();
 		await expect(page.locator('.bottom-timeline-row')).toBeVisible();
-		await expect(page.locator('.bottom-timeline-row')).toContainText('V1');
-		await expect(page.locator('.bottom-timeline-row')).toContainText('A1');
+		await expect(page.locator('.bottom-timeline-row')).toContainText('Video 1');
+		await expect(page.locator('.bottom-timeline-row')).toContainText('Audio 1');
 
 		expect(errors, `Uncaught page errors: ${errors.join('; ')}`).toEqual([]);
 	});

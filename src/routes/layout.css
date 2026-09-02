@@ -283,13 +283,19 @@ body {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  gap: 8px;
+  padding: 8px 8px 0;
 }
 
 /* Updated Panel Widths with 4px Grid */
+/* Panels float as cards on the ground rather than butting against each other
+   through hairlines. The gap is what makes each one legible as a separate
+   place to be, and it costs nothing but margin. */
 .left-mediabin-col {
   width: 18rem; /* 288px (72 * 4px) */
-  background-color: var(--color-surface-container);
-  border-right: 1px solid var(--color-outline-variant);
+  background-color: var(--ms-material);
+  border: 1px solid var(--ms-edge);
+  border-radius: 14px;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -302,15 +308,18 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background-color: var(--color-surface-container-lowest);
+  background-color: var(--ms-material);
+  border: 1px solid var(--ms-edge);
+  border-radius: 14px;
   overflow: hidden;
   position: relative;
 }
 
 .right-inspector-col {
   width: 20rem; /* 320px (80 * 4px) */
-  background-color: var(--color-surface-container);
-  border-left: 1px solid var(--color-outline-variant);
+  background-color: var(--ms-material);
+  border: 1px solid var(--ms-edge);
+  border-radius: 14px;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -319,12 +328,15 @@ body {
 }
 
 .bottom-timeline-row {
+  margin: 8px;
   height: 36vh;
   min-height: 220px;
   max-height: 460px;
   flex-shrink: 0;
-  border-top: 1px solid var(--color-outline-variant);
-  background-color: var(--color-bg-base);
+  border: 1px solid var(--ms-edge);
+  border-radius: 14px;
+  overflow: hidden;
+  background-color: var(--ms-material);
   position: relative;
   display: flex;
   flex-direction: column;

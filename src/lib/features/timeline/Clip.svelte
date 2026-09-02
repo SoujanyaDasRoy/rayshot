@@ -64,6 +64,17 @@
 	const assetType = derived(asset, ($asset) => $asset?.type ?? trackType);
 	const isSelected = derived(timelineStore, ($timeline) => $timeline.selectedClipId === clip.id);
 
+	// A name on a 40px clip is a smear across the only thing you were looking
+	// at. Below these widths the clip is its content and nothing else.
+	const showName = $derived(width > 88);
+	const showDuration = $derived(width > 168);
+
+	const captionText = $derived(
+		typeof clip.filters?.text === 'string' && clip.filters.text.trim()
+			? (clip.filters.text as string)
+			: $assetName
+	);
+
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Enter' || event.key === ' ') {
 			event.preventDefault();
@@ -128,73 +139,50 @@
 	class:focus-visible={false}
 >
 	<!-- Left Trim Handle (Start boundary) -->
-	<div class="trim-handle start" title="Drag to trim start">
-			</div>
+	<div class="trim-handle start" title="Drag to trim start"></div>
 
-	<!-- Clip Visual Body -->
-	<div class="clip-visual-content">
-		<!-- Video & Image Clip -->
+	<div class="clip-body">
 		{#if $assetType === 'video' || $assetType === 'image'}
-			<!-- Filename Bar -->
-			<div class="clip-filename-bar">
-				<span class="clip-filename-text font-mono-label text-[9px] truncate">{$assetName}</span>
-					{#if $isSelected}
-						<span class="clip-speed-icon">
-							<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-							</svg>
-						</span>
-					{/if}
-			</div>
-
-			<!-- Thumbnail Representations -->
-			<div class="clip-thumbnails flex-1 flex space-x-0.5 px-1 py-1">
+			<!-- Edge to edge, no padding and no gaps: a filmstrip reads as one
+			     continuous piece of footage, which is the thing being represented.
+			     Boxed thumbnails with gutters read as a row of icons. -->
+			<div class="clip-filmstrip">
 				{#if $uiStore.showThumbnails}
 					{#each thumbnailFrames as thumbSrc, i (i)}
-						<div class="clip-thumbnail" style="background-image: url({thumbSrc});"></div>
+						<div class="clip-frame" style="background-image: url({thumbSrc});"></div>
 					{/each}
-				{:else}
-					<div class="clip-thumbnail"></div>
-					<div class="clip-thumbnail"></div>
-					<div class="clip-thumbnail"></div>
+				{/if}
+			</div>
+		{:else if $assetType === 'audio'}
+			{#if $uiStore.showWaveforms}
+				<!-- Heights are inline styles, never Tailwind arbitrary values:
+				     Tailwind scans source text statically, so a class built by
+				     Svelte interpolation (h-[{n}%]) is never generated. -->
+				<div class="clip-wave">
+					{#each waveformBars as bar, i (i)}
+						<div class="clip-waveform-bar" style="height: {Math.max(2, bar * 100)}%;"></div>
+					{/each}
+				</div>
+			{/if}
+		{:else if trackType === 'subtitle'}
+			<!-- A caption clip should read as its own words. Falls back to the
+			     filename, because real text clips do not exist yet — titles are
+			     rasterised at insert. -->
+			<p class="clip-caption">{captionText}</p>
+		{/if}
+
+		{#if showName}
+			<div class="clip-meta">
+				<span class="clip-name">{$assetName}</span>
+				{#if showDuration}
+					<span class="clip-dur font-mono">{clip.timelineDuration.toFixed(1)}s</span>
 				{/if}
 			</div>
 		{/if}
-
-		<!-- Audio Clip -->
-		{#if $assetType === 'audio'}
-			<!-- Filename Bar -->
-			<div class="clip-filename-bar">
-				<span class="clip-filename-text font-mono-label text-[9px] text-secondary truncate">{$assetName}</span>
-			</div>
-
-			<!-- Waveform. Heights are inline styles, never Tailwind arbitrary values:
-			     Tailwind scans source text statically, so a class built by Svelte
-			     interpolation (h-[{n}%]) is never generated. -->
-			{#if $uiStore.showWaveforms}
-				<div class="clip-waveform flex-1 w-full relative opacity-70">
-					<div class="absolute inset-0 flex items-end justify-around px-1 pb-1">
-						{#each waveformBars as bar, i (i)}
-							<div class="clip-waveform-bar" style="height: {Math.max(2, bar * 100)}%;"></div>
-						{/each}
-					</div>
-				</div>
-			{/if}
-		{/if}
-
-		<!-- Dark Legibility Overlay -->
-		<div class="clip-text-overlay"></div>
-
-		<!-- Clip Information Pill (Name + Duration) -->
-		<div class="clip-label-pill">
-			<span class="clip-text-name">{$assetName}</span>
-			<span class="clip-len font-mono">{clip.timelineDuration.toFixed(1)}s</span>
-		</div>
 	</div>
 
 	<!-- Right Trim Handle (End boundary) -->
-	<div class="trim-handle end" title="Drag to trim end">
-			</div>
+	<div class="trim-handle end" title="Drag to trim end"></div>
 </div>
 
 <style>
@@ -262,136 +250,102 @@
 		}
 	}
 
-	.clip-visual-content {
+	.clip-body {
+		position: relative;
 		flex: 1;
+		min-width: 0;
+		height: 100%;
+		overflow: hidden;
+		/* The lane sets --track-color; the clip is tinted by the kind of thing
+		   it holds, so a glance at the timeline says picture, sound or caption
+		   before you read a single label. */
+		background: color-mix(in srgb, var(--track-color) 22%, transparent);
+		box-shadow: inset 2px 0 0 var(--track-color);
+	}
+
+	.clip-filmstrip {
+		display: flex;
+		height: 100%;
+		width: 100%;
+	}
+
+	.clip-frame {
+		flex: 1;
+		min-width: 0;
+		background-size: cover;
+		background-position: center;
+	}
+
+	.clip-wave {
+		display: flex;
+		align-items: center;
+		justify-content: space-around;
+		height: 100%;
+		width: 100%;
+		padding: 0 2px;
+	}
+
+	/* Static flex children — the parent centres them, so a bar grows from the
+	   middle out. Absolute positioning here collapsed every bar to x=0. */
+	.clip-waveform-bar {
+		width: 2px;
+		flex-shrink: 0;
+		border-radius: 1px;
+		background: color-mix(in srgb, var(--track-color) 70%, white);
+	}
+
+	.clip-caption {
 		display: flex;
 		align-items: center;
 		height: 100%;
-		position: relative;
-		min-width: 0;
-		overflow: hidden;
-	}
-
-	/* Text overlay gradient for crisp typography */
-	.clip-text-overlay {
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(90deg, rgba(9, 10, 15, 0.75) 0%, rgba(9, 10, 15, 0.3) 60%, rgba(9, 10, 15, 0.1) 100%);
-		pointer-events: none;
-		z-index: 2;
-	}
-
-	/* Clip Labels */
-	.clip-label-pill {
-		position: relative;
-		z-index: 5;
-		display: flex;
-		align-items: center;
-		gap: 6px;
+		margin: 0;
 		padding: 0 8px;
-		width: 100%;
-		min-width: 0;
-		pointer-events: none;
-	}
-
-	.clip-text-name {
-		font-size: 0.72rem;
-		font-weight: 600;
+		font-size: 11px;
+		line-height: 1.2;
 		color: var(--ms-text);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		flex: 1;
-		text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 	}
 
-	.clip-len {
-		font-size: 0.6rem;
-		font-weight: 500;
-		color: var(--ms-text-secondary);
-		background: rgba(0, 0, 0, 0.6);
-		padding: 1px 5px;
-		border-radius: 3px;
-		border: 1px solid rgba(255, 255, 255, 0.12);
+	/* One name, in one place. It used to appear in a bar at the top, again in a
+	   pill at the bottom, and a third time in the title attribute. */
+	.clip-meta {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 2px 7px 3px;
+		pointer-events: none;
+		background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.72));
+	}
+
+	.timeline-clip-block.subtitle .clip-meta {
+		display: none;
+	}
+
+	.clip-name {
+		flex: 1;
+		min-width: 0;
+		font-size: 10.5px;
+		font-weight: 590;
+		color: var(--ms-text);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.clip-dur {
 		flex-shrink: 0;
-		backdrop-filter: blur(2px);
+		font-size: 9.5px;
+		color: var(--ms-text-secondary);
 	}
 
 	.font-mono {
 		font-family: 'JetBrains Mono', monospace;
-	}
-
-	/* Clip Internal Structure */
-	.clip-filename-bar {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 4px;
-		padding: 0 1px;
-		font-size: 9px;
-	}
-
-	.timeline-clip-block.video .clip-filename-bar {
-		background-color: rgba(0, 0, 0, 0.5); /* bg-surface-container-lowest/50 */
-		color: var(--ms-text); /* text-on-surface-variant */
-	}
-
-	.timeline-clip-block.video.selected .clip-filename-bar {
-		background-color: rgba(208, 188, 255, 0.2); /* bg-primary/20 */
-		color: var(--ms-text); /* text-primary */
-		justify-content: space-between;
-		padding: 0 1px;
-		display: flex;
-		align-items: center;
-	}
-
-	.timeline-clip-block.video.selected .clip-filename-text {
-		font-family: 'JetBrains Mono', monospace;
-		font-size: 9px;
-		color: var(--ms-text);
-	}
-
-	.timeline-clip-block.video.selected .clip-speed-icon {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 12px;
-		height: 12px;
-	}
-
-	.timeline-clip-block.audio .clip-filename-bar {
-		background-color: var(--ms-material);
-		color: var(--ms-text-secondary);
-	}
-
-	.clip-thumbnails {
-		display: flex;
-		flex: 1;
-		gap: 0.5px;
-		padding: 1px 1px;
-	}
-
-	.clip-thumbnail {
-		background-color: var(--ms-raised);
-		background-size: cover;
-		background-position: center;
-		border-radius: 2px;
-		flex: 1;
-		min-width: 0;
-	}
-
-	.clip-waveform {
-		position: relative;
-		height: 100%;
-	}
-
-	/* Static flex children — the parent is `flex items-end`, so they bottom-align
-	   on their own. Absolute positioning here collapsed all bars to x=0. */
-	.clip-waveform-bar {
-		width: 2px;
-		flex-shrink: 0;
-		background-color: var(--ms-text-secondary);
-		border-radius: 1px 1px 0 0;
 	}
 
 	/* Trim handles (positioned absolutely by parent) */
