@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/features/shell/Icon.svelte';
 	import { projectStore, updateProject } from '$lib/stores/project.svelte';
 	import { isOpfsAvailable } from '$lib/core/persistence/opfsAdapter';
 
@@ -35,7 +36,7 @@
 		</div>
 
 		<button type="button" class="btn-save-settings" onclick={saveSettings}>
-			<span class="material-symbols-outlined text-sm">save</span>
+			<Icon name="import" size={14} />
 			<span>Save Settings</span>
 		</button>
 	</div>
@@ -128,8 +129,8 @@
 		flex-direction: column;
 		width: 100%;
 		height: 100%;
-		background: #0f1015;
-		color: #f1f5f9;
+		background: var(--ms-void);
+		color: var(--ms-text);
 		padding: 24px 32px;
 		overflow-y: auto;
 		box-sizing: border-box;
@@ -140,20 +141,20 @@
 		align-items: center;
 		justify-content: space-between;
 		margin-bottom: 24px;
-		border-bottom: 1px solid #1a1c26;
+		border-bottom: 1px solid var(--ms-material);
 		padding-bottom: 16px;
 	}
 
 	.settings-title {
 		font-size: 1.35rem;
 		font-weight: 700;
-		color: #ffffff;
+		color: var(--ms-text);
 		margin: 0 0 4px 0;
 	}
 
 	.settings-subtitle {
 		font-size: 0.8rem;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 		margin: 0;
 	}
 
@@ -161,8 +162,8 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		background: #8b5cf6;
-		color: #ffffff;
+		background: var(--ms-text);
+		color: var(--ms-void);
 		border: none;
 		border-radius: 8px;
 		padding: 8px 18px;
@@ -174,7 +175,7 @@
 	}
 
 	.btn-save-settings:hover {
-		background: #9d71fd;
+		background: var(--ms-text);
 	}
 
 	.settings-form-grid {
@@ -185,8 +186,8 @@
 	}
 
 	.settings-card {
-		background: #141620;
-		border: 1px solid #202434;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
 		border-radius: 12px;
 		padding: 20px;
 		display: flex;
@@ -197,9 +198,9 @@
 	.card-title {
 		font-size: 0.95rem;
 		font-weight: 700;
-		color: #ffffff;
+		color: var(--ms-text);
 		margin: 0;
-		border-bottom: 1px solid #1e2230;
+		border-bottom: 1px solid var(--ms-raised);
 		padding-bottom: 10px;
 	}
 
@@ -212,17 +213,17 @@
 	.field-label {
 		font-size: 0.75rem;
 		font-weight: 600;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 	}
 
 	.field-input,
 	.field-select {
-		background: #1a1c26;
-		border: 1px solid #282c3c;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
 		border-radius: 6px;
-		color: #f1f5f9;
+		color: var(--ms-text);
 		padding: 8px 12px;
 		font-size: 0.85rem;
 		outline: none;
@@ -230,7 +231,7 @@
 
 	.field-input:focus,
 	.field-select:focus {
-		border-color: #8b5cf6;
+		border-color: var(--ms-text);
 	}
 
 	.color-picker-input {
@@ -249,8 +250,8 @@
 	}
 
 	.storage-stat {
-		background: #10121a;
-		border: 1px solid #1c1f2e;
+		background: var(--ms-void);
+		border: 1px solid var(--ms-raised);
 		border-radius: 8px;
 		padding: 12px 16px;
 		display: flex;
@@ -260,7 +261,7 @@
 
 	.stat-label {
 		font-size: 0.7rem;
-		color: #64748b;
+		color: var(--ms-text-tertiary);
 		font-weight: 600;
 		text-transform: uppercase;
 	}
@@ -279,9 +280,9 @@
 		bottom: 24px;
 		left: 50%;
 		transform: translateX(-50%);
-		background: #1e2130;
-		border: 1px solid #3b425e;
-		color: #f1f5f9;
+		background: var(--ms-raised);
+		border: 1px solid var(--ms-edge-strong);
+		color: var(--ms-text);
 		padding: 10px 20px;
 		border-radius: 8px;
 		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);

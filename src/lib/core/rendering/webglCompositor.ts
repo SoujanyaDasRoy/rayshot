@@ -1,48 +1,33 @@
-import { writable } from 'svelte/store';
 import { colorGradeShader } from './colorGradeShader.glsl.ts';
-
-export interface ColorGrade {
-  exposure: number;
-  contrast: number;
-  highlights: number;
-  shadows: number;
-  temperature: number;
-  tint: number;
-  saturation: number;
-  vibrance: number;
-  vignette: number;
-  grain: number;
-  curves: Array<[number, number]>; // control points for curves
-  lutTexture: WebGLTexture | null;
-}
+import type { ShaderUniforms } from './colorGradeUniforms';
+import { curvesToLut } from './colorGradeUniforms';
 
 export class WebGLCompositor {
-  private canvas: OffscreenCanvas;
+  private canvas: OffscreenCanvas | HTMLCanvasElement;
   private gl: WebGL2RenderingContext;
   private program!: WebGLProgram;
   private vao!: WebGLVertexArrayObject;
   private texture!: WebGLTexture;
+  private curvesTexture!: WebGLTexture;
+  private lastCurvesKey = '';
   private width: number;
   private height: number;
-  public colorGradeStore = writable<ColorGrade>({
-    exposure: 0,
-    contrast: 0,
-    highlights: 0,
-    shadows: 0,
-    temperature: 0,
-    tint: 0,
-    saturation: 0,
-    vibrance: 0,
-    vignette: 0,
-    grain: 0,
-    curves: [[0, 0], [0.5, 0.5], [1, 1]],
-    lutTexture: null
-  });
 
-  constructor(width: number = 1920, height: number = 1080) {
+  /**
+   * Pass `target` to render directly into a visible canvas. The alternative —
+   * OffscreenCanvas, convertToBlob, object URL, <img> — cost a full-resolution
+   * PNG encode per layer per frame.
+   */
+  constructor(width: number = 1920, height: number = 1080, target?: HTMLCanvasElement) {
     this.width = width;
     this.height = height;
-    this.canvas = new OffscreenCanvas(width, height);
+    if (target) {
+      target.width = width;
+      target.height = height;
+      this.canvas = target;
+    } else {
+      this.canvas = new OffscreenCanvas(width, height);
+    }
     this.gl = this.canvas.getContext('webgl2') as WebGL2RenderingContext;
 
     if (!this.gl) {
@@ -52,6 +37,32 @@ export class WebGLCompositor {
     this.initGL();
     this.initShaders();
     this.initBuffers();
+    this.initCurvesTexture();
+  }
+
+  private initCurvesTexture(): void {
+    const gl = this.gl;
+    this.curvesTexture = gl.createTexture()!;
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, this.curvesTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.activeTexture(gl.TEXTURE0);
+  }
+
+  /** Re-upload the curve LUT only when the curves actually change. */
+  private updateCurves(curves: ShaderUniforms['curves']): void {
+    const key = JSON.stringify(curves);
+    if (key === this.lastCurvesKey) return;
+    this.lastCurvesKey = key;
+
+    const gl = this.gl;
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, this.curvesTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, curvesToLut(curves));
+    gl.activeTexture(gl.TEXTURE0);
   }
 
   private initGL(): void {
@@ -145,13 +156,14 @@ export class WebGLCompositor {
     gl.bindVertexArray(null);
   }
 
-  public renderFrame(videoEl: HTMLVideoElement, colorGrade: ColorGrade): void {
+  public renderFrame(videoEl: HTMLVideoElement, colorGrade: ShaderUniforms): void {
     const gl = this.gl;
 
-    // Update color grade store
-    this.colorGradeStore.set(colorGrade);
+    this.updateCurves(colorGrade.curves);
 
-    // Update video texture
+    // Explicit unit: without this, binding the curves texture above would
+    // leave unit 2 active and the video would land on the wrong sampler.
+    gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoEl);
 
@@ -175,16 +187,14 @@ export class WebGLCompositor {
     gl.uniform1f(gl.getUniformLocation(this.program, 'u_contrast'), colorGrade.contrast);
     gl.uniform1f(gl.getUniformLocation(this.program, 'u_highlights'), colorGrade.highlights);
     gl.uniform1f(gl.getUniformLocation(this.program, 'u_shadows'), colorGrade.shadows);
+    gl.uniform1f(gl.getUniformLocation(this.program, 'u_whites'), colorGrade.whites);
+    gl.uniform1f(gl.getUniformLocation(this.program, 'u_blacks'), colorGrade.blacks);
     gl.uniform1f(gl.getUniformLocation(this.program, 'u_temperature'), colorGrade.temperature);
     gl.uniform1f(gl.getUniformLocation(this.program, 'u_tint'), colorGrade.tint);
     gl.uniform1f(gl.getUniformLocation(this.program, 'u_saturation'), colorGrade.saturation);
     gl.uniform1f(gl.getUniformLocation(this.program, 'u_vibrance'), colorGrade.vibrance);
     gl.uniform1f(gl.getUniformLocation(this.program, 'u_vignette'), colorGrade.vignette);
     gl.uniform1f(gl.getUniformLocation(this.program, 'u_grain'), colorGrade.grain);
-
-    // For curves and LUT textures, we would need to create and bind them
-    // For now, we'll use default values (empty textures)
-    // In a full implementation, these would be properly initialized
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
@@ -202,7 +212,7 @@ export class WebGLCompositor {
     this.gl.viewport(0, 0, width, height);
   }
 
-  public getCanvas(): OffscreenCanvas {
+  public getCanvas(): OffscreenCanvas | HTMLCanvasElement {
     return this.canvas;
   }
 

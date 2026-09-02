@@ -9,11 +9,13 @@ import {
 	persistThumbnail,
 	persistWaveform,
 	loadAllThumbnails,
-	loadAllWaveforms
+	loadAllWaveforms,
+	loadPersistedAssets
 } from '../core/persistence/assetCache';
+import { mergePersistedBlobs } from '../core/persistence/mergePersistedBlobs';
 
 export const placeholderThumbnail =
-	'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+	'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 // Global thumbnail caches across sessions/components
 export const thumbnailCache = new Map<string, string>();
@@ -371,7 +373,60 @@ export async function getFileDuration(file: File): Promise<number> {
 /**
  * Main import workflow for one or more files
  */
-export async function importMediaFiles(files: File[], autoPlaceOnTimeline: boolean = true) {
+/**
+ * Register a media asset: project store and blob cache, in one call.
+ *
+ * Four separate places used to build a MediaAsset and write it to the store,
+ * but only the file-import path also persisted the bytes — so audio presets,
+ * text presets, and template images silently vanished on reload. Every asset
+ * creation path goes through here so that cannot drift again.
+ */
+export function addAsset(asset: MediaAsset): void {
+	projectStore.update((project) => {
+		if (!project) return project;
+		const assetsMap = new Map(project.assets);
+		assetsMap.set(asset.id, asset);
+		return { ...project, assets: assetsMap, modifiedAt: Date.now() };
+	});
+
+	if (!asset.sourceBlob) return;
+	persistAsset({
+		id: asset.id,
+		filename: asset.filename,
+		blob: asset.sourceBlob,
+		type: asset.type,
+		duration: asset.duration,
+		mimeType: asset.mimeType || `${asset.type}/*`,
+		width: asset.width,
+		height: asset.height,
+		createdAt: asset.createdAt ?? Date.now()
+	}).catch(() => {}); // Non-fatal: the session still works, restore won't.
+}
+
+/**
+ * Reattach cached media bytes to whatever project is currently loaded.
+ *
+ * The OPFS autosave strips blobs by design (IDB owns them), so a restored
+ * project renders nothing until this runs. Returns the asset ids whose bytes
+ * could not be found, i.e. the "media offline" set.
+ */
+export async function rehydrateAssetBlobs(): Promise<string[]> {
+	const project = get(projectStore);
+	if (!project || project.assets.size === 0) return [];
+
+	const persisted = await loadPersistedAssets().catch(() => []);
+	const { assets, restored, missing } = mergePersistedBlobs(project.assets, persisted);
+	if (restored > 0) {
+		projectStore.update((p) => (p ? { ...p, assets } : p));
+	}
+	return missing;
+}
+
+export async function importMediaFiles(
+	files: File[],
+	autoPlaceOnTimeline: boolean = true,
+	folder?: string
+) {
 	if (!files || files.length === 0) return;
 
 	for (const file of files) {
@@ -388,21 +443,16 @@ export async function importMediaFiles(files: File[], autoPlaceOnTimeline: boole
 			sourceBlob: file,
 			type,
 			duration,
+			// Recorded on the asset itself, not just the IDB row — otherwise a
+			// restored project has no idea what format its own media is.
+			mimeType: file.type || `${type}/*`,
 			createdAt: Date.now(),
-			modifiedAt: Date.now()
+			modifiedAt: Date.now(),
+			folder
 		};
 
-		// 1. Add Asset to Project Store
-		projectStore.update((project) => {
-			if (!project) return project;
-			const assetsMap = new Map(project.assets);
-			assetsMap.set(mediaAssetId, mediaAsset);
-			return {
-				...project,
-				assets: assetsMap,
-				modifiedAt: Date.now()
-			};
-		});
+		// 1. Add to the project store AND the blob cache, together.
+		addAsset(mediaAsset);
 
 		// 2. Generate thumbnail, waveform, and multi-thumbnails (non-blocking)
 		// Thumbnail — main thread DOM (video requires <video> element)
@@ -444,17 +494,6 @@ export async function importMediaFiles(files: File[], autoPlaceOnTimeline: boole
 		if (type === 'video') {
 			extractVideoThumbnails(file, mediaAssetId, duration, 6);
 		}
-
-		// Persist asset blob + metadata to IDB (enables cross-refresh restore)
-		persistAsset({
-			id: mediaAssetId,
-			filename: file.name,
-			blob: file,
-			type,
-			duration,
-			mimeType: file.type || `${type}/*`,
-			createdAt: Date.now()
-		}).catch(() => {}); // Non-fatal
 
 		// 3. Auto-place clip on timeline if requested or if timeline has space
 		if (autoPlaceOnTimeline) {

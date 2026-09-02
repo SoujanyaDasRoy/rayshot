@@ -2,10 +2,14 @@
 	import { playbackStore } from '$lib/stores/playback.svelte';
 	import { projectStore } from '$lib/stores/project.svelte';
 	import { derived } from 'svelte/store';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import type { Clip, MediaAsset } from '$lib/types/project';
 	import { audioEngine } from '$lib/core/audioEngine';
 	import { WebGLCompositor } from '$lib/core/rendering/webglCompositor';
+	import { toShaderUniforms } from '$lib/core/rendering/colorGradeUniforms';
+	// Shared with the exporter so preview and output cannot drift.
+	import { getLayerFilter } from '$lib/core/rendering/layerCompositing';
+	import { getLayerOpacity } from '$lib/utils/canvasUtils';
 
 	interface LayerClipInfo {
 		clip: Clip;
@@ -74,14 +78,20 @@
 	let objectUrls = $state<Map<string, string>>(new Map());
 	const mediaElements = new Map<string, HTMLMediaElement>();
 
-	// WebGL compositors for video layers: keyed by clip ID
-	const compositors = new Map<string, WebGLCompositor>();
-	// Object URLs for WebGL output images
-	const webglUrls = $state<Map<string, string>>(new Map());
+	// One compositor for the whole component, not one per clip: each is a live
+	// WebGL context and browsers cap those around 16. Canvas elements are
+	// registered per clip and the compositor renders into whichever is active.
+	let compositor: WebGLCompositor | null = null;
+	let webglUnavailable = $state(false);
+	const glCanvases = new Map<string, HTMLCanvasElement>();
+	// Clips the shader has actually painted at least once. Until then CSS keeps
+	// carrying the grade, so there is never a frame where neither path applies
+	// it — which is what happens for media that never decodes.
+	let glRendered = $state<Set<string>>(new Set());
 
 	$effect(() => {
 		const layers = $activeLayers;
-		const currentMap = new Map(objectUrls);
+		const currentMap = untrack(() => new Map(objectUrls));
 		const activeAssetIds = new Set<string>();
 
 		for (const l of layers) {
@@ -174,21 +184,7 @@
 				syncElement(el, layer.clip, layer.sourceTime);
 				// If it's a video layer, update the WebGL output
 				if (layer.asset.type === 'video') {
-					const colorGrade = {
-						exposure: 0,
-						contrast: ((layer.clip.filters?.contrast ?? 0) / 100.0) - 1.0,
-						highlights: 0,
-						shadows: 0,
-						temperature: 0,
-						tint: 0,
-						saturation: ((layer.clip.filters?.saturate ?? 0) / 100.0) - 1.0,
-						vibrance: 0,
-						vignette: 0,
-						grain: 0,
-						curves: layer.clip.filters?.curves ?? [[0, 0], [0.5, 0.5], [1, 1]],
-						lutTexture: null
-					};
-					updateWebglOutput(layer.clip.id, el as HTMLVideoElement, colorGrade);
+					renderWebgl(layer.clip.id, el as HTMLVideoElement, layer.clip);
 				}
 			}
 		}
@@ -198,12 +194,10 @@
 		for (const url of objectUrls.values()) {
 			URL.revokeObjectURL(url);
 		}
-		for (const url of webglUrls.values()) {
-			URL.revokeObjectURL(url);
-		}
 		mediaElements.clear();
-		compositors.forEach(comp => comp.destroy());
-		compositors.clear();
+		compositor?.destroy();
+		compositor = null;
+		glCanvases.clear();
 	});
 
 	function getLayerTransform(clip: Clip): string {
@@ -214,81 +208,93 @@
 		return `translate(${x}px, ${y}px) scale(${scale}) rotate(${rotation}deg)`;
 	}
 
-	function getLayerFilter(clip: Clip): string {
-		const filterParts: string[] = [];
-		if (clip.filters) {
-			if (clip.filters.brightness !== undefined && clip.filters.brightness !== 0) {
-				filterParts.push(`brightness(${100 + Number(clip.filters.brightness)}%)`);
-			}
-			if (clip.filters.contrast !== undefined && clip.filters.contrast !== 0) {
-				filterParts.push(`contrast(${100 + Number(clip.filters.contrast)}%)`);
-			}
-			if (clip.filters.saturate !== undefined && clip.filters.saturate !== 0) {
-				filterParts.push(`saturate(${100 + Number(clip.filters.saturate)}%)`);
-			}
-			if (clip.filters.lut && clip.filters.lut !== 'none') {
-				// Inline fast LUT lookup
-				const lutFilters: Record<string, string> = {
-					teal_orange: 'contrast(1.18) saturate(1.25) hue-rotate(-8deg) sepia(0.12)',
-					vintage_film: 'sepia(0.28) contrast(0.95) brightness(1.04) saturate(0.85)',
-					cinema_noir: 'grayscale(1) contrast(1.35) brightness(0.92)',
-					golden_hour: 'sepia(0.2) saturate(1.3) hue-rotate(-5deg) brightness(1.05)',
-					cyber_matrix: 'saturate(1.6) hue-rotate(18deg) contrast(1.22)'
-				};
-				if (lutFilters[clip.filters.lut]) {
-					filterParts.push(lutFilters[clip.filters.lut]);
+
+	/**
+	 * Register the visible <canvas> a clip renders into. The compositor draws
+	 * straight to it — the old path went OffscreenCanvas -> convertToBlob ->
+	 * object URL -> <img>, i.e. a full-resolution PNG encode per layer per
+	 * frame, into a $state(new Map()) that Svelte 5 does not proxy, so the
+	 * result never displayed anyway.
+	 */
+	function glCanvas(node: HTMLCanvasElement, clipId: string) {
+		glCanvases.set(clipId, node);
+		return {
+			destroy() {
+					glCanvases.delete(clipId);
+				if (glRendered.has(clipId)) {
+					const next = new Set(glRendered);
+					next.delete(clipId);
+					glRendered = next;
 				}
 			}
-			if (clip.filters.blur !== undefined && clip.filters.blur !== 0) {
-				filterParts.push(`blur(${Number(clip.filters.blur)}px)`);
-			}
-			if (clip.filters.grayscale !== undefined && clip.filters.grayscale !== 0) {
-				filterParts.push(`grayscale(${Number(clip.filters.grayscale)}%)`);
-			}
-			if (clip.filters.sepia !== undefined && clip.filters.sepia !== 0) {
-				filterParts.push(`sepia(${Number(clip.filters.sepia)}%)`);
-			}
-			if (clip.filters.hueRotate !== undefined && clip.filters.hueRotate !== 0) {
-				filterParts.push(`hue-rotate(${Number(clip.filters.hueRotate)}deg)`);
-			}
-		}
-		return filterParts.length > 0 ? filterParts.join(' ') : 'none';
+		};
 	}
 
-	function getLayerOpacity(clip: Clip): number {
-		return clip.filters?.opacity ?? (clip.filters?.alpha ?? 1);
+	/**
+	 * Drive GL renders from the decoder, not from the store.
+	 *
+	 * Setting video.currentTime and rendering in the same tick paints the
+	 * *previous* frame, because the decoder has not produced the new one yet.
+	 * That is invisible while a <video> paints itself, but very visible once
+	 * we are copying its texture. requestVideoFrameCallback fires exactly when
+	 * a new frame is ready; 'seeked' covers paused scrubbing.
+	 */
+	function glSource(node: HTMLVideoElement, params: { clipId: string; clip: Clip }) {
+		let current = params;
+		let handle = 0;
+		type RVFC = HTMLVideoElement & {
+			requestVideoFrameCallback?: (cb: () => void) => number;
+			cancelVideoFrameCallback?: (h: number) => void;
+		};
+		const v = node as RVFC;
+
+		const draw = () => renderWebgl(current.clipId, node, current.clip);
+
+		const pump = () => {
+			draw();
+			if (v.requestVideoFrameCallback) handle = v.requestVideoFrameCallback(pump);
+		};
+
+		if (v.requestVideoFrameCallback) {
+			handle = v.requestVideoFrameCallback(pump);
+		}
+		node.addEventListener('seeked', draw);
+		node.addEventListener('loadeddata', draw);
+
+		return {
+			update(next: { clipId: string; clip: Clip }) {
+				current = next;
+				draw();
+			},
+			destroy() {
+				if (handle && v.cancelVideoFrameCallback) v.cancelVideoFrameCallback(handle);
+				node.removeEventListener('seeked', draw);
+				node.removeEventListener('loadeddata', draw);
+			}
+		};
 	}
 
-	// Function to create or get a WebGL compositor for a video clip
-	function getVideoCompositor(clipId: string): WebGLCompositor {
-		if (!compositors.has(clipId)) {
-			// Create a new compositor with default size (will be resized later)
-			const compositor = new WebGLCompositor();
-			compositors.set(clipId, compositor);
-		}
-		return compositors.get(clipId)!;
-	}
-
-	// Function to update the WebGL output URL for a video clip
-	async function updateWebglOutput(clipId: string, videoEl: HTMLVideoElement, colorGrade: any): Promise<void> {
-		// Revoke the previous URL for this clipId if exists
-		const oldUrl = webglUrls.get(clipId);
-		if (oldUrl) {
-			URL.revokeObjectURL(oldUrl);
-		}
+	function renderWebgl(clipId: string, videoEl: HTMLVideoElement, clip: Clip): void {
+		if (webglUnavailable) return;
+		const target = glCanvases.get(clipId);
+		if (!target || videoEl.readyState < 2) return;
 
 		try {
-			const compositor = getVideoCompositor(clipId);
-			compositor.renderFrame(videoEl, colorGrade);
-			const offscreen = compositor.getCanvas() as OffscreenCanvas;
-			// Convert OffscreenCanvas to Blob and create object URL
-			const blob: Blob = await offscreen.convertToBlob({ type: 'image/png' });
-			const url = URL.createObjectURL(blob);
-			// Update the reactive map
-			webglUrls.set(clipId, url);
-		} catch (err) {
-			// If WebGL2 is not available, fallback will be used
-			console.warn('WebGL2 not available or failed, falling back to CSS filters:', err);
+			if (!compositor) {
+				const res = $activeSequence?.resolution;
+				compositor = new WebGLCompositor(res?.width ?? 1920, res?.height ?? 1080, target);
+			}
+			compositor.renderFrame(videoEl, toShaderUniforms(clip.colorGrade));
+			if (!glRendered.has(clipId)) {
+				glRendered = new Set(glRendered).add(clipId);
+			}
+		} catch (e) {
+			// No WebGL2, or the context was lost: fall back to the CSS path,
+			// which is a real path in its own right (it serves image layers too).
+			console.warn('WebGL compositing unavailable, using CSS filters', e);
+			webglUnavailable = true;
+			compositor = null;
+			glRendered = new Set();
 		}
 	}
 </script>
@@ -299,22 +305,26 @@
 		{#if $visualLayers.length > 0}
 			{#each $visualLayers as layer (layer.clip.id)}
 				{@const url = objectUrls.get(layer.asset.id)}
-				{@const webglUrl = webglUrls.get(layer.clip.id)}
+				{@const gradeInCss =
+					webglUnavailable ||
+					layer.asset.type !== 'video' ||
+					!glRendered.has(layer.clip.id)}
 				<div
 					class="canvas-layer"
-					style="transform: {getLayerTransform(layer.clip)}; filter: {getLayerFilter(layer.clip)}; opacity: {getLayerOpacity(layer.clip)}; z-index: {layer.trackOrder};"
+					style="transform: {getLayerTransform(layer.clip)}; filter: {getLayerFilter(layer.clip, { colorGradeInCss: gradeInCss })}; opacity: {getLayerOpacity(layer.clip)}; z-index: {layer.trackOrder};"
 				>
-					{#if layer.asset.type === 'video'}
-						{#if webglUrl}
-							<!-- Use WebGL output -->
-							<img
-								class="canvas-media-element"
-								src={webglUrl}
-								alt={layer.asset.filename}
-							/>
-							<!-- Hidden video element for playback and texture source -->
+					{#if !layer.asset.sourceBlob}
+						<!-- Bytes are gone (imported on another device, or evicted from
+						     the cache). Say so instead of rendering an empty frame. -->
+						<div class="media-offline">
+							<span class="media-offline-title">Media offline</span>
+							<span class="media-offline-name">{layer.asset.filename}</span>
+						</div>
+					{:else if layer.asset.type === 'video'}
+						{#if webglUnavailable}
+							<!-- Genuine fallback: no WebGL2, or the context was lost.
+							     CSS filters carry the expressible part of the grade. -->
 							<video
-								style="display: none;"
 								use:mediaSync={{ clip: layer.clip, sourceTime: layer.sourceTime }}
 								class="canvas-media-element"
 								src={url}
@@ -324,10 +334,12 @@
 								<track kind="captions" />
 							</video>
 						{:else}
-							<!-- Fallback to video element with CSS filters -->
+							<canvas class="canvas-media-element" use:glCanvas={layer.clip.id}></canvas>
+							<!-- Decodes and drives audio; the canvas above is what you see. -->
 							<video
+								style="display: none;"
 								use:mediaSync={{ clip: layer.clip, sourceTime: layer.sourceTime }}
-								class="canvas-media-element"
+								use:glSource={{ clipId: layer.clip.id, clip: layer.clip }}
 								src={url}
 								playsinline
 								muted={$playbackStore.isMuted || layer.clip.audioParameters?.mute}
@@ -347,7 +359,7 @@
 		{:else if $audioLayers.length > 0}
 			<div class="audio-stage-visualizer">
 				<div class="audio-pulse-ring">
-					<span class="audio-icon">🎵</span>
+					<span class="audio-icon"><span class="ui-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></span></span>
 				</div>
 				<div class="audio-meta">
 					<span class="audio-track-name">{$audioLayers[0].asset.filename}</span>
@@ -356,7 +368,7 @@
 			</div>
 		{:else}
 			<div class="empty-stage-state">
-				<div class="empty-stage-icon">🎬</div>
+				<div class="empty-stage-icon"><span class="ui-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="m3 11 18 0M7 7 5 11M12 7l-2 4M17 7l-2 4"/></svg></span></div>
 				<div class="empty-stage-heading">16:9 Viewport</div>
 				<div class="empty-stage-subtext font-mono">
 					{$activeSequence ? `${$activeSequence.resolution.width} × ${$activeSequence.resolution.height}` : '1920 × 1080'} • {$activeSequence?.frameRate ?? 30} FPS
@@ -378,13 +390,27 @@
 </div>
 
 <style>
+	/* Emoji are not an icon set: they render differently per platform and
+	   carry colour we do not want. Inline SVG on the same 24x24 grid. */
+	.ui-glyph {
+		display: inline-flex;
+		width: 1em;
+		height: 1em;
+		vertical-align: -0.125em;
+	}
+
+	.ui-glyph svg {
+		width: 100%;
+		height: 100%;
+	}
+
 	.video-canvas-stage {
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		width: 100%;
 		height: 100%;
-		background: #090a0d;
+		background: var(--ms-void);
 		padding: 12px;
 		box-sizing: border-box;
 		overflow: hidden;
@@ -398,8 +424,8 @@
 		max-width: 100%;
 		max-height: 100%;
 		background: #000000;
-		border: 1px solid #1a1d28;
-		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9), 0 0 0 1px #232738;
+		border: 1px solid var(--ms-edge);
+		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9), 0 0 0 1px var(--ms-edge);
 		border-radius: 6px;
 		overflow: hidden;
 		display: flex;
@@ -420,6 +446,35 @@
 		transform-origin: center center;
 	}
 
+	/* Monochrome and quiet — a missing file is a state to report, not an alarm. */
+	.media-offline {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 4px;
+		padding: 14px 20px;
+		border: 1px dashed var(--ms-edge-strong);
+		border-radius: var(--ms-radius);
+		background: var(--ms-material);
+		font-family: var(--ms-font);
+		text-align: center;
+	}
+
+	.media-offline-title {
+		font-size: 12px;
+		font-weight: 590;
+		color: var(--ms-text-secondary);
+	}
+
+	.media-offline-name {
+		max-width: 260px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 11px;
+		color: var(--ms-text-tertiary);
+	}
+
 	.canvas-media-element {
 		max-width: 100%;
 		max-height: 100%;
@@ -435,7 +490,7 @@
 		flex-direction: column;
 		align-items: center;
 		gap: 10px;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 	}
 
 	.audio-pulse-ring {
@@ -452,7 +507,7 @@
 
 	.audio-icon {
 		font-size: 1.75rem;
-		color: #10b981;
+		color: var(--ms-text-secondary);
 	}
 
 	.audio-meta {
@@ -465,12 +520,12 @@
 	.audio-track-name {
 		font-size: 0.85rem;
 		font-weight: 600;
-		color: #f1f5f9;
+		color: var(--ms-text);
 	}
 
 	.audio-track-status {
 		font-size: 0.7rem;
-		color: #34d399;
+		color: var(--ms-text-secondary);
 		letter-spacing: 0.04em;
 	}
 
@@ -480,7 +535,7 @@
 		align-items: center;
 		gap: 6px;
 		user-select: none;
-		color: #475569;
+		color: var(--ms-edge-strong);
 	}
 
 	.empty-stage-icon {
@@ -491,13 +546,13 @@
 	.empty-stage-heading {
 		font-size: 0.82rem;
 		font-weight: 600;
-		color: #64748b;
+		color: var(--ms-text-tertiary);
 		letter-spacing: 0.02em;
 	}
 
 	.empty-stage-subtext {
 		font-size: 0.7rem;
-		color: #475569;
+		color: var(--ms-edge-strong);
 	}
 
 	.font-mono {

@@ -9,6 +9,8 @@
 	import { SetClipVolumeCommand } from '$lib/core/commands/setClipVolume';
 	import { SetClipPlaybackRateCommand } from '$lib/core/commands/setClipPlaybackRate';
 	import { SetClipFilterCommand } from '$lib/core/commands/setClipFilter';
+	import { SetTransformCommand } from '$lib/core/commands/setTransform';
+	import { ToggleClipMuteCommand } from '$lib/core/commands/toggleClipMute';
 	import ColorGradePanel from '$lib/features/colorgrade/ColorGradePanel.svelte';
 	import { derived } from 'svelte/store';
 	import type { Clip, MediaAsset, Project } from '$lib/types/project';
@@ -53,25 +55,6 @@
 	let opacityOpen = $state(true);
 	let colorOpen = $state(true);
 	let audioFadesOpen = $state(true);
-	let textTypographyOpen = $state(true);
-	let textColorsOpen = $state(true);
-
-	// Mutation helper
-	function updateClip(clipId: string, updater: (clip: Clip) => Clip) {
-		projectStore.update((project) => {
-			if (!project) return null;
-			const clip = project.clips.get(clipId);
-			if (!clip) return project;
-			const updatedClips = new Map(project.clips);
-			const newClip = updater({ ...clip });
-			updatedClips.set(clipId, newClip);
-			return {
-				...project,
-				clips: updatedClips,
-				modifiedAt: Date.now()
-			};
-		});
-	}
 
 	function handleSplit() {
 		const clipId = $timelineStore.selectedClipId;
@@ -183,32 +166,26 @@
 	}
 
 	function handleTransformChange(prop: 'x' | 'y' | 'scale' | 'rotation', val: number) {
-		const clipId = $timelineStore.selectedClipId;
-		if (!clipId) return;
-		updateClip(clipId, (c) => ({
-			...c,
-			transform: {
-				x: c.transform?.x ?? 0,
-				y: c.transform?.y ?? 0,
-				scale: c.transform?.scale ?? 1,
-				rotation: c.transform?.rotation ?? 0,
-				[prop]: val
-			}
-		}));
+		const clipData = $selectedClipData;
+		if (!clipData) return;
+		const { clip } = clipData;
+		commandProcessor.execute(
+			new SetTransformCommand({
+				clipId: clip.id,
+				transform: { ...clip.transform, [prop]: val }
+			})
+		);
 	}
 
 	function handleResetTransform() {
 		const clipId = $timelineStore.selectedClipId;
 		if (!clipId) return;
-		updateClip(clipId, (c) => ({
-			...c,
-			transform: {
-				x: 0,
-				y: 0,
-				scale: 1,
-				rotation: 0
-			}
-		}));
+		commandProcessor.execute(
+			new SetTransformCommand({
+				clipId,
+				transform: { x: 0, y: 0, scale: 1, rotation: 0 }
+			})
+		);
 	}
 
 	function handleResetAdjustments() {
@@ -223,41 +200,9 @@
 		const clipData = $selectedClipData;
 		if (!clipData) return;
 		const { clip } = clipData;
-		const currentMute = clip.audioParameters?.mute ?? false;
-		updateClip(clip.id, (c) => ({
-			...c,
-			audioParameters: {
-				volume: c.audioParameters?.volume ?? 1,
-				mute: !currentMute
-			}
-		}));
+		commandProcessor.execute(new ToggleClipMuteCommand({ clipId: clip.id }));
 	}
 
-	function handleTextChange(val: string) {
-		const clipId = $timelineStore.selectedClipId;
-		if (!clipId) return;
-		updateClip(clipId, (c) => {
-			const filters = { ...(c.filters || {}), text: val };
-			return {
-				...c,
-				text: val,
-				filters
-			} as any;
-		});
-	}
-
-	function handleTypographyChange(prop: string, val: any) {
-		const clipId = $timelineStore.selectedClipId;
-		if (!clipId) return;
-		updateClip(clipId, (c) => {
-			const filters = { ...(c.filters || {}), [prop]: val };
-			return {
-				...c,
-				[prop]: val,
-				filters
-			} as any;
-		});
-	}
 </script>
 
 <aside class="inspector-sidebar" aria-label="Properties Inspector">
@@ -550,13 +495,7 @@
 					</div>
 
 					{#if colorOpen}
-						<ColorGradePanel {clip} onChange={(colorGrade) => {
-							// Update the clip's colorGrade in the store when it changes
-							updateClip($selectedClipData.clip.id, (clip) => ({
-								...clip,
-								colorGrade
-							}));
-						}} />
+						<ColorGradePanel {clip} onChange={() => {}} />
 					{/if}
 				</div>
 			{/if}
@@ -611,3 +550,315 @@
 		</div>
 	{/if}
 </aside>
+<style>
+	/*
+		This file had no <style> block at all. Every class below was already in
+		the markup and styled nothing — which is also why the header SVG rendered
+		at the replaced-element default of 300x150 instead of an icon: an <svg>
+		with no width/height and no CSS falls back to that.
+	*/
+	.inspector-sidebar {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		overflow: hidden;
+		background: var(--ms-void);
+		font-family: var(--ms-font);
+		color: var(--ms-text);
+	}
+
+	.header-left {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+	}
+
+	.sidebar-top-title {
+		margin: 0;
+		font-size: 0.9rem;
+		font-weight: 590;
+		color: var(--ms-text);
+	}
+
+	.header-icon {
+		width: 16px;
+		height: 16px;
+		flex-shrink: 0;
+		color: var(--ms-text-tertiary);
+	}
+
+	.icon-btn,
+	.btn-icon {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 24px;
+		height: 24px;
+		flex-shrink: 0;
+		border: none;
+		border-radius: 6px;
+		background: transparent;
+		color: var(--ms-text-tertiary);
+		cursor: pointer;
+		transition:
+			background var(--ms-fast) var(--ms-ease),
+			color var(--ms-fast) var(--ms-ease);
+	}
+
+	.icon-btn:hover,
+	.btn-icon:hover {
+		background: var(--ms-hover);
+		color: var(--ms-text);
+	}
+
+	.clip-info-block {
+		padding: 12px 16px;
+		border-bottom: 1px solid var(--ms-edge);
+	}
+
+	.clip-title-name {
+		display: block;
+		font-size: 13px;
+		font-weight: 590;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.clip-subhead,
+	.dim-label {
+		font-size: 11px;
+		color: var(--ms-text-tertiary);
+	}
+
+	.inspector-sections-scroll {
+		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
+		padding-bottom: 16px;
+	}
+
+	.primary-controls-card {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin: 12px 16px;
+		padding: 12px;
+		border: 1px solid var(--ms-edge);
+		border-radius: var(--ms-radius);
+		background: var(--ms-material);
+	}
+
+	.card-header-label,
+	.section-name {
+		font-size: 11px;
+		font-weight: 590;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: var(--ms-text-tertiary);
+	}
+
+	.foldable-section {
+		border-top: 1px solid var(--ms-edge);
+	}
+
+	.section-header-row,
+	.section-toggle-btn {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		padding: 10px 16px;
+		border: none;
+		background: transparent;
+		color: var(--ms-text-secondary);
+		font-family: inherit;
+		cursor: pointer;
+	}
+
+	.section-toggle-btn:hover {
+		color: var(--ms-text);
+	}
+
+	.chevron {
+		width: 12px;
+		height: 12px;
+		flex-shrink: 0;
+		transition: transform var(--ms-base) var(--ms-ease);
+	}
+
+	.section-reset-link {
+		margin-left: auto;
+		border: none;
+		background: transparent;
+		color: var(--ms-text-tertiary);
+		font-family: inherit;
+		font-size: 11px;
+		cursor: pointer;
+	}
+
+	.section-reset-link:hover {
+		color: var(--ms-text);
+	}
+
+	.section-fields {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 0 16px 14px;
+	}
+
+	.field-row,
+	.select-field-row,
+	.slider-top-label {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+	}
+
+	.field-label,
+	.slider-title {
+		font-size: 11.5px;
+		color: var(--ms-text-secondary);
+	}
+
+	.slider-field {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.slider-with-input {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	/* Monochrome range: a hairline groove with a solid thumb. */
+	.accent-slider {
+		flex: 1;
+		height: 3px;
+		appearance: none;
+		border-radius: 999px;
+		background: var(--ms-edge-strong);
+		cursor: pointer;
+	}
+
+	.accent-slider::-webkit-slider-thumb {
+		appearance: none;
+		width: 12px;
+		height: 12px;
+		border: none;
+		border-radius: 50%;
+		background: var(--ms-text);
+	}
+
+	.accent-slider::-moz-range-thumb {
+		width: 12px;
+		height: 12px;
+		border: none;
+		border-radius: 50%;
+		background: var(--ms-text);
+	}
+
+	.accent-slider:focus-visible {
+		outline: 2px solid var(--ms-text);
+		outline-offset: 3px;
+	}
+
+	.multi-num-inputs {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+	}
+
+	.num-input-wrap,
+	.num-with-unit,
+	.select-wrap {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.slider-number,
+	.mini-num-box,
+	.dropdown-select {
+		width: 100%;
+		min-width: 0;
+		height: 24px;
+		padding: 0 8px;
+		border: 1px solid var(--ms-edge);
+		border-radius: 6px;
+		background: var(--ms-material);
+		color: var(--ms-text);
+		font-family: var(--ms-font-mono);
+		font-size: 11px;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.slider-number {
+		width: 56px;
+		flex-shrink: 0;
+		text-align: right;
+	}
+
+	.slider-number:focus,
+	.mini-num-box:focus,
+	.dropdown-select:focus {
+		outline: none;
+		border-color: var(--ms-edge-lit);
+		background: var(--ms-raised);
+	}
+
+	.mini-trim-btn,
+	.primary-action-btn,
+	.deselect-btn {
+		border: 1px solid var(--ms-edge);
+		border-radius: var(--ms-radius);
+		background: var(--ms-material);
+		color: var(--ms-text);
+		font-family: inherit;
+		font-size: 11.5px;
+		font-weight: 590;
+		cursor: pointer;
+		transition:
+			background var(--ms-fast) var(--ms-ease),
+			border-color var(--ms-fast) var(--ms-ease);
+	}
+
+	.mini-trim-btn {
+		height: 24px;
+		padding: 0 8px;
+	}
+
+	.primary-action-btn {
+		height: 30px;
+		padding: 0 14px;
+		border: none;
+		background: var(--ms-text);
+		color: var(--ms-void);
+	}
+
+	.primary-action-btn:hover {
+		background: rgba(255, 255, 255, 0.88);
+	}
+
+	.mini-trim-btn:hover,
+	.deselect-btn:hover {
+		background: var(--ms-hover);
+		border-color: var(--ms-edge-strong);
+	}
+
+	.deg-sym {
+		font-size: 11px;
+		color: var(--ms-text-tertiary);
+	}
+
+	:global(.inspector-sidebar button:focus-visible),
+	:global(.inspector-sidebar select:focus-visible) {
+		outline: 2px solid var(--ms-text);
+		outline-offset: 2px;
+	}
+</style>

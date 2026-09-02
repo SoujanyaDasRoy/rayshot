@@ -3,7 +3,10 @@
 export interface MediaAsset {
 	id: string;
 	filename: string;
-	sourceBlob: Blob; // Blob of the file
+	// Absent when a project is restored before its bytes are rehydrated from
+	// IndexedDB, or when the media is genuinely gone (imported on another
+	// device). Callers must guard — see rehydrateAssetBlobs.
+	sourceBlob?: Blob;
 	type: 'video' | 'audio' | 'image';
 	duration: number; // in seconds
 	width?: number;
@@ -14,15 +17,26 @@ export interface MediaAsset {
 	// Metadata for persistence
 	createdAt: number;
 	modifiedAt: number;
+	// Set only when imported via "Import Folder" — the device folder's own name.
+	// Individually-imported files have no folder.
+	folder?: string;
 }
 
 export interface Track {
 	id: string;
-	type: 'video' | 'audio';
+	type: 'video' | 'audio' | 'subtitle';
 	order: number;
 	// Tracks don't directly contain clips - they reference clip instances
 	// but for simplicity in the store, we'll maintain an ordered list
 	clipInstances: string[]; // Array of clip instance IDs in order
+	/** User-chosen, and the one place colour is allowed outside the brand mark. */
+	color?: string;
+	/** Overrides the per-type default. See trackModel.trackHeight. */
+	height?: number;
+	name?: string;
+	locked?: boolean;
+	muted?: boolean;
+	hidden?: boolean;
 }
 
 export interface Clip {

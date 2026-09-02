@@ -1,7 +1,15 @@
 <script lang="ts">
-	// Import project store
-		import { projectStore } from '$lib/stores/project.svelte';
+	import Icon from '$lib/features/shell/Icon.svelte';
+	import { WebGLCompositor } from '$lib/core/rendering/webglCompositor';
+	import { toShaderUniforms } from '$lib/core/rendering/colorGradeUniforms';
+	import { getLayerFilter, getLayerDrawRect } from '$lib/core/rendering/layerCompositing';
+	import { getLayerOpacity } from '$lib/utils/canvasUtils';
+	import { Dialog } from 'bits-ui';
+	import { projectStore } from '$lib/stores/project.svelte';
+	import { exportStore, exportActions } from '$lib/stores/export.svelte';
+	import { estimateFileSize, formatFileSize, downloadBlob, sanitizeExportFilename } from '$lib/utils/exportUtils';
 	import { derived } from 'svelte/store';
+	import type { Clip } from '$lib/types/project';
 
 	let { open = false, onClose = () => {} } = $props<{
 		open: boolean;
@@ -29,18 +37,19 @@
 	});
 
 	let fileName = $state('Rayshot_Export_Video');
-	let resolutionMode = $state<'1080p' | '4k' | 'custom'>('1080p');
-	let exportFormat = $state('webm');
-	let frameRate = $state(30);
+	let selectedPresetId = $state('1080p30');
 	let bitrateQuality = $state(80);
 
-	let isExporting = $state(false);
-	let exportProgress = $state(0);
+	// Progress/status live in exportStore (not local state) so the sidebar's
+	// Export button can show them too, even while this dialog is closed.
+	const isExporting = $derived($exportStore.currentExport?.status === 'exporting');
+	const exportProgress = $derived($exportStore.currentExport?.progress ?? 0);
 	let exportStatusText = $state('');
 
-	const computedWidth = $derived(resolutionMode === '4k' ? 3840 : 1920);
-	const computedHeight = $derived(resolutionMode === '4k' ? 2160 : 1080);
-	const estimatedMB = $derived(Math.max(5, Math.round(($sequenceDuration * (bitrateQuality / 100) * 15))));
+	const selectedPreset = $derived(
+		$exportStore.presets.find((p) => p.id === selectedPresetId) ?? $exportStore.presets[0]
+	);
+	const estimatedBytes = $derived(estimateFileSize($sequenceDuration, selectedPreset.settings));
 
 	function formatTimecode(seconds: number): string {
 		const mins = Math.floor(seconds / 60);
@@ -53,32 +62,17 @@
 		onClose();
 	}
 
-	// Helper function to compute source time from timeline time (same as in Canvas.svelte)
-	function getSourceTime(clip: any, timelineTime: number): number {
+	function handleOpenChange(next: boolean) {
+		if (!next) handleClose();
+	}
+
+	// Same source-time mapping Canvas.svelte uses for live preview.
+	function getSourceTime(clip: Clip, timelineTime: number): number {
 		const timelineOffset = timelineTime - clip.timelineStart;
 		const sourceDuration = clip.sourceOut - clip.sourceIn;
 		const timelineDuration = clip.timelineDuration;
 		if (timelineDuration <= 0) return clip.sourceIn;
 		return clip.sourceIn + (timelineOffset / timelineDuration) * sourceDuration;
-	}
-
-	// Helper function to wait for a video to seek to a target time (with timeout)
-	function waitForSeek(video: HTMLVideoElement, targetTime: number, timeout = 200): Promise<void> {
-		return new Promise((resolve, reject) => {
-			const start = performance.now();
-			const check = () => {
-				if (Math.abs(video.currentTime - targetTime) < 0.15) {
-					resolve();
-					return;
-				}
-				if (performance.now() - start > timeout) {
-					reject(new Error('Seek timeout'));
-					return;
-				}
-				requestAnimationFrame(check);
-			};
-			check();
-		});
 	}
 
 	async function startExport() {
@@ -91,234 +85,242 @@
 			return;
 		}
 
-		isExporting = true;
-		exportProgress = 0;
-		exportStatusText = 'Preparing canvas & encoders...';
+		const preset = selectedPreset;
+		const { width, height, frameRate: fps } = preset.settings;
+
+		exportActions.setCurrentExport(preset.id, project);
+		exportActions.setExportStatus('exporting');
+		exportStatusText = 'Preparing media...';
+
+		const canvas = document.createElement('canvas');
+		canvas.width = width;
+		canvas.height = height;
+		const ctx = canvas.getContext('2d')!;
+
+		const exportAudioCtx = new AudioContext();
+		const audioDestination = exportAudioCtx.createMediaStreamDestination();
+
+		type ElementInfo = { el: HTMLMediaElement | HTMLImageElement; kind: 'video' | 'audio' | 'image' };
+		const mediaElements = new Map<string, ElementInfo>();
+		const objectUrls: string[] = [];
 
 		try {
-			const width = computedWidth;
-			const height = computedHeight;
-			const fps = frameRate;
+			for (const [assetId, asset] of project.assets) {
+				if (!asset.sourceBlob) continue;
+				const url = URL.createObjectURL(asset.sourceBlob);
+				objectUrls.push(url);
 
-			const canvas = document.createElement('canvas');
-			canvas.width = width;
-			// Removed erroneous assignment
-			// Fixing it:
-			canvas.height = height;
-			const ctx = canvas.getContext('2d')!;
-
-			const stream = canvas.captureStream(fps);
-			let mimeType = 'video/webm;codecs=vp9';
-			if (!MediaRecorder.isTypeSupported(mimeType)) {
-				mimeType = 'video/webm';
+				if (asset.type === 'video') {
+					const video = document.createElement('video');
+					video.src = url;
+					video.muted = true; // audio is routed through Web Audio below, not element playback
+					video.playsInline = true;
+					await new Promise((resolve) => {
+						video.onloadedmetadata = () => resolve(true);
+						video.onerror = () => resolve(false);
+					});
+					try {
+						exportAudioCtx.createMediaElementSource(video).connect(audioDestination);
+					} catch {
+						/* ignore — this clip's audio just won't be in the export */
+					}
+					mediaElements.set(assetId, { el: video, kind: 'video' });
+				} else if (asset.type === 'audio') {
+					const audioEl = document.createElement('audio');
+					audioEl.src = url;
+					await new Promise((resolve) => {
+						audioEl.onloadedmetadata = () => resolve(true);
+						audioEl.onerror = () => resolve(false);
+					});
+					try {
+						exportAudioCtx.createMediaElementSource(audioEl).connect(audioDestination);
+					} catch {
+						/* ignore */
+					}
+					mediaElements.set(assetId, { el: audioEl, kind: 'audio' });
+				} else if (asset.type === 'image') {
+					const img = new Image();
+					img.src = url;
+					await new Promise((resolve) => {
+						img.onload = () => resolve(true);
+						img.onerror = () => resolve(false);
+					});
+					mediaElements.set(assetId, { el: img, kind: 'image' });
+				}
 			}
 
-			const recorder = new MediaRecorder(stream, {
+			const videoStream = canvas.captureStream(fps);
+			const combinedStream = new MediaStream([
+				...videoStream.getVideoTracks(),
+				...audioDestination.stream.getAudioTracks()
+			]);
+
+			let mimeType = 'video/webm;codecs=vp9';
+			if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+
+			const recorder = new MediaRecorder(combinedStream, {
 				mimeType,
-				videoBitsPerSecond: Math.round((bitrateQuality / 100) * 12_000_000)
+				videoBitsPerSecond: Math.round(preset.settings.bitrate * 1000 * (bitrateQuality / 100))
 			});
 
 			const recordedChunks: Blob[] = [];
 			recorder.ondataavailable = (e) => {
 				if (e.data.size > 0) recordedChunks.push(e.data);
 			};
-
-			const exportPromise = new Promise<Blob>((resolve, reject) => {
-				recorder.onstop = () => {
-					const blob = new Blob(recordedChunks, { type: mimeType });
-					resolve(blob);
-				};
-				recorder.onerror = (e) => reject(e);
+			const stopped = new Promise<Blob>((resolve) => {
+				recorder.onstop = () => resolve(new Blob(recordedChunks, { type: mimeType }));
 			});
+
+			exportStatusText = 'Recording...';
+			// Sized to the export preset: a 1920x1080 default would mean scaling
+			// every frame of a smaller render, and per-frame cost here is baked
+			// into the file as stutter, not just a slower export.
+			let exportCompositor: WebGLCompositor | null = null;
+			try {
+				exportCompositor = new WebGLCompositor(width, height);
+			} catch {
+				exportCompositor = null;
+			}
 
 			recorder.start();
 
-			// Prepare media elements in memory
-			const mediaElements = new Map<string, HTMLVideoElement | HTMLImageElement>();
-			for (const [assetId, asset] of project.assets) {
-				if (asset.sourceBlob) {
-					const url = URL.createObjectURL(asset.sourceBlob);
-					if (asset.type === 'video') {
-						const video = document.createElement('video');
-						video.src = url;
-						video.muted = true;
-						video.playsInline = true;
-						await new Promise((r) => {
-							video.onloadedmetadata = () => r(true);
-							video.onerror = () => r(false);
-						});
-						mediaElements.set(assetId, video);
-					} else if (asset.type === 'image') {
-						const img = new Image();
-						img.src = url;
-						await new Promise((r) => {
-							img.onload = () => r(true);
-							img.onerror = () => r(false);
-						});
-						mediaElements.set(assetId, img);
+			// Export plays the sequence in real time (like the live preview) so the
+			// recorded audio and video share one clock. A dedicated frame-stepped
+			// render loop can't do this — real-time playback is what makes a single
+			// MediaRecorder capture of canvas + audio stay in sync.
+			const sortedTracks = [...sequence.tracks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+			const startPerf = performance.now();
+
+			await new Promise<void>((resolve) => {
+				function tick() {
+					const currentTime = (performance.now() - startPerf) / 1000;
+					if (currentTime >= duration) {
+						resolve();
+						return;
 					}
-				}
-			}
 
-			// Map for WebGLCompositors (keyed by clip id)
-			const compositors = new Map<string, any>(); // We'll import the type later if needed, but for now use any
+					exportActions.setExportProgress(Math.min(99, Math.round((currentTime / duration) * 100)));
+					exportStatusText = `Recording ${formatTimecode(currentTime)} / ${formatTimecode(duration)}...`;
 
-			const totalFrames = Math.ceil(duration * fps);
-			const frameDuration = 1 / fps;
+					ctx.fillStyle = project!.settings?.backgroundColor ?? '#000000';
+					ctx.fillRect(0, 0, width, height);
 
-			for (let frame = 0; frame < totalFrames; frame++) {
-				const currentTime = frame * frameDuration;
-				exportProgress = Math.round((frame / totalFrames) * 100);
-				exportStatusText = `Rendering frame ${frame + 1} of ${totalFrames} (${exportProgress}%)...`;
+					const activeAssetIds = new Set<string>();
+					for (const track of sortedTracks) {
+						for (const clipId of track.clipInstances) {
+							const clip = project!.clips.get(clipId);
+							if (!clip) continue;
+							if (currentTime < clip.timelineStart || currentTime >= clip.timelineStart + clip.timelineDuration) {
+								continue;
+							}
 
-				// Clear canvas with background color
-				ctx.fillStyle = project.settings?.backgroundColor ?? '#000000';
-				ctx.fillRect(0, 0, width, height);
+							const info = mediaElements.get(clip.mediaAssetId);
+							if (!info) continue;
+							activeAssetIds.add(clip.mediaAssetId);
 
-				// Process each track in order of track.order (ascending)
-				const sortedTracks = [...sequence.tracks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-				for (const track of sortedTracks) {
-					for (const clipId of track.clipInstances) {
-						const clip = project.clips.get(clipId);
-						if (!clip) continue;
-
-						if (currentTime >= clip.timelineStart && currentTime < clip.timelineStart + clip.timelineDuration) {
 							const sourceTime = getSourceTime(clip, currentTime);
-							const elem = mediaElements.get(clip.mediaAssetId);
-							if (!elem) continue;
+							// 150ms drift tolerance matches Canvas.svelte's live-preview sync.
+							if (info.kind === 'video' || info.kind === 'audio') {
+								const el = info.el as HTMLMediaElement;
+								if (Math.abs(el.currentTime - sourceTime) > 0.15) el.currentTime = sourceTime;
+								if (el.paused) el.play().catch(() => {});
+							}
 
-							try {
-								if (elem instanceof HTMLVideoElement) {
-									// Get or create WebGLCompositor for this clip
-									let compositor = compositors.get(clip.id);
-									if (!compositor) {
-										// Dynamically import the WebGLCompositor class
-										const { WebGLCompositor } = await import('$lib/core/rendering/webglCompositor');
-										compositor = new WebGLCompositor(width, height);
-										compositor.resize(width, height); // Ensure it matches export size
-										compositors.set(clip.id, compositor);
+							if (info.kind === 'video' || info.kind === 'image') {
+								// Same parameters the preview uses, so what you saw is what gets
+								// encoded. This was a bare drawImage: no transform, opacity,
+								// filter or colour grade reached the exported file at all.
+								const rect = getLayerDrawRect(clip, width, height);
+								// Video goes through the shader so curves, vignette, grain and
+								// per-channel white balance are baked in, not just the CSS subset.
+								let source = info.el as CanvasImageSource;
+								let gradeInCss = true;
+								if (info.kind === 'video' && exportCompositor) {
+									try {
+										exportCompositor.renderFrame(
+											info.el as HTMLVideoElement,
+											toShaderUniforms(clip.colorGrade)
+										);
+										source = exportCompositor.getCanvas() as CanvasImageSource;
+										gradeInCss = false;
+									} catch {
+										// Fall back to the CSS subset rather than dropping the frame.
+										exportCompositor = null;
 									}
-
-									// Set video current time and wait for seek
-									elem.currentTime = sourceTime;
-									await waitForSeek(elem, sourceTime);
-
-									// Build color grade from clip filters (matching Canvas.svelte)
-									const colorGrade = {
-										exposure: 0,
-										contrast: ((clip.filters?.contrast ?? 0) / 100.0) - 1.0,
-										highlights: 0,
-										shadows: 0,
-										temperature: 0,
-										tint: 0,
-										saturation: ((clip.filters?.saturate ?? 0) / 100.0) - 1.0,
-										vibrance: 0,
-										vignette: 0,
-										grain: 0,
-										curves: clip.filters?.curves ?? [[0, 0], [0.5, 0.5], [1, 1]],
-										lutTexture: null
-									};
-
-									// Render frame with WebGLCompositor
-									compositor.renderFrame(elem, colorGrade);
-									const offscreen = compositor.getCanvas();
-									const imageBitmap = await offscreen.transferToImageBitmap();
-
-									// Draw the ImageBitmap onto the export canvas
-									ctx.drawImage(imageBitmap, 0, 0, width, height);
-								} else if (elem instanceof HTMLImageElement) {
-									// For images, draw directly (no WebGL processing)
-									ctx.drawImage(elem, 0, 0, width, height);
 								}
-							} catch (err) {
-								console.warn('WebGL processing failed, falling back to 2D canvas:', err);
-								// Fallback to original 2D drawing method for this frame
-								ctx.fillStyle = project.settings?.backgroundColor ?? '#000000';
-								ctx.fillRect(0, 0, width, height);
-								// Redraw all layers up to this point using the original method?
-							 // For simplicity, we'll just redraw this layer in 2D and continue
-								if (elem instanceof HTMLVideoElement) {
-									elem.currentTime = sourceTime;
-									await waitForSeek(elem, sourceTime);
-									ctx.save();
-									if (clip.filters?.brightness) {
-										ctx.filter = `brightness(${100 + clip.filters.brightness}%)`;
-									}
-									ctx.drawImage(elem, 0, 0, width, height);
-									ctx.restore();
-								} else if (elem instanceof HTMLImageElement) {
-									ctx.drawImage(elem, 0, 0, width, height);
+								const cssFilter = getLayerFilter(clip, { colorGradeInCss: gradeInCss });
+								ctx.save();
+								ctx.globalAlpha = getLayerOpacity(clip);
+								ctx.filter = cssFilter;
+								if (rect.rotationRad !== 0) {
+									ctx.translate(rect.dx + rect.dw / 2, rect.dy + rect.dh / 2);
+									ctx.rotate(rect.rotationRad);
+									ctx.drawImage(source, -rect.dw / 2, -rect.dh / 2, rect.dw, rect.dh);
+								} else {
+									ctx.drawImage(source, rect.dx, rect.dy, rect.dw, rect.dh);
 								}
+								ctx.restore();
 							}
 						}
 					}
-				}
 
-				// Yield occasionally to avoid blocking the main thread too long
-				if (frame % 5 === 0) {
-					await new Promise((r) => setTimeout(r, 5));
+					for (const [assetId, info] of mediaElements) {
+						if (activeAssetIds.has(assetId) || info.kind === 'image') continue;
+						const el = info.el as HTMLMediaElement;
+						if (!el.paused) el.pause();
+					}
+
+					requestAnimationFrame(tick);
 				}
-			}
+				requestAnimationFrame(tick);
+			});
+
+			exportCompositor?.destroy();
+			exportCompositor = null;
 
 			exportStatusText = 'Finalizing video file...';
 			recorder.stop();
+			const finalBlob = await stopped;
 
-			const finalBlob = await exportPromise;
-			const downloadUrl = URL.createObjectURL(finalBlob);
-			const a = document.createElement('a');
-			a.href = downloadUrl;
-			const sanitizedName = (fileName || 'rayshot_export').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-			a.download = `${sanitizedName}.${exportFormat}`;
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			URL.revokeObjectURL(downloadUrl);
+			downloadBlob(finalBlob, `${sanitizeExportFilename(fileName)}.webm`);
 
 			exportStatusText = 'Export complete!';
-			exportProgress = 100;
+			exportActions.setExportProgress(100);
+			exportActions.setExportStatus('completed');
 			setTimeout(() => {
-				isExporting = false;
+				exportActions.clearExport();
 				onClose();
 			}, 800);
-
-			// Clean up WebGLCompositors
-			compositors.forEach(comp => comp.destroy());
-			compositors.clear();
 		} catch (err) {
 			console.error('Export failed:', err);
 			alert('Export error: ' + String(err));
-			isExporting = false;
+			exportActions.setExportStatus('failed');
+			exportActions.clearExport();
+		} finally {
+			for (const url of objectUrls) URL.revokeObjectURL(url);
+			exportAudioCtx.close().catch(() => {});
 		}
 	}
 </script>
 
-{#if open}
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4"
-		onclick={handleClose}
-		role="presentation"
-	>
-		<div
-			class="bg-surface-container/95 border border-outline-variant/60 w-full max-w-2xl rounded-xl shadow-2xl flex flex-col overflow-hidden text-on-surface"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-			tabindex="-1"
+<Dialog.Root {open} onOpenChange={handleOpenChange}>
+	<Dialog.Portal>
+		<Dialog.Overlay class="fixed inset-0 z-50 bg-black/70 backdrop-blur-md" />
+		<Dialog.Content
+			class="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-xl border border-outline-variant/60 bg-surface-container/95 shadow-2xl flex flex-col overflow-hidden text-on-surface"
 		>
 			<!-- Modal Header -->
 			<div class="px-6 py-4 border-b border-outline-variant/60 flex justify-between items-center bg-surface-container-high/40">
 				<div class="flex items-center gap-2">
-					<span class="material-symbols-outlined text-primary">movie</span>
-					<h2 class="text-lg font-bold text-on-surface">Export Project</h2>
+					<Icon name="library" size={16} />
+					<Dialog.Title class="text-lg font-bold text-on-surface">Export Project</Dialog.Title>
 				</div>
-				<button
-					class="text-on-surface-variant hover:text-primary transition-colors p-1 rounded-md hover:bg-surface-container-highest"
+				<Dialog.Close
+					class="text-on-surface-variant hover:text-primary transition-colors p-1 rounded-md hover:bg-surface-container-highest disabled:opacity-40"
 					disabled={isExporting}
-					onclick={handleClose}
 				>
-					<span class="material-symbols-outlined text-xl">close</span>
-				</button>
+					<Icon name="close" size={20} />
+				</Dialog.Close>
 			</div>
 
 			<!-- Modal Body -->
@@ -339,72 +341,31 @@
 					</div>
 
 					<div class="space-y-2">
-						<label for="" class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
+						<span class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
 							Resolution
-						</label>
+						</span>
 						<div class="grid grid-cols-3 gap-2">
-							<button
-								type="button"
-								class="py-2 rounded-lg text-xs font-medium border transition-colors {resolutionMode === '1080p'
-									? 'bg-primary-container/20 border-primary text-primary font-bold'
-									: 'bg-surface-container-highest border-outline-variant hover:bg-surface-bright'}"
-								disabled={isExporting}
-								onclick={() => (resolutionMode = '1080p')}
-							>
-								1080p
-							</button>
-							<button
-								type="button"
-								class="py-2 rounded-lg text-xs font-medium border transition-colors {resolutionMode === '4k'
-									? 'bg-primary-container/20 border-primary text-primary font-bold'
-									: 'bg-surface-container-highest border-outline-variant hover:bg-surface-bright'}"
-								disabled={isExporting}
-								onclick={() => (resolutionMode = '4k')}
-							>
-								4K UHD
-							</button>
-							<button
-								type="button"
-								class="py-2 rounded-lg text-xs font-medium border transition-colors {resolutionMode === 'custom'
-									? 'bg-primary-container/20 border-primary text-primary font-bold'
-									: 'bg-surface-container-highest border-outline-variant hover:bg-surface-bright'}"
-								disabled={isExporting}
-								onclick={() => (resolutionMode = 'custom')}
-							>
-								Custom
-							</button>
+							{#each $exportStore.presets as preset (preset.id)}
+								<button
+									type="button"
+									class="py-2 rounded-lg text-xs font-medium border transition-colors {selectedPresetId === preset.id
+										? 'bg-primary-container/20 border-primary text-primary font-bold'
+										: 'bg-surface-container-highest border-outline-variant hover:bg-surface-bright'}"
+									disabled={isExporting}
+									onclick={() => (selectedPresetId = preset.id)}
+								>
+									{preset.name}
+								</button>
+							{/each}
 						</div>
 					</div>
 
-					<div class="grid grid-cols-2 gap-4">
-						<div class="space-y-2">
-							<label for="" class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
-								Format
-							</label>
-							<select
-								id="export-format"
-								class="w-full bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer"
-								bind:value={exportFormat}
-								disabled={isExporting}
-							>
-								<option value="webm">WEBM (VP9)</option>
-								<option value="mp4">MP4 (H.264)</option>
-							</select>
-						</div>
-						<div class="space-y-2">
-							<label for="export-fps" class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
-								Frame Rate
-							</label>
-							<select
-								id="export-fps"
-								class="w-full bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer"
-								bind:value={frameRate}
-								disabled={isExporting}
-							>
-								<option value={60}>60 fps</option>
-								<option value={30}>30 fps</option>
-								<option value={24}>24 fps</option>
-							</select>
+					<div class="space-y-2">
+						<span class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
+							Format
+						</span>
+						<div class="w-full bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface-variant">
+							WebM (VP9) — the only format browsers can reliably produce client-side
 						</div>
 					</div>
 
@@ -417,7 +378,7 @@
 								{bitrateQuality > 75 ? 'High' : bitrateQuality > 40 ? 'Medium' : 'Low'}
 							</span>
 						</div>
-						input
+						<input
 							id="export-bitrate"
 							type="range"
 							min="10"
@@ -435,21 +396,19 @@
 
 				<!-- Right Column: Preview & Status -->
 				<div class="flex flex-col justify-between">
-					<!-- Preview Thumbnail card -->
 					<div class="bg-surface-container-lowest rounded-lg border border-outline-variant overflow-hidden relative p-4 flex flex-col items-center justify-center min-h-40">
-						<span class="material-symbols-outlined text-4xl text-primary/70 mb-2">video_library</span>
+						<Icon name="library" size={36} />
 						<div class="flex items-center gap-2 text-xs text-on-surface-variant font-mono">
-							<span class="material-symbols-outlined text-sm">schedule</span>
+							<Icon name="clock" size={14} />
 							<span>{formatTimecode($sequenceDuration)}</span>
 							<span class="mx-1">•</span>
-							<span>~{estimatedMB} MB</span>
+							<span>~{formatFileSize(estimatedBytes)}</span>
 						</div>
 						<div class="text-[11px] text-outline mt-1 font-mono">
-							{computedWidth} × {computedHeight} @ {frameRate}fps
+							{selectedPreset.settings.width} × {selectedPreset.settings.height} @ {selectedPreset.settings.frameRate}fps
 						</div>
 					</div>
 
-					<!-- Status & Actions -->
 					{#if isExporting}
 						<div class="bg-surface-container-highest/60 rounded-lg p-4 border border-outline-variant/60 space-y-2">
 							<div class="flex justify-between items-center text-xs font-semibold">
@@ -457,10 +416,7 @@
 								<span class="text-primary font-mono">{exportProgress}%</span>
 							</div>
 							<div class="w-full bg-surface-container rounded-full h-2 overflow-hidden">
-								<div
-									class="bg-primary h-full rounded-full transition-all duration-200"
-									style="width: {exportProgress}%"
-								></div>
+								<div class="bg-primary h-full rounded-full transition-all duration-200" style="width: {exportProgress}%"></div>
 							</div>
 						</div>
 					{:else}
@@ -478,13 +434,13 @@
 								disabled={$sequenceDuration <= 0}
 								onclick={startExport}
 							>
-								<span class="material-symbols-outlined text-base">download</span>
+								<Icon name="import" size={16} />
 								Export Video
 							</button>
 						</div>
 					{/if}
 				</div>
 			</div>
-		</div>
-	</div>
-{/if}
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
