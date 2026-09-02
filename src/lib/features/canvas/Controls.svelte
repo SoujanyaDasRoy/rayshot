@@ -79,7 +79,7 @@
 </script>
 
 <div class="player-controls-container" role="toolbar" aria-label="Video Player Controls">
-	<!-- Interactive Blue Scrub Bar (#38bdf8) with Drag-to-Seek -->
+	<!-- Interactive Blue Scrub Bar (var(--ms-text)) with Drag-to-Seek -->
 	<div class="progress-bar-wrapper">
 		<input
 			type="range"
@@ -190,11 +190,11 @@
 					aria-label={$playbackStore.isMuted ? 'Unmute' : 'Mute'}
 				>
 					{#if $playbackStore.isMuted || $playbackStore.masterVolume === 0}
-						🔇
+						<span class="ui-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 5 6M21 9l-5 6"/></svg></span>
 					{:else if $playbackStore.masterVolume < 0.5}
-						🔉
+						<span class="ui-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 9.5a4 4 0 0 1 0 5"/></svg></span>
 					{:else}
-						🔊
+						<span class="ui-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 9.5a4 4 0 0 1 0 5"/><path d="M18 7a8 8 0 0 1 0 10"/></svg></span>
 					{/if}
 				</button>
 
@@ -222,18 +222,42 @@
 				onclick={toggleFullscreen}
 				aria-label="Toggle Fullscreen"
 			>
-				{isFullscreen ? '⤦' : '⛶'}
+				<span class="ui-glyph" aria-hidden="true">
+					{#if isFullscreen}
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+							<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+						</svg>
+					{:else}
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+							<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+						</svg>
+					{/if}
+				</span>
 			</button>
 		</div>
 	</div>
 </div>
 
 <style>
+	/* Emoji are not an icon set: they render differently per platform and
+	   carry colour we do not want. Inline SVG on the same 24x24 grid. */
+	.ui-glyph {
+		display: inline-flex;
+		width: 1em;
+		height: 1em;
+		vertical-align: -0.125em;
+	}
+
+	.ui-glyph svg {
+		width: 100%;
+		height: 100%;
+	}
+
 	.player-controls-container {
 		display: flex;
 		flex-direction: column;
-		background: #121319;
-		border-top: 1px solid #1a1d28;
+		background: var(--ms-void);
+		border-top: 1px solid var(--ms-edge);
 		padding: 6px 14px 8px;
 		user-select: none;
 		flex-shrink: 0;
@@ -255,10 +279,10 @@
 		height: 4px;
 		background: linear-gradient(
 			to right,
-			#38bdf8 0%,
-			#38bdf8 var(--progress-percent, 0%),
-			#232738 var(--progress-percent, 0%),
-			#232738 100%
+			var(--ms-text) 0%,
+			var(--ms-text) var(--progress-percent, 0%),
+			var(--ms-edge) var(--progress-percent, 0%),
+			var(--ms-edge) 100%
 		);
 		border-radius: 2px;
 		cursor: pointer;
@@ -276,8 +300,8 @@
 		width: 12px;
 		height: 12px;
 		border-radius: 50%;
-		background: #ffffff;
-		border: 2px solid #38bdf8;
+		background: var(--ms-text);
+		border: 2px solid var(--ms-text);
 		box-shadow: 0 0 6px rgba(56, 189, 248, 0.7);
 		cursor: pointer;
 		transition: transform 0.15s ease;
@@ -291,8 +315,8 @@
 		width: 12px;
 		height: 12px;
 		border-radius: 50%;
-		background: #ffffff;
-		border: 2px solid #38bdf8;
+		background: var(--ms-text);
+		border: 2px solid var(--ms-text);
 		box-shadow: 0 0 6px rgba(56, 189, 248, 0.7);
 		cursor: pointer;
 	}
@@ -313,16 +337,16 @@
 	}
 
 	.curr-time {
-		color: #f1f5f9;
+		color: var(--ms-text);
 		font-weight: 600;
 	}
 
 	.time-sep {
-		color: #64748b;
+		color: var(--ms-text-tertiary);
 	}
 
 	.total-dur {
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 		font-weight: 500;
 	}
 
@@ -339,7 +363,7 @@
 	.ctrl-icon-btn {
 		background: transparent;
 		border: 1px solid transparent;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 		font-size: 0.85rem;
 		padding: 4px 6px;
 		border-radius: 4px;
@@ -351,15 +375,15 @@
 	}
 
 	.ctrl-icon-btn:hover {
-		background: #1a1d28;
-		color: #ffffff;
-		border-color: #232738;
+		background: var(--ms-edge);
+		color: var(--ms-text);
+		border-color: var(--ms-edge);
 	}
 
 	.master-play-btn {
-		background: #1e293b;
-		border: 1px solid #38bdf844;
-		color: #38bdf8;
+		background: var(--ms-raised);
+		border: 1px solid rgba(255, 255, 255, 0.27);
+		color: var(--ms-text);
 		width: 32px;
 		height: 32px;
 		border-radius: 50%;
@@ -372,20 +396,20 @@
 	}
 
 	.master-play-btn:hover {
-		background: #38bdf8;
-		color: #090a0d;
+		background: var(--ms-text);
+		color: var(--ms-void);
 		transform: scale(1.1);
 		box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
 	}
 
 	.master-play-btn.playing {
-		background: #38bdf8;
-		color: #090a0d;
+		background: var(--ms-text);
+		color: var(--ms-void);
 	}
 
 	.master-play-btn.playing:hover {
-		background: #0ea5e9;
-		color: #ffffff;
+		background: var(--ms-text-secondary);
+		color: var(--ms-text);
 	}
 
 	.play-icon {
@@ -407,9 +431,9 @@
 	}
 
 	.speed-dropdown {
-		background: #161822;
-		border: 1px solid #232738;
-		color: #cbd5e1;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
+		color: var(--ms-text-secondary);
 		font-size: 0.7rem;
 		padding: 2px 6px;
 		border-radius: 4px;
@@ -419,7 +443,7 @@
 	}
 
 	.speed-dropdown:hover {
-		border-color: #38bdf8;
+		border-color: var(--ms-text);
 	}
 
 	.volume-control-group {
@@ -436,8 +460,8 @@
 		position: absolute;
 		bottom: 34px;
 		right: 0;
-		background: #161822;
-		border: 1px solid #232738;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
 		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
 		border-radius: 6px;
 		padding: 6px 10px;
@@ -453,16 +477,16 @@
 		appearance: none;
 		width: 100%;
 		height: 3px;
-		background: #232738;
+		background: var(--ms-edge);
 		border-radius: 2px;
 		outline: none;
 		cursor: pointer;
-		accent-color: #38bdf8;
+		accent-color: var(--ms-text);
 	}
 
 	.volume-percent {
 		font-size: 0.65rem;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 		min-width: 28px;
 		text-align: right;
 	}

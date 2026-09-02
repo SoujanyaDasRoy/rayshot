@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/features/shell/Icon.svelte';
 	import { VIDEO_EFFECTS, AUDIO_EFFECTS, effectById } from '$lib/core/effects/effectRegistry';
 	import { onDestroy } from 'svelte';
 	import { projectStore } from '$lib/stores/project.svelte';
@@ -86,7 +87,7 @@
 			duration: 4.0,
 			previewText: 'CINEMATIC TITLE',
 			previewSub: 'CREATIVE VISION',
-			badgeColor: '#38bdf8'
+			badgeColor: 'var(--ms-text)'
 		},
 		{
 			id: 'lower-third',
@@ -96,7 +97,7 @@
 			duration: 5.0,
 			previewText: 'Alex Morgan',
 			previewSub: 'Director of Photography',
-			badgeColor: '#10b981'
+			badgeColor: 'var(--ms-text-secondary)'
 		},
 		{
 			id: 'subtitles',
@@ -106,7 +107,7 @@
 			duration: 3.0,
 			previewText: 'Captioned dialogue spoken here',
 			previewSub: 'Clear readability bar',
-			badgeColor: '#f59e0b'
+			badgeColor: 'var(--ms-text-secondary)'
 		},
 		{
 			id: 'callout',
@@ -116,7 +117,7 @@
 			duration: 4.0,
 			previewText: '★ KEY HIGHLIGHT',
 			previewSub: 'Dynamic 4K Resolution',
-			badgeColor: '#ec4899'
+			badgeColor: 'var(--ms-text-secondary)'
 		},
 		{
 			id: 'minimal-heading',
@@ -126,7 +127,7 @@
 			duration: 4.0,
 			previewText: 'CHAPTER ONE',
 			previewSub: 'Clean Minimalist Style',
-			badgeColor: '#8b5cf6'
+			badgeColor: 'var(--ms-text)'
 		}
 	];
 
@@ -198,7 +199,7 @@
 			filterKey: 'brightness',
 			filterValue: 10,
 			cssFilter: 'contrast(1.25) saturate(1.2) brightness(1.05) hue-rotate(-5deg)',
-			gradient: 'linear-gradient(135deg, #0ea5e9, #f97316)'
+			gradient: 'linear-gradient(135deg, var(--ms-text-secondary), var(--ms-text-secondary))'
 		},
 		{
 			id: 'vibrant-pop',
@@ -208,7 +209,7 @@
 			filterKey: 'brightness',
 			filterValue: 20,
 			cssFilter: 'saturate(1.7) contrast(1.25) brightness(1.1)',
-			gradient: 'linear-gradient(135deg, #ec4899, #8b5cf6)'
+			gradient: 'linear-gradient(135deg, var(--ms-text-secondary), var(--ms-text))'
 		},
 		{
 			id: 'vintage-film',
@@ -218,7 +219,7 @@
 			filterKey: 'brightness',
 			filterValue: -5,
 			cssFilter: 'sepia(0.55) contrast(0.95) brightness(1.1)',
-			gradient: 'linear-gradient(135deg, #d97706, #78350f)'
+			gradient: 'linear-gradient(135deg, var(--ms-text-secondary), var(--ms-raised))'
 		},
 		{
 			id: 'bw-noir',
@@ -228,7 +229,7 @@
 			filterKey: 'brightness',
 			filterValue: -10,
 			cssFilter: 'grayscale(1) contrast(1.4) brightness(0.95)',
-			gradient: 'linear-gradient(135deg, #ffffff, #1e293b)'
+			gradient: 'linear-gradient(135deg, var(--ms-text), var(--ms-raised))'
 		},
 		{
 			id: 'soft-vignette',
@@ -238,7 +239,7 @@
 			filterKey: 'brightness',
 			filterValue: 5,
 			cssFilter: 'contrast(1.15) brightness(1.02) drop-shadow(0 0 15px rgba(0,0,0,0.85))',
-			gradient: 'radial-gradient(circle, #38bdf8 20%, #000000 90%)'
+			gradient: 'radial-gradient(circle, var(--ms-text) 20%, #000000 90%)'
 		}
 	];
 
@@ -521,13 +522,13 @@
 		return new Blob([arrayBuf], { type: 'audio/wav' });
 	}
 
-	function generateAudioWaveformThumbnail(color = '#10b981'): string {
+	function generateAudioWaveformThumbnail(color = 'var(--ms-text-secondary)'): string {
 		const canvas = document.createElement('canvas');
 		canvas.width = 160;
 		canvas.height = 90;
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return placeholderThumbnail;
-		ctx.fillStyle = '#0e111a';
+		ctx.fillStyle = 'var(--ms-void)';
 		ctx.fillRect(0, 0, 160, 90);
 		ctx.strokeStyle = color;
 		ctx.lineWidth = 2;
@@ -650,17 +651,17 @@
 				ctx.fillStyle = grad;
 				ctx.fillRect(0, 0, 1920, 1080);
 
-				ctx.fillStyle = '#38bdf8';
+				ctx.fillStyle = 'var(--ms-text)';
 				ctx.fillRect(860, 430, 200, 4);
 
 				ctx.font = 'bold 82px system-ui, sans-serif';
-				ctx.fillStyle = '#ffffff';
+				ctx.fillStyle = 'var(--ms-text)';
 				ctx.textAlign = 'center';
 				ctx.textBaseline = 'middle';
 				ctx.fillText('CINEMATIC TITLE', 960, 520);
 
 				ctx.font = '500 32px system-ui, sans-serif';
-				ctx.fillStyle = '#94a3b8';
+				ctx.fillStyle = 'var(--ms-text-secondary)';
 				ctx.fillText('CREATIVE STORYLINE & VISION', 960, 600);
 				break;
 			}
@@ -675,19 +676,19 @@
 				ctx.roundRect(boxX, boxY, boxW, boxH, 12);
 				ctx.fill();
 
-				ctx.fillStyle = '#38bdf8';
+				ctx.fillStyle = 'var(--ms-text)';
 				ctx.beginPath();
 				ctx.roundRect(boxX, boxY, 8, boxH, [12, 0, 0, 12]);
 				ctx.fill();
 
 				ctx.font = 'bold 44px system-ui, sans-serif';
-				ctx.fillStyle = '#ffffff';
+				ctx.fillStyle = 'var(--ms-text)';
 				ctx.textAlign = 'left';
 				ctx.textBaseline = 'top';
 				ctx.fillText('ALEX MORGAN', boxX + 36, boxY + 28);
 
 				ctx.font = '500 26px system-ui, sans-serif';
-				ctx.fillStyle = '#38bdf8';
+				ctx.fillStyle = 'var(--ms-text)';
 				ctx.fillText('Director of Photography', boxX + 36, boxY + 84);
 				break;
 			}
@@ -706,7 +707,7 @@
 				ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
 				ctx.fill();
 
-				ctx.fillStyle = '#ffffff';
+				ctx.fillStyle = 'var(--ms-text)';
 				ctx.textAlign = 'center';
 				ctx.textBaseline = 'middle';
 				ctx.fillText(text, 960, badgeY + badgeH / 2);
@@ -723,29 +724,29 @@
 				ctx.roundRect(cX, cY, cW, cH, 10);
 				ctx.fill();
 
-				ctx.strokeStyle = '#38bdf8';
+				ctx.strokeStyle = 'var(--ms-text)';
 				ctx.lineWidth = 3;
 				ctx.stroke();
 
 				ctx.font = 'bold 34px system-ui, sans-serif';
-				ctx.fillStyle = '#38bdf8';
+				ctx.fillStyle = 'var(--ms-text)';
 				ctx.textAlign = 'left';
 				ctx.textBaseline = 'top';
 				ctx.fillText('★ PRO TIP', cX + 24, cY + 20);
 
 				ctx.font = '500 24px system-ui, sans-serif';
-				ctx.fillStyle = '#f1f5f9';
+				ctx.fillStyle = 'var(--ms-text)';
 				ctx.fillText('High Dynamic Range 4K', cX + 24, cY + 62);
 				break;
 			}
 			case 'minimal-heading': {
 				ctx.font = '300 56px system-ui, sans-serif';
-				ctx.fillStyle = '#f8fafc';
+				ctx.fillStyle = 'var(--ms-text)';
 				ctx.textAlign = 'left';
 				ctx.textBaseline = 'top';
 				ctx.fillText('CHAPTER ONE', 160, 160);
 
-				ctx.fillStyle = '#38bdf8';
+				ctx.fillStyle = 'var(--ms-text)';
 				ctx.fillRect(160, 236, 120, 3);
 				break;
 			}
@@ -862,8 +863,22 @@
 		<!-- Drawer Header -->
 		<div class="drawer-header">
 			<div class="drawer-header-title-box">
-				<span class="drawer-header-icon">
-					{#if activePillar === 'media'}folder{:else if activePillar === 'text'}title{:else if activePillar === 'audio'}music_note{:else if activePillar === 'effects'}magic{:else}swap_horiz{/if}
+				<!-- Was a Material Symbols ligature, which renders as the literal
+				     keyword ("swap_horiz") whenever that font has not loaded.
+				     Uses the app's own icon set instead. -->
+				<span class="drawer-header-icon" aria-hidden="true">
+					<Icon
+						name={activePillar === 'media'
+							? 'folder'
+							: activePillar === 'text'
+								? 'text'
+								: activePillar === 'audio'
+									? 'page-audio'
+									: activePillar === 'effects'
+										? 'effects'
+										: 'chevron'}
+						size={15}
+					/>
 				</span>
 				<span class="drawer-header-title">
 					{#if activePillar === 'media'}Media Bin{:else if activePillar === 'text'}Text Templates{:else if activePillar === 'audio'}Audio & Music{:else if activePillar === 'effects'}Visual Effects{:else}Transitions{/if}
@@ -890,7 +905,7 @@
 				<!-- Search & Filter Controls -->
 				<div class="search-filter-bar">
 					<div class="search-input-wrapper">
-						<span class="search-glass">🔍</span>
+						<span class="search-glass"><span class="ui-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></span></span>
 						<input
 							type="text"
 							placeholder="Search media..."
@@ -898,7 +913,7 @@
 							aria-label="Search media files"
 						/>
 						{#if searchQuery}
-							<button class="clear-search-btn" onclick={() => (searchQuery = '')} title="Clear search">✕</button>
+							<button class="clear-search-btn" onclick={() => (searchQuery = '')} title="Clear search"><span class="ui-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button>
 						{/if}
 					</div>
 
@@ -917,7 +932,7 @@
 							onclick={() => (viewMode = 'list')}
 							title="List view"
 						>
-							☰
+							<span class="ui-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span>
 						</button>
 					</div>
 				</div>
@@ -966,7 +981,7 @@
 							role="button"
 							tabindex="0"
 						>
-							<span class="empty-icon">📁</span>
+							<span class="empty-icon"><span class="ui-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3.6 8a2.4 2.4 0 0 1 2.4-2.4h3.2l2 2.4h6.8a2.4 2.4 0 0 1 2.4 2.4v6.2a2.4 2.4 0 0 1-2.4 2.4H6a2.4 2.4 0 0 1-2.4-2.4Z"/></svg></span></span>
 							<span class="empty-title">
 								{searchQuery ? 'No matching media files' : 'No media files yet'}
 							</span>
@@ -1024,7 +1039,7 @@
 												title="Remove asset"
 												onclick={(e) => handleDeleteAsset(assetId, e)}
 											>
-												✕
+												<span class="ui-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
 											</button>
 										</div>
 									</div>
@@ -1082,7 +1097,7 @@
 											title="Delete asset"
 											onclick={(e) => handleDeleteAsset(assetId, e)}
 										>
-											✕
+											<span class="ui-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
 										</button>
 									</div>
 								</div>
@@ -1094,60 +1109,25 @@
 
 		<!-- DRAWER CONTENT 2: TEXT PRESETS DRAWER -->
 		{:else if activePillar === 'text'}
-			<div class="drawer-content-box">
-				<div class="drawer-section-intro">
-					<span class="intro-headline">Creative Text Presets</span>
-					<span class="intro-subtext">Click + Add to insert formatted typography overlay clips</span>
-				</div>
-
-				<div class="drawer-scroll-container">
-					<div class="presets-vertical-list">
-						{#each textPresets as preset (preset.id)}
-							<div
-								class="preset-card text-preset-card"
-								role="button"
-								tabindex="0"
-								draggable="true"
-								onkeydown={(e) => {
-									if (e.key === 'Enter' || e.key === ' ') handleAddTextPreset(preset);
-								}}
-								ondragstart={(e) => {
-									e.dataTransfer?.setData('application/x-rayshot-text-preset', JSON.stringify(preset));
-									e.dataTransfer?.setData('text/plain', `text:${preset.id}`);
-								}}
-							>
-								<div class="text-preview-box">
-									<div class="text-mockup-inner" style="border-left: 3px solid {preset.badgeColor};">
-										<span class="mock-main">{preset.previewText}</span>
-										{#if preset.previewSub}
-											<span class="mock-sub">{preset.previewSub}</span>
-										{/if}
-									</div>
-									<span class="preset-tag" style="background: {preset.badgeColor}22; color: {preset.badgeColor}; border: 1px solid {preset.badgeColor}44;">
-										{preset.category}
-									</span>
-								</div>
-
-								<div class="preset-details-row">
-									<div class="preset-info-text">
-										<span class="preset-name">{preset.name}</span>
-										<span class="preset-desc">{preset.description}</span>
-									</div>
-									<button
-										class="preset-add-btn"
-										onclick={() => handleAddTextPreset(preset)}
-										title="Add to timeline"
-									>
-										+ Add
-									</button>
-								</div>
-							</div>
-						{/each}
-					</div>
+			<div class="drawer-scroll">
+				<h3 class="drawer-section-title">Titles</h3>
+				<div class="preset-list">
+					{#each textPresets as preset (preset.id)}
+						<button class="preset-row" onclick={() => handleAddTextPreset(preset)} title={preset.description}>
+							<span class="preset-mark" data-kind="text" aria-hidden="true">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+									<path d="M5 7.5V6h14v1.5" /><path d="M12 6v12" /><path d="M9 18h6" />
+								</svg>
+							</span>
+							<span class="preset-body">
+								<span class="preset-name">{preset.name}</span>
+								<span class="preset-desc">{preset.description}</span>
+							</span>
+							<span class="preset-meta">{preset.duration}s</span>
+						</button>
+					{/each}
 				</div>
 			</div>
-
-		<!-- DRAWER CONTENT 3: AUDIO & MUSIC DRAWER -->
 		{:else if activePillar === 'audio'}
 			<div class="drawer-content-box">
 				<div class="drawer-section-intro">
@@ -1234,41 +1214,26 @@
 				</div>
 			</div>
 		{:else if activePillar === 'transitions'}
-			<div class="drawer-content-box">
-				<div class="drawer-section-intro">
-					<span class="intro-headline">Video Transitions</span>
-					<span class="intro-subtext">Apply dynamic cuts and dissolves between scene clips</span>
+			<div class="drawer-scroll">
+				<h3 class="drawer-section-title">Between clips</h3>
+				<div class="preset-list">
+					{#each transitionPresets as preset (preset.id)}
+						<button class="preset-row" onclick={() => handleApplyTransition(preset)} title={preset.description}>
+							<span class="preset-mark" data-kind="transition" aria-hidden="true">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+									<rect x="3" y="6" width="8" height="12" rx="1.6" />
+									<rect x="13" y="6" width="8" height="12" rx="1.6" opacity="0.45" />
+								</svg>
+							</span>
+							<span class="preset-body">
+								<span class="preset-name">{preset.name}</span>
+								<span class="preset-desc">{preset.description}</span>
+							</span>
+							<span class="preset-meta">{preset.duration}s</span>
+						</button>
+					{/each}
 				</div>
-
-				<div class="drawer-scroll-container">
-					<div class="presets-vertical-list">
-						{#each transitionPresets as preset (preset.id)}
-							<div class="preset-card transition-preset-card">
-								<div class="transition-preview-box">
-									<div class="transition-anim-stage {preset.animationClass}">
-										<div class="stage-block block-a">A</div>
-										<div class="stage-block block-b">B</div>
-									</div>
-									<span class="trans-dur font-mono">{preset.duration.toFixed(1)}s</span>
-								</div>
-
-								<div class="preset-details-row">
-									<div class="preset-info-text">
-										<span class="preset-name">{preset.name}</span>
-										<span class="preset-desc">{preset.description}</span>
-									</div>
-									<button
-										class="preset-apply-btn"
-										onclick={() => handleApplyTransition(preset)}
-										title="Apply transition to selected clip"
-									>
-										Apply
-									</button>
-								</div>
-							</div>
-						{/each}
-					</div>
-				</div>
+				<p class="drawer-note">Applies to the selected clip's incoming edge.</p>
 			</div>
 		{/if}
 	</div>
@@ -1285,6 +1250,112 @@
 </aside>
 
 <style>
+	/* Emoji are not an icon set: they render differently per platform and
+	   carry colour we do not want. Inline SVG on the same 24x24 grid. */
+	.ui-glyph {
+		display: inline-flex;
+		width: 1em;
+		height: 1em;
+		vertical-align: -0.125em;
+	}
+
+	.ui-glyph svg {
+		width: 100%;
+		height: 100%;
+	}
+
+	/* One row pattern across Effects, Text and Transitions: mark, name plus a
+	   plain-language description, and the one number that matters. Cards with
+	   fake gradient thumbnails told the user nothing about what they do. */
+	.preset-list {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 0 12px 14px;
+	}
+
+	.preset-row {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		width: 100%;
+		padding: 9px 10px;
+		border: 1px solid transparent;
+		border-radius: var(--ms-radius);
+		background: transparent;
+		text-align: left;
+		cursor: pointer;
+		font-family: var(--ms-font);
+		transition:
+			background var(--ms-fast) var(--ms-ease),
+			border-color var(--ms-fast) var(--ms-ease);
+	}
+
+	.preset-row:hover {
+		background: var(--ms-hover);
+		border-color: var(--ms-edge);
+	}
+
+	.preset-row:focus-visible {
+		outline: 2px solid var(--ms-text);
+		outline-offset: 2px;
+	}
+
+	.preset-mark {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		flex-shrink: 0;
+		border: 1px solid var(--ms-edge);
+		border-radius: 6px;
+		background: var(--ms-material);
+		color: var(--ms-text-secondary);
+	}
+
+	.preset-mark svg {
+		width: 15px;
+		height: 15px;
+	}
+
+	.preset-body {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+		flex: 1;
+	}
+
+	.preset-name {
+		font-size: 12px;
+		font-weight: 590;
+		color: var(--ms-text);
+	}
+
+	.preset-desc {
+		font-size: 10.5px;
+		line-height: 1.4;
+		color: var(--ms-text-tertiary);
+	}
+
+	.preset-meta {
+		flex-shrink: 0;
+		font-family: var(--ms-font-mono);
+		font-size: 10.5px;
+		color: var(--ms-text-tertiary);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.drawer-note {
+		margin: 0;
+		padding: 0 12px 14px;
+		font-family: var(--ms-font);
+		font-size: 10.5px;
+		line-height: 1.5;
+		color: var(--ms-text-tertiary);
+	}
+
 	.drawer-scroll {
 		flex: 1;
 		overflow-y: auto;
@@ -1346,8 +1417,8 @@
 		display: flex;
 		height: 100%;
 		width: 100%;
-		background: #121319;
-		border-right: 1px solid #232738;
+		background: var(--ms-void);
+		border-right: 1px solid var(--ms-edge);
 		user-select: none;
 		overflow: hidden;
 		box-sizing: border-box;
@@ -1355,9 +1426,9 @@
 	}
 
 	.mediabin-shell.drag-active {
-		outline: 2px dashed #38bdf8;
+		outline: 2px dashed var(--ms-text);
 		outline-offset: -3px;
-		background: #161824;
+		background: var(--ms-material);
 	}
 
 	/* =========================================================================
@@ -1365,8 +1436,8 @@
 	   ========================================================================= */
 	.pillar-nav-bar {
 		width: 62px;
-		background: #090a0d;
-		border-right: 1px solid #232738;
+		background: var(--ms-void);
+		border-right: 1px solid var(--ms-edge);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -1387,22 +1458,22 @@
 		background: transparent;
 		border: 1px solid transparent;
 		border-radius: 8px;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 		cursor: pointer;
 		transition: all 0.16s ease;
 		padding: 0;
 	}
 
 	.pillar-btn:hover {
-		background: #1a1d28;
-		color: #f1f5f9;
-		border-color: #232738;
+		background: var(--ms-edge);
+		color: var(--ms-text);
+		border-color: var(--ms-edge);
 	}
 
 	.pillar-btn.active {
 		background: rgba(56, 189, 248, 0.12);
 		border-color: rgba(56, 189, 248, 0.4);
-		color: #38bdf8;
+		color: var(--ms-text);
 	}
 
 	.pillar-icon {
@@ -1425,7 +1496,7 @@
 		flex-direction: column;
 		min-width: 0;
 		height: 100%;
-		background: #121319;
+		background: var(--ms-void);
 		overflow: hidden;
 		position: relative;
 	}
@@ -1435,8 +1506,8 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 8px 12px;
-		background: #1a1d28;
-		border-bottom: 1px solid #232738;
+		background: var(--ms-edge);
+		border-bottom: 1px solid var(--ms-edge);
 		height: 38px;
 		box-sizing: border-box;
 		flex-shrink: 0;
@@ -1450,21 +1521,21 @@
 
 	.drawer-header-icon {
 		font-size: 0.85rem;
-		color: #38bdf8;
+		color: var(--ms-text);
 	}
 
 	.drawer-header-title {
 		font-size: 0.78rem;
 		font-weight: 700;
-		color: #f1f5f9;
+		color: var(--ms-text);
 		letter-spacing: 0.03em;
 		text-transform: uppercase;
 	}
 
 	.header-action-btn {
-		background: #232738;
-		border: 1px solid #33384c;
-		color: #38bdf8;
+		background: var(--ms-edge);
+		border: 1px solid var(--ms-edge-strong);
+		color: var(--ms-text);
 		font-size: 0.68rem;
 		font-weight: 600;
 		padding: 3px 8px;
@@ -1474,9 +1545,9 @@
 	}
 
 	.header-action-btn:hover {
-		background: #38bdf8;
-		color: #090a0d;
-		border-color: #38bdf8;
+		background: var(--ms-text);
+		color: var(--ms-void);
+		border-color: var(--ms-text);
 	}
 
 	.drawer-toast {
@@ -1485,9 +1556,9 @@
 		left: 12px;
 		right: 12px;
 		z-index: 100;
-		background: #161822;
-		border: 1px solid #38bdf8;
-		color: #f1f5f9;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-text);
+		color: var(--ms-text);
 		font-size: 0.68rem;
 		font-weight: 600;
 		padding: 6px 10px;
@@ -1521,8 +1592,8 @@
 
 	.drawer-section-intro {
 		padding: 8px 12px 6px;
-		border-bottom: 1px solid #1c1f2e;
-		background: #14151e;
+		border-bottom: 1px solid var(--ms-raised);
+		background: var(--ms-material);
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
@@ -1532,12 +1603,12 @@
 	.intro-headline {
 		font-size: 0.72rem;
 		font-weight: 700;
-		color: #e2e8f0;
+		color: var(--ms-text-secondary);
 	}
 
 	.intro-subtext {
 		font-size: 0.62rem;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 	}
 
 	.drawer-scroll-container {
@@ -1555,8 +1626,8 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 6px 10px;
-		background: #14151e;
-		border-bottom: 1px solid #1c1f2e;
+		background: var(--ms-material);
+		border-bottom: 1px solid var(--ms-raised);
 		gap: 6px;
 		flex-shrink: 0;
 	}
@@ -1564,8 +1635,8 @@
 	.search-input-wrapper {
 		display: flex;
 		align-items: center;
-		background: #090a0d;
-		border: 1px solid #232738;
+		background: var(--ms-void);
+		border: 1px solid var(--ms-edge);
 		border-radius: 4px;
 		padding: 2px 6px;
 		flex: 1;
@@ -1574,7 +1645,7 @@
 
 	.search-glass {
 		font-size: 0.65rem;
-		color: #64748b;
+		color: var(--ms-text-tertiary);
 		margin-right: 4px;
 	}
 
@@ -1582,7 +1653,7 @@
 		background: transparent;
 		border: none;
 		outline: none;
-		color: #f1f5f9;
+		color: var(--ms-text);
 		font-size: 0.68rem;
 		width: 100%;
 	}
@@ -1590,14 +1661,14 @@
 	.clear-search-btn {
 		background: transparent;
 		border: none;
-		color: #64748b;
+		color: var(--ms-text-tertiary);
 		font-size: 0.6rem;
 		cursor: pointer;
 		padding: 0 2px;
 	}
 
 	.clear-search-btn:hover {
-		color: #f87171;
+		color: var(--ms-text-secondary);
 	}
 
 	.view-mode-toggle {
@@ -1608,7 +1679,7 @@
 	.mode-btn {
 		background: transparent;
 		border: 1px solid transparent;
-		color: #64748b;
+		color: var(--ms-text-tertiary);
 		font-size: 0.75rem;
 		padding: 2px 4px;
 		border-radius: 3px;
@@ -1616,28 +1687,28 @@
 	}
 
 	.mode-btn:hover {
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 	}
 
 	.mode-btn.active {
-		color: #38bdf8;
-		background: #1c1f2e;
-		border-color: #232738;
+		color: var(--ms-text);
+		background: var(--ms-raised);
+		border-color: var(--ms-edge);
 	}
 
 	.filter-chips-row {
 		display: flex;
 		gap: 4px;
 		padding: 6px 10px;
-		background: #121319;
-		border-bottom: 1px solid #1c1f2e;
+		background: var(--ms-void);
+		border-bottom: 1px solid var(--ms-raised);
 		flex-shrink: 0;
 	}
 
 	.chip-btn {
-		background: #161822;
-		border: 1px solid #232738;
-		color: #94a3b8;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
+		color: var(--ms-text-secondary);
 		font-size: 0.62rem;
 		font-weight: 600;
 		padding: 2px 8px;
@@ -1647,14 +1718,14 @@
 	}
 
 	.chip-btn:hover {
-		color: #f1f5f9;
-		border-color: #33384c;
+		color: var(--ms-text);
+		border-color: var(--ms-edge-strong);
 	}
 
 	.chip-btn.active {
-		background: #38bdf8;
-		color: #090a0d;
-		border-color: #38bdf8;
+		background: var(--ms-text);
+		color: var(--ms-void);
+		border-color: var(--ms-text);
 	}
 
 	/* Empty State Dropzone */
@@ -1664,18 +1735,18 @@
 		align-items: center;
 		justify-content: center;
 		padding: 36px 14px;
-		border: 1.5px dashed #232738;
+		border: 1.5px dashed var(--ms-edge);
 		border-radius: 8px;
 		cursor: pointer;
-		background: #0d0e14;
+		background: var(--ms-void);
 		text-align: center;
 		gap: 6px;
 		transition: all 0.15s ease;
 	}
 
 	.empty-media-dropzone:hover {
-		border-color: #38bdf8;
-		background: #141622;
+		border-color: var(--ms-text);
+		background: var(--ms-material);
 	}
 
 	.empty-icon {
@@ -1686,20 +1757,20 @@
 	.empty-title {
 		font-size: 0.76rem;
 		font-weight: 700;
-		color: #e2e8f0;
+		color: var(--ms-text-secondary);
 	}
 
 	.empty-desc {
 		font-size: 0.64rem;
-		color: #64748b;
+		color: var(--ms-text-tertiary);
 		max-width: 180px;
 	}
 
 	.empty-import-cta {
 		margin-top: 6px;
-		background: #232738;
-		border: 1px solid #33384c;
-		color: #38bdf8;
+		background: var(--ms-edge);
+		border: 1px solid var(--ms-edge-strong);
+		color: var(--ms-text);
 		font-size: 0.68rem;
 		font-weight: 600;
 		padding: 4px 12px;
@@ -1709,9 +1780,9 @@
 	}
 
 	.empty-import-cta:hover {
-		background: #38bdf8;
-		color: #090a0d;
-		border-color: #38bdf8;
+		background: var(--ms-text);
+		color: var(--ms-void);
+		border-color: var(--ms-text);
 	}
 
 	/* Media Grid View */
@@ -1724,8 +1795,8 @@
 	.asset-card {
 		display: flex;
 		flex-direction: column;
-		background: #161822;
-		border: 1px solid #232738;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
 		border-radius: 6px;
 		overflow: hidden;
 		cursor: grab;
@@ -1733,20 +1804,20 @@
 	}
 
 	.asset-card:hover {
-		border-color: #38bdf8;
+		border-color: var(--ms-text);
 		transform: translateY(-1px);
 	}
 
 	.asset-card.selected {
-		border-color: #38bdf8;
-		box-shadow: 0 0 0 1px #38bdf8;
+		border-color: var(--ms-text);
+		box-shadow: 0 0 0 1px var(--ms-text);
 	}
 
 	.asset-thumb-box {
 		position: relative;
 		width: 100%;
 		height: 56px;
-		background: #090a0d;
+		background: var(--ms-void);
 	}
 
 	.asset-thumb-box img {
@@ -1765,19 +1836,19 @@
 		text-transform: uppercase;
 		padding: 1px 3px;
 		border-radius: 2px;
-		color: #fff;
+		color: var(--ms-text);
 	}
 
 	.type-badge.video {
-		background: #2563eb;
+		background: var(--ms-text-secondary);
 	}
 
 	.type-badge.audio {
-		background: #059669;
+		background: var(--ms-text-secondary);
 	}
 
 	.type-badge.image {
-		background: #d97706;
+		background: var(--ms-text-secondary);
 	}
 
 	.dur-badge {
@@ -1786,7 +1857,7 @@
 		right: 3px;
 		font-size: 0.52rem;
 		background: rgba(0, 0, 0, 0.85);
-		color: #f1f5f9;
+		color: var(--ms-text);
 		padding: 1px 3px;
 		border-radius: 2px;
 	}
@@ -1823,22 +1894,22 @@
 	}
 
 	.quick-add-btn {
-		background: #38bdf8;
-		color: #090a0d;
+		background: var(--ms-text);
+		color: var(--ms-void);
 	}
 
 	.quick-add-btn:hover {
-		background: #0ea5e9;
-		color: #fff;
+		background: var(--ms-text-secondary);
+		color: var(--ms-text);
 	}
 
 	.quick-del-btn {
-		background: #ef4444;
-		color: #fff;
+		background: var(--ms-text);
+		color: var(--ms-void);
 	}
 
 	.quick-del-btn:hover {
-		background: #dc2626;
+		background: var(--ms-text);
 	}
 
 	.asset-meta {
@@ -1848,7 +1919,7 @@
 	.asset-name {
 		font-size: 0.64rem;
 		font-weight: 500;
-		color: #cbd5e1;
+		color: var(--ms-text-secondary);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -1866,8 +1937,8 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		background: #161822;
-		border: 1px solid #232738;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
 		border-radius: 5px;
 		padding: 4px 6px;
 		cursor: grab;
@@ -1875,18 +1946,18 @@
 	}
 
 	.list-item-row:hover {
-		border-color: #38bdf8;
-		background: #1c1f2e;
+		border-color: var(--ms-text);
+		background: var(--ms-raised);
 	}
 
 	.list-item-row.selected {
-		border-color: #38bdf8;
+		border-color: var(--ms-text);
 	}
 
 	.list-thumb {
 		width: 38px;
 		height: 26px;
-		background: #090a0d;
+		background: var(--ms-void);
 		border-radius: 3px;
 		overflow: hidden;
 		flex-shrink: 0;
@@ -1909,7 +1980,7 @@
 	.list-filename {
 		font-size: 0.66rem;
 		font-weight: 600;
-		color: #e2e8f0;
+		color: var(--ms-text-secondary);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -1927,24 +1998,24 @@
 		text-transform: uppercase;
 		padding: 0 3px;
 		border-radius: 2px;
-		color: #fff;
+		color: var(--ms-text);
 	}
 
 	.type-badge-mini.video {
-		background: #2563eb;
+		background: var(--ms-text-secondary);
 	}
 
 	.type-badge-mini.audio {
-		background: #059669;
+		background: var(--ms-text-secondary);
 	}
 
 	.type-badge-mini.image {
-		background: #d97706;
+		background: var(--ms-text-secondary);
 	}
 
 	.dur-text {
 		font-size: 0.54rem;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 	}
 
 	.list-actions {
@@ -1967,23 +2038,23 @@
 	}
 
 	.list-add-btn {
-		background: #232738;
-		color: #38bdf8;
+		background: var(--ms-edge);
+		color: var(--ms-text);
 	}
 
 	.list-add-btn:hover {
-		background: #38bdf8;
-		color: #090a0d;
+		background: var(--ms-text);
+		color: var(--ms-void);
 	}
 
 	.list-del-btn {
 		background: transparent;
-		color: #64748b;
+		color: var(--ms-text-tertiary);
 	}
 
 	.list-del-btn:hover {
-		background: #ef4444;
-		color: #fff;
+		background: var(--ms-text);
+		color: var(--ms-void);
 	}
 
 	/* =========================================================================
@@ -1996,8 +2067,8 @@
 	}
 
 	.preset-card {
-		background: #161822;
-		border: 1px solid #232738;
+		background: var(--ms-material);
+		border: 1px solid var(--ms-edge);
 		border-radius: 6px;
 		overflow: hidden;
 		transition: all 0.15s ease;
@@ -2006,7 +2077,7 @@
 	}
 
 	.preset-card:hover {
-		border-color: #38bdf8;
+		border-color: var(--ms-text);
 	}
 
 	.preset-details-row {
@@ -2014,7 +2085,7 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 6px 8px;
-		background: #13151f;
+		background: var(--ms-material);
 		gap: 6px;
 	}
 
@@ -2028,12 +2099,12 @@
 	.preset-name {
 		font-size: 0.7rem;
 		font-weight: 700;
-		color: #f1f5f9;
+		color: var(--ms-text);
 	}
 
 	.preset-desc {
 		font-size: 0.58rem;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -2041,9 +2112,9 @@
 
 	.preset-add-btn,
 	.preset-apply-btn {
-		background: #232738;
-		border: 1px solid #33384c;
-		color: #38bdf8;
+		background: var(--ms-edge);
+		border: 1px solid var(--ms-edge-strong);
+		color: var(--ms-text);
 		font-size: 0.64rem;
 		font-weight: 700;
 		padding: 3px 8px;
@@ -2055,16 +2126,16 @@
 
 	.preset-add-btn:hover,
 	.preset-apply-btn:hover {
-		background: #38bdf8;
-		color: #090a0d;
-		border-color: #38bdf8;
+		background: var(--ms-text);
+		color: var(--ms-void);
+		border-color: var(--ms-text);
 	}
 
 	/* Text Presets Styling */
 	.text-preview-box {
 		position: relative;
 		height: 48px;
-		background: #090a0d;
+		background: var(--ms-void);
 		display: flex;
 		align-items: center;
 		padding: 0 10px;
@@ -2079,13 +2150,13 @@
 	.mock-main {
 		font-size: 0.72rem;
 		font-weight: 700;
-		color: #ffffff;
+		color: var(--ms-text);
 		letter-spacing: 0.02em;
 	}
 
 	.mock-sub {
 		font-size: 0.52rem;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 	}
 
 	.preset-tag {
@@ -2115,9 +2186,9 @@
 		width: 32px;
 		height: 32px;
 		border-radius: 50%;
-		background: #232738;
-		border: 1px solid #33384c;
-		color: #38bdf8;
+		background: var(--ms-edge);
+		border: 1px solid var(--ms-edge-strong);
+		color: var(--ms-text);
 		cursor: pointer;
 		display: flex;
 		align-items: center;
@@ -2127,14 +2198,14 @@
 	}
 
 	.audio-preview-toggle-btn:hover {
-		background: #38bdf8;
-		color: #090a0d;
+		background: var(--ms-text);
+		color: var(--ms-void);
 	}
 
 	.audio-preview-toggle-btn.playing {
-		background: #ef4444;
-		border-color: #ef4444;
-		color: #ffffff;
+		background: var(--ms-text);
+		border-color: var(--ms-text);
+		color: var(--ms-text);
 	}
 
 	.preview-play-icon {
@@ -2169,18 +2240,18 @@
 	}
 
 	.audio-type-pill.music {
-		background: #1e3a8a;
-		color: #93c5fd;
+		background: var(--ms-raised);
+		color: var(--ms-text-secondary);
 	}
 
 	.audio-type-pill.sfx {
-		background: #831843;
-		color: #fbcfe8;
+		background: var(--ms-raised);
+		color: var(--ms-text-secondary);
 	}
 
 	.audio-type-pill.ambient {
-		background: #064e3b;
-		color: #a7f3d0;
+		background: var(--ms-raised);
+		color: var(--ms-text-secondary);
 	}
 
 	.audio-card-footer {
@@ -2188,12 +2259,12 @@
 		align-items: center;
 		justify-content: space-between;
 		padding-top: 4px;
-		border-top: 1px solid #1c1f2e;
+		border-top: 1px solid var(--ms-raised);
 	}
 
 	.audio-duration {
 		font-size: 0.58rem;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 	}
 
 	/* Effects Styling */
@@ -2217,7 +2288,7 @@
 	.swatch-text {
 		font-size: 0.68rem;
 		font-weight: 900;
-		color: #ffffff;
+		color: var(--ms-text);
 		letter-spacing: 0.1em;
 	}
 
@@ -2230,7 +2301,7 @@
 		padding: 1px 4px;
 		border-radius: 3px;
 		background: rgba(0, 0, 0, 0.7);
-		color: #e2e8f0;
+		color: var(--ms-text-secondary);
 		text-transform: uppercase;
 	}
 
@@ -2238,7 +2309,7 @@
 	.transition-preview-box {
 		position: relative;
 		height: 48px;
-		background: #090a0d;
+		background: var(--ms-void);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -2249,7 +2320,7 @@
 		position: relative;
 		width: 100px;
 		height: 32px;
-		background: #1a1d28;
+		background: var(--ms-edge);
 		border-radius: 4px;
 		overflow: hidden;
 		display: flex;
@@ -2263,18 +2334,18 @@
 		justify-content: center;
 		font-size: 0.65rem;
 		font-weight: 700;
-		color: #fff;
+		color: var(--ms-text);
 		position: absolute;
 		top: 0;
 		left: 0;
 	}
 
 	.block-a {
-		background: #2563eb;
+		background: var(--ms-text-secondary);
 	}
 
 	.block-b {
-		background: #059669;
+		background: var(--ms-text-secondary);
 	}
 
 	.trans-dur {
@@ -2282,25 +2353,14 @@
 		bottom: 3px;
 		right: 6px;
 		font-size: 0.52rem;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 		background: rgba(0, 0, 0, 0.7);
 		padding: 0 3px;
 		border-radius: 2px;
 	}
 
 	/* Transition Keyframe Animations */
-	.anim-dissolve .block-b {
-		animation: dissolveAnim 2s infinite ease-in-out;
-	}
-	@keyframes dissolveAnim {
-		0%, 30% { opacity: 0; }
-		60%, 90% { opacity: 1; }
-		100% { opacity: 0; }
-	}
 
-	.anim-fade-black .block-b {
-		animation: fadeBlackAnim 2s infinite ease-in-out;
-	}
 	@keyframes fadeBlackAnim {
 		0%, 25% { opacity: 0; }
 		40%, 55% { opacity: 0; filter: brightness(0); }
@@ -2308,27 +2368,18 @@
 		100% { opacity: 0; }
 	}
 
-	.anim-slide-left .block-b {
-		animation: slideLeftAnim 2s infinite ease-in-out;
-	}
 	@keyframes slideLeftAnim {
 		0%, 30% { transform: translateX(100%); }
 		60%, 90% { transform: translateX(0); }
 		100% { transform: translateX(100%); }
 	}
 
-	.anim-wipe-right .block-b {
-		animation: wipeRightAnim 2s infinite ease-in-out;
-	}
 	@keyframes wipeRightAnim {
 		0%, 30% { clip-path: inset(0 100% 0 0); }
 		60%, 90% { clip-path: inset(0 0 0 0); }
 		100% { clip-path: inset(0 100% 0 0); }
 	}
 
-	.anim-zoom-dissolve .block-b {
-		animation: zoomDissolveAnim 2s infinite ease-in-out;
-	}
 	@keyframes zoomDissolveAnim {
 		0%, 30% { opacity: 0; transform: scale(0.6); }
 		60%, 90% { opacity: 1; transform: scale(1); }

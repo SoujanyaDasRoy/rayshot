@@ -359,7 +359,7 @@
 		{:else if $audioLayers.length > 0}
 			<div class="audio-stage-visualizer">
 				<div class="audio-pulse-ring">
-					<span class="audio-icon">🎵</span>
+					<span class="audio-icon"><span class="ui-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></span></span>
 				</div>
 				<div class="audio-meta">
 					<span class="audio-track-name">{$audioLayers[0].asset.filename}</span>
@@ -368,7 +368,7 @@
 			</div>
 		{:else}
 			<div class="empty-stage-state">
-				<div class="empty-stage-icon">🎬</div>
+				<div class="empty-stage-icon"><span class="ui-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="m3 11 18 0M7 7 5 11M12 7l-2 4M17 7l-2 4"/></svg></span></div>
 				<div class="empty-stage-heading">16:9 Viewport</div>
 				<div class="empty-stage-subtext font-mono">
 					{$activeSequence ? `${$activeSequence.resolution.width} × ${$activeSequence.resolution.height}` : '1920 × 1080'} • {$activeSequence?.frameRate ?? 30} FPS
@@ -390,13 +390,27 @@
 </div>
 
 <style>
+	/* Emoji are not an icon set: they render differently per platform and
+	   carry colour we do not want. Inline SVG on the same 24x24 grid. */
+	.ui-glyph {
+		display: inline-flex;
+		width: 1em;
+		height: 1em;
+		vertical-align: -0.125em;
+	}
+
+	.ui-glyph svg {
+		width: 100%;
+		height: 100%;
+	}
+
 	.video-canvas-stage {
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		width: 100%;
 		height: 100%;
-		background: #090a0d;
+		background: var(--ms-void);
 		padding: 12px;
 		box-sizing: border-box;
 		overflow: hidden;
@@ -410,8 +424,8 @@
 		max-width: 100%;
 		max-height: 100%;
 		background: #000000;
-		border: 1px solid #1a1d28;
-		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9), 0 0 0 1px #232738;
+		border: 1px solid var(--ms-edge);
+		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9), 0 0 0 1px var(--ms-edge);
 		border-radius: 6px;
 		overflow: hidden;
 		display: flex;
@@ -476,7 +490,7 @@
 		flex-direction: column;
 		align-items: center;
 		gap: 10px;
-		color: #94a3b8;
+		color: var(--ms-text-secondary);
 	}
 
 	.audio-pulse-ring {
@@ -493,7 +507,7 @@
 
 	.audio-icon {
 		font-size: 1.75rem;
-		color: #10b981;
+		color: var(--ms-text-secondary);
 	}
 
 	.audio-meta {
@@ -506,12 +520,12 @@
 	.audio-track-name {
 		font-size: 0.85rem;
 		font-weight: 600;
-		color: #f1f5f9;
+		color: var(--ms-text);
 	}
 
 	.audio-track-status {
 		font-size: 0.7rem;
-		color: #34d399;
+		color: var(--ms-text-secondary);
 		letter-spacing: 0.04em;
 	}
 
@@ -521,7 +535,7 @@
 		align-items: center;
 		gap: 6px;
 		user-select: none;
-		color: #475569;
+		color: var(--ms-edge-strong);
 	}
 
 	.empty-stage-icon {
@@ -532,13 +546,13 @@
 	.empty-stage-heading {
 		font-size: 0.82rem;
 		font-weight: 600;
-		color: #64748b;
+		color: var(--ms-text-tertiary);
 		letter-spacing: 0.02em;
 	}
 
 	.empty-stage-subtext {
 		font-size: 0.7rem;
-		color: #475569;
+		color: var(--ms-edge-strong);
 	}
 
 	.font-mono {

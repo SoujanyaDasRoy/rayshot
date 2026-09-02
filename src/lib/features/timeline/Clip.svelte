@@ -182,39 +182,39 @@
 	}
 
 	.timeline-clip-block.video {
-		background-color: #2a2a2a; /* bg-surface-container-high */
+		background-color: var(--ms-raised); /* bg-surface-container-high */
 		border: 1px solid transparent;
 		box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); /* inner border */
 	}
 
 	.timeline-clip-block.video.selected {
-		border: 2px solid #d0bcff; /* border-2 border-primary */
+		border: 2px solid var(--ms-text); /* border-2 border-primary */
 		box-shadow: 0 0 8px rgba(208, 188, 255, 0.3); /* shadow-[0_0_8px_rgba(208,188,255,0.3)] */
 		z-index: 10;
 	}
 
 	.timeline-clip-block.audio {
-		background-color: #06B6D4; /* secondary cyan */
+		background-color: var(--ms-text-secondary); /* secondary cyan */
 		border: 1px solid transparent;
 		box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); /* inner border */
 	}
 
 	.timeline-clip-block.image {
-		background-color: #451a03;
+		background-color: var(--ms-raised);
 		border: 1px solid transparent;
 		box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); /* inner border */
 	}
 
 	.timeline-clip-block.adjustment {
-		background-color: #8B5CF6; /* primary purple */
+		background-color: var(--ms-text); /* primary purple */
 		border: 1px solid transparent;
 		box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); /* inner border */
 	}
 
 	/* Focus visible styles for keyboard navigation */
 	.timeline-clip-block.focus-visible {
-		border-color: #d0bcff !important;
-		box-shadow: 0 0 0 2px #d0bcff, 0 0 0 4px rgba(208, 188, 255, 0.2), 0 0 12px rgba(208, 188, 255, 0.45);
+		border-color: var(--ms-text) !important;
+		box-shadow: 0 0 0 2px var(--ms-text), 0 0 0 4px rgba(208, 188, 255, 0.2), 0 0 12px rgba(208, 188, 255, 0.45);
 	}
 
 	/* Reduce motion support - disable animations for users who prefer reduced motion */
@@ -263,7 +263,7 @@
 	.clip-text-name {
 		font-size: 0.72rem;
 		font-weight: 600;
-		color: #ffffff;
+		color: var(--ms-text);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -274,7 +274,7 @@
 	.clip-len {
 		font-size: 0.6rem;
 		font-weight: 500;
-		color: #e2e8f0;
+		color: var(--ms-text-secondary);
 		background: rgba(0, 0, 0, 0.6);
 		padding: 1px 5px;
 		border-radius: 3px;
@@ -299,12 +299,12 @@
 
 	.timeline-clip-block.video .clip-filename-bar {
 		background-color: rgba(0, 0, 0, 0.5); /* bg-surface-container-lowest/50 */
-		color: #e5e2e1; /* text-on-surface-variant */
+		color: var(--ms-text); /* text-on-surface-variant */
 	}
 
 	.timeline-clip-block.video.selected .clip-filename-bar {
 		background-color: rgba(208, 188, 255, 0.2); /* bg-primary/20 */
-		color: #d0bcff; /* text-primary */
+		color: var(--ms-text); /* text-primary */
 		justify-content: space-between;
 		padding: 0 1px;
 		display: flex;
@@ -314,7 +314,7 @@
 	.timeline-clip-block.video.selected .clip-filename-text {
 		font-family: 'JetBrains Mono', monospace;
 		font-size: 9px;
-		color: #d0bcff;
+		color: var(--ms-text);
 	}
 
 	.timeline-clip-block.video.selected .clip-speed-icon {
