@@ -1,5 +1,6 @@
 import type { Clip } from '$lib/types/project';
 import { colorGradeToCssFilter } from './colorGradeUniforms';
+import { effectsToCssFilter } from '../effects/effectRegistry';
 
 /**
  * The parameters the preview and the exporter must agree on.
@@ -82,6 +83,13 @@ export function getLayerFilter(clip: Clip, options: LayerFilterOptions = {}): st
 		if (f.hueRotate !== undefined && f.hueRotate !== 0) {
 			filterParts.push(`hue-rotate(${Number(f.hueRotate)}deg)`);
 		}
+	}
+
+	// clip.effects was written by AddClipEffectCommand and read by nothing.
+	// This is the read: the named effects now actually change the picture.
+	if (Array.isArray(clip.effects) && clip.effects.length > 0) {
+		const fx = effectsToCssFilter(clip.effects, (f ?? {}) as Record<string, number>);
+		if (fx) filterParts.push(fx);
 	}
 
 	if (colorGradeInCss) {

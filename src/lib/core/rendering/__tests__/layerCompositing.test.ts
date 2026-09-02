@@ -55,6 +55,20 @@ describe('getLayerDrawRect', () => {
 	});
 });
 
+describe('getLayerFilter with effects', () => {
+	test('an applied effect reaches the picture', () => {
+		// clip.effects was written by a command and read by no renderer at all.
+		const css = getLayerFilter(clip({ effects: ['lens-blur'] }));
+		expect(css).toContain('blur(');
+	});
+
+	test('two different effects produce two different looks', () => {
+		const a = getLayerFilter(clip({ effects: ['vhs-retro'] }));
+		const b = getLayerFilter(clip({ effects: ['cyber-color'] }));
+		expect(a).not.toBe(b);
+	});
+});
+
 describe('getLayerFilter', () => {
 	test('an untouched clip needs no filter', () => {
 		expect(getLayerFilter(clip())).toBe('none');

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { VIDEO_EFFECTS, AUDIO_EFFECTS, effectById } from '$lib/core/effects/effectRegistry';
 	import { onDestroy } from 'svelte';
 	import { projectStore } from '$lib/stores/project.svelte';
 	import { timelineStore } from '$lib/stores/timeline.svelte';
@@ -806,24 +807,27 @@
 	}
 
 	// Effects & Transitions Actions
-	function handleApplyEffect(preset: EffectPreset) {
+	// Applies the real effect, not a brightness nudge wearing its name.
+	function applyEffect(effectId: string) {
 		const timeline = get(timelineStore);
 		if (!timeline.selectedClipId) {
-			showToast('Click a clip on the timeline first to apply effect');
+			showToast('Select a clip on the timeline first');
 			return;
 		}
+		const def = effectById(effectId);
+		if (!def) return;
 
-		const filterCmd = new SetClipFilterCommand({
-			clipId: timeline.selectedClipId,
-			filterName: preset.filterKey,
-			value: preset.filterValue
-		});
-		commandProcessor.execute(filterCmd);
 		commandProcessor.execute(
-			new AddClipEffectCommand({ clipId: timeline.selectedClipId, effectId: preset.id })
+			new AddClipEffectCommand({ clipId: timeline.selectedClipId, effectId })
 		);
-
-		showToast(`Applied "${preset.name}" to selected clip!`);
+		// Seed this effect's own parameters so it renders at a sensible
+		// strength immediately.
+		for (const [name, value] of Object.entries(def.params)) {
+			commandProcessor.execute(
+				new SetClipFilterCommand({ clipId: timeline.selectedClipId, filterName: name, value })
+			);
+		}
+		showToast(`Applied ${def.name}`);
 	}
 
 	function handleApplyTransition(preset: TransitionPreset) {
@@ -1208,98 +1212,27 @@
 
 		<!-- DRAWER CONTENT 4: EFFECTS & FILTERS DRAWER (Stitch Filters_and_Effects 1:1) -->
 		{:else if activePillar === 'effects'}
-			<div class="flex flex-col h-full bg-surface-container text-on-surface">
-				<!-- Header -->
-				<div class="p-3 flex items-center justify-between border-b border-outline-variant">
-					<span class="text-sm font-semibold">Effects</span>
-					<span class="material-symbols-outlined text-on-surface-variant text-sm cursor-pointer hover:text-on-surface">search</span>
+			<div class="drawer-scroll">
+				<h3 class="drawer-section-title">Video</h3>
+				<div class="effect-grid">
+					{#each VIDEO_EFFECTS as effect (effect.id)}
+						<button class="effect-card" onclick={() => applyEffect(effect.id)} title={effect.description}>
+							<span class="effect-name">{effect.name}</span>
+							<span class="effect-desc">{effect.description}</span>
+						</button>
+					{/each}
 				</div>
-				<!-- Tabs: Video | Body -->
-				<div class="flex p-1.5 gap-1 border-b border-outline-variant bg-surface-container-low text-xs">
-					<button type="button" class="flex-1 py-1.5 bg-surface-container-highest rounded font-medium text-on-surface">Video</button>
-					<button type="button" class="flex-1 py-1.5 rounded font-medium text-on-surface-variant hover:bg-surface-container-high transition-colors">Body</button>
-				</div>
-				<!-- Scrollable Content -->
-				<div class="flex-1 overflow-y-auto p-3 flex flex-col gap-4 text-xs">
-					<div>
-						<div class="text-[10px] font-bold text-on-surface-variant mb-2 uppercase tracking-widest">Trending</div>
-						<div class="grid grid-cols-2 gap-2">
-							<!-- Glitch Card -->
-							<button
-								type="button"
-								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-outline-variant hover:border-primary transition-all text-left cursor-pointer"
-								onclick={() => handleApplyEffect(effectPresets[0])}
-							>
-								<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity bg-surface-container-low flex items-center justify-center text-primary font-bold text-[10px]">
-									<span class="material-symbols-outlined">flash_on</span> GLITCH
-								</div>
-								<div class="absolute bottom-1 left-1.5 text-[9px] bg-black/70 px-1 rounded backdrop-blur-sm">Glitch</div>
-							</button>
 
-							<!-- Lens Blur Card -->
-							<button
-								type="button"
-								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-outline-variant hover:border-primary transition-all text-left cursor-pointer"
-								onclick={() => handleApplyEffect(effectPresets[4])}
-							>
-								<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity bg-surface-container-high flex items-center justify-center text-secondary font-bold text-[10px]">
-									<span class="material-symbols-outlined">search</span> LENS BLUR
-								</div>
-								<div class="absolute bottom-1 left-1.5 text-[9px] bg-black/70 px-1 rounded backdrop-blur-sm">Lens Blur</div>
-							</button>
-
-							<!-- VHS Retro Card -->
-							<button
-								type="button"
-								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-outline-variant hover:border-primary transition-all text-left cursor-pointer"
-								onclick={() => handleApplyEffect(effectPresets[2])}
-							>
-								<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity bg-[#353534] flex items-center justify-center text-tertiary font-bold text-[10px]">
-									📼 VHS RETRO
-								</div>
-								<div class="absolute bottom-1 left-1.5 text-[9px] bg-black/70 px-1 rounded backdrop-blur-sm">VHS Retro</div>
-							</button>
-
-							<!-- Cyber Color Active Selection Card -->
-							<button
-								type="button"
-								class="group relative rounded-md overflow-hidden aspect-video bg-surface-container-high border border-primary ring-1 ring-primary transition-all text-left shadow-lg shadow-primary/20"
-								onclick={() => handleApplyEffect(effectPresets[1])}
-							>
-								<div class="w-full h-full bg-linear-to-tr from-secondary/40 to-primary/40 flex items-center justify-center font-bold text-[10px] text-white">
-									<span class="material-symbols-outlined">magic</span> CYBER COLOR
-								</div>
-								<div class="absolute bottom-1 left-1.5 text-[9px] bg-black/70 px-1 rounded backdrop-blur-sm text-primary font-bold">Cyber Color</div>
-							</button>
-						</div>
-					</div>
-
-					<div>
-						<div class="text-[10px] font-bold text-on-surface-variant mb-2 uppercase tracking-widest flex items-center justify-between">
-							<span>Basic</span>
-							<span class="material-symbols-outlined text-[14px]">expand_less</span>
-						</div>
-						<div class="grid grid-cols-2 gap-2">
-							<button
-								type="button"
-								class="h-14 bg-surface-container-high border border-outline-variant rounded-md flex items-center justify-center text-xs font-medium text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface cursor-pointer transition-colors"
-								onclick={() => handleApplyEffect(effectPresets[0])}
-							>
-								Sharpen
-							</button>
-							<button
-								type="button"
-								class="h-14 bg-surface-container-high border border-outline-variant rounded-md flex items-center justify-center text-xs font-medium text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface cursor-pointer transition-colors"
-								onclick={() => handleApplyEffect(effectPresets[1])}
-							>
-								Glow
-							</button>
-						</div>
-					</div>
+				<h3 class="drawer-section-title">Voice</h3>
+				<div class="effect-grid">
+					{#each AUDIO_EFFECTS as effect (effect.id)}
+						<button class="effect-card" onclick={() => applyEffect(effect.id)} title={effect.description}>
+							<span class="effect-name">{effect.name}</span>
+							<span class="effect-desc">{effect.description}</span>
+						</button>
+					{/each}
 				</div>
 			</div>
-
-		<!-- DRAWER CONTENT 5: TRANSITIONS DRAWER -->
 		{:else if activePillar === 'transitions'}
 			<div class="drawer-content-box">
 				<div class="drawer-section-intro">
@@ -1352,6 +1285,63 @@
 </aside>
 
 <style>
+	.drawer-scroll {
+		flex: 1;
+		overflow-y: auto;
+		padding-top: 8px;
+	}
+
+	.effect-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+		padding: 0 12px 14px;
+	}
+
+	.drawer-section-title {
+		margin: 4px 0 8px;
+		padding: 0 12px;
+		font-family: var(--ms-font);
+		font-size: 11px;
+		font-weight: 590;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--ms-text-tertiary);
+	}
+
+	.effect-card {
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+		padding: 10px;
+		border: 1px solid var(--ms-edge);
+		border-radius: var(--ms-radius);
+		background: var(--ms-material);
+		text-align: left;
+		cursor: pointer;
+		font-family: var(--ms-font);
+		transition:
+			background var(--ms-fast) var(--ms-ease),
+			border-color var(--ms-fast) var(--ms-ease);
+	}
+
+	.effect-card:hover {
+		background: var(--ms-hover);
+		border-color: var(--ms-edge-strong);
+	}
+
+	.effect-name {
+		font-size: 12px;
+		font-weight: 590;
+		color: var(--ms-text);
+	}
+
+	.effect-desc {
+		font-size: 10.5px;
+		line-height: 1.4;
+		color: var(--ms-text-tertiary);
+	}
+
 	.mediabin-shell {
 		display: flex;
 		height: 100%;
