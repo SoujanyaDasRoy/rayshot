@@ -58,6 +58,7 @@ export function makeTrack(type: TrackType, order: number): Track {
 		color: DEFAULT_TRACK_COLOR,
 		locked: false,
 		muted: false,
+		solo: false,
 		hidden: false
 	};
 }
@@ -89,4 +90,25 @@ export function trackHeight(track: Pick<Track, 'type' | 'height'>): number {
 /** Any well-formed hex, so a custom colour works, but never arbitrary CSS. */
 export function isValidTrackColor(value: unknown): boolean {
 	return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
+}
+
+/**
+ * Which tracks you can hear.
+ *
+ * Solo selects, mute silences, and both have to pass. "Solo overrides mute" is
+ * the other common reading, but it surprises anyone who muted a track on
+ * purpose and then soloed a different one.
+ *
+ * A project saved before solo existed has the flag undefined everywhere, which
+ * reads as "nothing is soloed" — so old projects sound exactly as they did.
+ */
+export function audibleTrackIds(tracks: Track[]): Set<string> {
+	const anySolo = tracks.some((track) => track.solo);
+	const audible = new Set<string>();
+	for (const track of tracks) {
+		if (track.muted) continue;
+		if (anySolo && !track.solo) continue;
+		audible.add(track.id);
+	}
+	return audible;
 }

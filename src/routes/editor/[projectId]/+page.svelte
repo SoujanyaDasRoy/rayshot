@@ -62,6 +62,54 @@
 		return project.clips.get(id) ?? null;
 	});
 
+	// ── Timeline height ───────────────────────────────────────────────────────
+	// How much room the timeline gets is a working preference, not a project
+	// setting: it belongs to this browser, not to the file other people open.
+	const TIMELINE_HEIGHT_KEY = 'rayshot:timeline-height';
+	const MIN_TIMELINE_HEIGHT = 200;
+
+	let timelineHeight = $state<number | null>(null);
+	let resizingTimeline = $state(false);
+	let cleanupResize: (() => void) | null = null;
+
+	function maxTimelineHeight(): number {
+		return typeof window === 'undefined' ? 600 : Math.round(window.innerHeight * 0.7);
+	}
+
+	function setTimelineHeight(px: number) {
+		timelineHeight = Math.round(
+			Math.min(maxTimelineHeight(), Math.max(MIN_TIMELINE_HEIGHT, px))
+		);
+	}
+
+	function persistTimelineHeight() {
+		if (timelineHeight === null) return;
+		try {
+			localStorage.setItem(TIMELINE_HEIGHT_KEY, String(timelineHeight));
+		} catch {
+			// Private mode, or storage full. The drag still worked this session.
+		}
+	}
+
+	function handleResizeStart(event: MouseEvent) {
+		event.preventDefault();
+		resizingTimeline = true;
+	}
+
+	function handleResizeKey(event: KeyboardEvent) {
+		const current = timelineHeight ?? (typeof window === 'undefined' ? 400 : Math.round(window.innerHeight * 0.36));
+		if (event.key === 'ArrowUp') {
+			event.preventDefault();
+			setTimelineHeight(current + 24);
+		} else if (event.key === 'ArrowDown') {
+			event.preventDefault();
+			setTimelineHeight(current - 24);
+		} else {
+			return;
+		}
+		persistTimelineHeight();
+	}
+
 	let restorePrompt = $state<{ show: boolean; projectName: string; savedAt: number }>({
 		show: false,
 		projectName: '',
@@ -69,6 +117,29 @@
 	});
 
 	onMount(() => {
+		try {
+			const stored = Number(localStorage.getItem(TIMELINE_HEIGHT_KEY));
+			if (Number.isFinite(stored) && stored > 0) setTimelineHeight(stored);
+		} catch {
+			// No stored preference; the stylesheet's 36vh stands.
+		}
+
+		const onResizeMove = (event: MouseEvent) => {
+			if (!resizingTimeline) return;
+			setTimelineHeight(window.innerHeight - event.clientY);
+		};
+		const onResizeEnd = () => {
+			if (!resizingTimeline) return;
+			resizingTimeline = false;
+			persistTimelineHeight();
+		};
+		window.addEventListener('mousemove', onResizeMove);
+		window.addEventListener('mouseup', onResizeEnd);
+		cleanupResize = () => {
+			window.removeEventListener('mousemove', onResizeMove);
+			window.removeEventListener('mouseup', onResizeEnd);
+		};
+
 		projectStore.update((project) => {
 			if (project) return project;
 			const defaultProject: Project = {
@@ -139,6 +210,7 @@
 			window.removeEventListener('dragover', handleWindowDragOver);
 			window.removeEventListener('dragleave', handleWindowDragLeave);
 			window.removeEventListener('drop', handleWindowDrop);
+			cleanupResize?.();
 		};
 	});
 
@@ -270,7 +342,25 @@
 
 		<!-- The timeline belongs to the pages that edit a sequence, not the library. -->
 		{#if showsTimeline && !utilityView}
-			<section class="bottom-timeline-row">
+			<section
+				class="bottom-timeline-row"
+				style={timelineHeight === null ? undefined : `height: ${timelineHeight}px; max-height: none;`}
+			>
+				<!-- Draggable, and also operable from the keyboard: a drag-only
+				     handle is a control some people simply cannot reach. -->
+				<div
+					class="timeline-resize-handle"
+					class:dragging={resizingTimeline}
+					role="slider"
+					aria-orientation="vertical"
+					aria-label="Resize timeline"
+					aria-valuenow={timelineHeight ?? 0}
+					aria-valuemin={MIN_TIMELINE_HEIGHT}
+					aria-valuemax={maxTimelineHeight()}
+					tabindex="0"
+					onmousedown={handleResizeStart}
+					onkeydown={handleResizeKey}
+				></div>
 				<Timeline />
 			</section>
 		{/if}
@@ -371,6 +461,24 @@
 	.restore-secondary:hover {
 		background: var(--ms-hover);
 		color: var(--ms-text);
+	}
+
+	.timeline-resize-handle {
+		width: 100%;
+		height: 6px;
+		flex-shrink: 0;
+		cursor: ns-resize;
+		background: transparent;
+		border: none;
+		padding: 0;
+		transition: background var(--ms-fast) var(--ms-ease);
+	}
+
+	.timeline-resize-handle:hover,
+	.timeline-resize-handle.dragging,
+	.timeline-resize-handle:focus-visible {
+		background: var(--ms-edge-strong);
+		outline: none;
 	}
 
 	.drop-overlay {

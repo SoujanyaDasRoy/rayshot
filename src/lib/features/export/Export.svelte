@@ -4,6 +4,7 @@
 	import { toShaderUniforms } from '$lib/core/rendering/colorGradeUniforms';
 	import { getLayerFilter, getLayerDrawRect } from '$lib/core/rendering/layerCompositing';
 	import { getLayerOpacity } from '$lib/utils/canvasUtils';
+	import { audibleTrackIds } from '$lib/utils/trackModel';
 	import { Dialog } from 'bits-ui';
 	import { projectStore } from '$lib/stores/project.svelte';
 	import { exportStore, exportActions } from '$lib/stores/export.svelte';
@@ -189,6 +190,9 @@
 			// render loop can't do this — real-time playback is what makes a single
 			// MediaRecorder capture of canvas + audio stay in sync.
 			const sortedTracks = [...sequence.tracks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+			// Preview and export have to agree about what you hear and see, or
+			// muting a track fixes the preview and ships the muted track anyway.
+			const audible = audibleTrackIds(sequence.tracks);
 			const startPerf = performance.now();
 
 			await new Promise<void>((resolve) => {
@@ -207,6 +211,7 @@
 
 					const activeAssetIds = new Set<string>();
 					for (const track of sortedTracks) {
+						const trackAudible = audible.has(track.id);
 						for (const clipId of track.clipInstances) {
 							const clip = project!.clips.get(clipId);
 							if (!clip) continue;
@@ -224,9 +229,15 @@
 								const el = info.el as HTMLMediaElement;
 								if (Math.abs(el.currentTime - sourceTime) > 0.15) el.currentTime = sourceTime;
 								if (el.paused) el.play().catch(() => {});
+								// ponytail: elements are keyed by asset, so one asset used on
+								// both a muted and an audible track resolves to whichever track
+								// is drawn last. Key by clip if that ever bites.
+								el.volume = trackAudible ? 1 : 0;
 							}
 
-							if (info.kind === 'video' || info.kind === 'image') {
+							// A hidden track hides its picture; its audio is a separate
+							// question, answered by mute and solo above.
+							if (!track.hidden && (info.kind === 'video' || info.kind === 'image')) {
 								// Same parameters the preview uses, so what you saw is what gets
 								// encoded. This was a bare drawImage: no transform, opacity,
 								// filter or colour grade reached the exported file at all.

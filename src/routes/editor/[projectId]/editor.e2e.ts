@@ -607,4 +607,126 @@ test.describe('editor workspace smoke test', () => {
 		await page.mouse.up();
 		rmSync(fixtureDir, { recursive: true, force: true });
 	});
+	test('muting or soloing a track actually reaches the audio', async ({ page }) => {
+		// track.muted has been persisted since the track overhaul and read by
+		// nothing: the button toggled and the audio played on. Solo did not exist.
+		// Only the element's live volume can tell the difference.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-solo-'));
+		const clipPath = path.join(fixtureDir, 'take.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'take.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		const volume = () =>
+			page.evaluate(() => {
+				const el = document.querySelector('video, audio') as HTMLMediaElement | null;
+				return el ? el.volume : -1;
+			});
+
+		await expect.poll(volume).toBeGreaterThan(0);
+
+		const videoRow = page.locator('.track-label-row').first();
+		await videoRow.getByRole('button', { name: 'Mute track' }).click();
+		await expect.poll(volume).toBe(0);
+
+		await videoRow.getByRole('button', { name: 'Unmute track' }).click();
+		await expect.poll(volume).toBeGreaterThan(0);
+
+		// Solo elsewhere silences everything that is not soloed — the rule that
+		// makes solo mean anything at all.
+		const audioRow = page.locator('.track-label-row.audio').first();
+		await audioRow.getByRole('button', { name: 'Solo track' }).click();
+		await expect.poll(volume).toBe(0);
+
+		await audioRow.getByRole('button', { name: 'Unsolo track' }).click();
+		await expect.poll(volume).toBeGreaterThan(0);
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
+	test('track controls stay out of the way until hover or keyboard focus', async ({ page }) => {
+		// Hover-only controls do not exist for a keyboard, so focus has to reveal
+		// them too. That is the half a hover test would quietly miss.
+		await page.goto('/');
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		const row = page.locator('.track-label-row').first();
+		const controls = row.locator('.track-controls');
+		const opacity = () => controls.evaluate((el) => getComputedStyle(el).opacity);
+
+		// The dot is the one control that never hides: it reads the track's
+		// on/off state and its colour at a glance.
+		await expect(row.locator('.track-enable-dot')).toBeVisible();
+		await expect.poll(opacity).toBe('0');
+
+		await row.hover();
+		await expect.poll(opacity).toBe('1');
+
+		// Move away, then arrive by keyboard instead.
+		await page.mouse.move(0, 0);
+		await expect.poll(opacity).toBe('0');
+		await row.getByRole('button', { name: 'Mute track' }).focus();
+		await expect.poll(opacity).toBe('1');
+	});
+
+	test('the timeline can be resized, and remembers it across a reload', async ({ page }) => {
+		await page.goto('/');
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		const timeline = page.locator('.bottom-timeline-row');
+		const height = () => timeline.evaluate((el) => Math.round(el.getBoundingClientRect().height));
+		const before = await height();
+
+		// Keyboard, not drag: the handle has to work for people who cannot drag.
+		const handle = page.getByRole('slider', { name: 'Resize timeline' });
+		await handle.focus();
+		for (let i = 0; i < 5; i++) await handle.press('ArrowUp');
+
+		const after = await height();
+		expect(after).toBeGreaterThan(before);
+
+		await page.reload();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		expect(Math.abs((await height()) - after)).toBeLessThanOrEqual(2);
+	});
+
+	test('the track names stay level with their lanes when the timeline scrolls', async ({
+		page
+	}) => {
+		// The label column is outside the scroller, so without an explicit sync it
+		// sits still while the lanes move and every name lines up with the wrong
+		// track. The ruler had the mirror bug: it scrolled away entirely.
+		await page.goto('/');
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		for (let i = 0; i < 8; i++) await page.getByRole('button', { name: '+ Video' }).click();
+
+		await page.locator('.tracks-scroll-viewport').evaluate((el) => {
+			el.scrollTop = 120;
+			el.dispatchEvent(new Event('scroll'));
+		});
+
+		const drift = await page.evaluate(() => {
+			const lanes = [...document.querySelectorAll('.track-row-lane')];
+			const rows = [...document.querySelectorAll('.track-label-row')];
+			return lanes.map(
+				(lane, i) => lane.getBoundingClientRect().top - rows[i].getBoundingClientRect().top
+			);
+		});
+		expect(drift.length).toBeGreaterThan(8);
+		for (const d of drift) expect(Math.abs(d)).toBeLessThanOrEqual(1);
+
+		// And the ruler is still on screen to read time against.
+		const ruler = page.locator('.timecode-ruler');
+		const viewport = page.locator('.tracks-scroll-viewport');
+		const [rulerTop, viewportTop] = await Promise.all([
+			ruler.evaluate((el) => el.getBoundingClientRect().top),
+			viewport.evaluate((el) => el.getBoundingClientRect().top)
+		]);
+		expect(Math.abs(rulerTop - viewportTop)).toBeLessThanOrEqual(2);
+	});
 });

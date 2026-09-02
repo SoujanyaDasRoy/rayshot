@@ -4,7 +4,14 @@ import { get } from 'svelte/store';
 import type { Project, Track, Sequence } from '$lib/types/project';
 
 /** The track fields a user can change directly from the timeline. */
-export type TrackProperty = 'color' | 'name' | 'locked' | 'muted' | 'hidden' | 'height';
+export type TrackProperty =
+	| 'color'
+	| 'name'
+	| 'locked'
+	| 'muted'
+	| 'solo'
+	| 'hidden'
+	| 'height';
 
 interface Data {
 	trackId: string;

@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { trackLabels, trackHeight, TRACK_COLORS, DEFAULT_TRACK_COLOR } from '$lib/utils/trackModel';
-	import { SetTrackPropertyCommand } from '$lib/core/commands/setTrackProperty';
+	import {
+		SetTrackPropertyCommand,
+		type TrackProperty
+	} from '$lib/core/commands/setTrackProperty';
 	import { DeleteTrackCommand } from '$lib/core/commands/deleteTrack';
 	import { onMount } from 'svelte';
 	import { timelineStore, timelineActions } from '$lib/stores/timeline.svelte';
@@ -54,6 +57,7 @@
 
 	let timelineScrollContainer = $state<HTMLDivElement | null>(null);
 	let tracksAreaRef = $state<HTMLDivElement | null>(null);
+	let labelRowsEl = $state<HTMLDivElement | null>(null);
 
 	let draggingClipId = $state<string | null>(null);
 	let dragStartMouseX = 0;
@@ -71,7 +75,7 @@
 	// The ruler decides its own density: labels never crowd and never vanish.
 	const ticks = $derived(rulerTicks($sequenceDuration, $timelineStore.zoomLevel));
 
-	function setTrackProp(trackId: string, property: 'color' | 'locked' | 'muted' | 'hidden', value: unknown) {
+	function setTrackProp(trackId: string, property: TrackProperty, value: unknown) {
 		commandProcessor.execute(
 			new SetTrackPropertyCommand({ trackId, property, value: value as never })
 		);
@@ -377,6 +381,14 @@
 		});
 	}
 
+	// The label column is not inside the scroller — it must not scroll sideways
+	// with the lanes — so it is translated to follow their vertical scroll. Left
+	// alone, the names drift out of line with their own tracks.
+	function syncLabelScroll() {
+		if (!labelRowsEl || !timelineScrollContainer) return;
+		labelRowsEl.style.transform = `translateY(${-timelineScrollContainer.scrollTop}px)`;
+	}
+
 	function handleWheel(event: WheelEvent) {
 		const viewport = timelineScrollContainer;
 		if (!viewport) return;
@@ -485,6 +497,7 @@
 		const viewport = timelineScrollContainer;
 		viewport?.addEventListener('wheel', handleWheel, { passive: false });
 		viewport?.addEventListener('mousedown', handleViewportMousedown);
+		viewport?.addEventListener('scroll', syncLabelScroll, { passive: true });
 
 		return () => {
 			window.removeEventListener('keydown', handleKeyDown);
@@ -492,6 +505,7 @@
 			window.removeEventListener('mouseup', handleWindowMouseup);
 			viewport?.removeEventListener('wheel', handleWheel);
 			viewport?.removeEventListener('mousedown', handleViewportMousedown);
+			viewport?.removeEventListener('scroll', syncLabelScroll);
 		};
 	});
 
@@ -624,13 +638,23 @@
 			<div class="ruler-corner-cell">
 				<span class="tracks-header-label">TRACKS</span>
 			</div>
-			{#each $tracks as track, index}
+			<div class="track-label-rows" bind:this={labelRowsEl}>
+				{#each $tracks as track, index}
 				{@const trackLabel = labels[index]}
 				<div
 					class="track-label-row {track.type}"
 					style="height: {trackHeight(track)}px; --track-color: {track.color ?? DEFAULT_TRACK_COLOR};"
 					class:locked={track.locked}
 				>
+					<button
+						class="track-enable-dot"
+						class:off={track.hidden}
+						onclick={() => setTrackProp(track.id, 'hidden', !track.hidden)}
+						title={track.hidden ? 'Show track' : 'Hide track'}
+						aria-label={track.hidden ? 'Show track' : 'Hide track'}
+						aria-pressed={!track.hidden}
+					></button>
+
 					<div class="track-id-badge {track.type}">
 						{#if track.type === 'video'}
 							<svg
@@ -646,6 +670,22 @@
 							>
 								<path d="m22 8-6 4 6 4V8Z" />
 								<rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
+							</svg>
+						{:else if track.type === 'subtitle'}
+							<svg
+								class="track-svg-icon subtitle"
+								width="13"
+								height="13"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<rect x="3" y="5" width="18" height="14" rx="2" />
+								<path d="M7 14h5" />
+								<path d="M15 14h2" />
 							</svg>
 						{:else}
 							<svg
@@ -666,7 +706,7 @@
 						<span class="badge-num font-mono">{trackLabel}</span>
 					</div>
 
-					<div class="track-state-icons">
+					<div class="track-controls" class:menu-open={colorMenuTrackId === track.id}>
 						<!-- Colour is user data, and the one place colour is allowed:
 						     it is how an editor tells dialogue from music at a glance. -->
 						<button
@@ -709,6 +749,17 @@
 
 						<button
 							class="track-icon-btn"
+							class:active={track.solo}
+							onclick={() => setTrackProp(track.id, 'solo', !track.solo)}
+							title={track.solo ? 'Unsolo track' : 'Solo track'}
+							aria-label={track.solo ? 'Unsolo track' : 'Solo track'}
+							aria-pressed={!!track.solo}
+						>
+							<span class="state-glyph">{track.solo ? 'S' : 's'}</span>
+						</button>
+
+						<button
+							class="track-icon-btn"
 							class:active={track.locked}
 							onclick={() => setTrackProp(track.id, 'locked', !track.locked)}
 							title={track.locked ? 'Unlock track' : 'Lock track'}
@@ -727,8 +778,9 @@
 							<span class="state-glyph">×</span>
 						</button>
 					</div>
-				</div>
-			{/each}
+					</div>
+				{/each}
+			</div>
 		</div>
 
 		<!-- Right Scrollable Tracks Area -->
@@ -981,8 +1033,14 @@
 	/* The old value transcribed Tailwind's `w-48` as 48px; w-48 is 12rem.
 	   Every sizing rule in this file had the same bug, which is why the whole
 	   timeline was roughly a quarter of its intended size. */
+	.track-label-rows {
+		display: flex;
+		flex-direction: column;
+	}
+
 	.track-labels-sidebar {
 		width: 176px;
+		overflow: hidden;
 		background: var(--ms-material);
 		border-right: 1px solid var(--ms-edge);
 		display: flex;
@@ -995,6 +1053,11 @@
 	   difference, compounding down the stack. */
 	.ruler-corner-cell {
 		height: 26px;
+		/* Without this the flex column squashes it to ~16px and the entire label
+		   stack sits 10px above its own lanes — the same compression that hit the
+		   label rows. Row heights matching lane heights is not enough; the columns
+		   have to start at the same y too. */
+		flex-shrink: 0;
 		background: var(--ms-material);
 		border-bottom: 1px solid var(--ms-edge);
 		display: flex;
@@ -1040,10 +1103,51 @@
 		flex-shrink: 0;
 	}
 
-	.track-state-icons {
+	/* The row shows what you need to read it — name, colour, on/off — and
+	   reveals what you need to change it only when you reach for it. Focus
+	   counts as reaching: hover-only controls do not exist for a keyboard. */
+	.track-controls {
 		display: flex;
 		gap: 3px;
 		margin-left: auto;
+		opacity: 0;
+		transition: opacity var(--ms-fast) var(--ms-ease);
+	}
+
+	.track-label-row:hover .track-controls,
+	.track-label-row:focus-within .track-controls,
+	.track-controls.menu-open {
+		opacity: 1;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.track-controls {
+			transition: none;
+		}
+	}
+
+	/* Filled with the track's own colour when the track is on, hollow when it
+	   is off: one mark, two readings. */
+	.track-enable-dot {
+		width: 10px;
+		height: 10px;
+		flex-shrink: 0;
+		margin-right: 8px;
+		padding: 0;
+		border-radius: 50%;
+		border: 1px solid var(--track-color);
+		background: var(--track-color);
+		cursor: pointer;
+		transition: background var(--ms-fast) var(--ms-ease);
+	}
+
+	.track-enable-dot.off {
+		background: transparent;
+	}
+
+	.track-enable-dot:focus-visible {
+		outline: 2px solid var(--ms-text);
+		outline-offset: 2px;
 	}
 
 	.track-icon-btn {
@@ -1130,7 +1234,11 @@
 		height: 26px;
 		background: var(--ms-material);
 		border-bottom: 1px solid var(--ms-edge);
-		position: relative;
+		/* Sticky, not relative: with enough tracks the ruler used to scroll off
+		   the top and leave you editing against no timecode at all. */
+		position: sticky;
+		top: 0;
+		z-index: 20;
 		cursor: pointer;
 		flex-shrink: 0;
 	}

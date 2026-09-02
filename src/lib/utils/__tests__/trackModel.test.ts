@@ -6,6 +6,7 @@ import {
 	trackLabel,
 	trackLabels,
 	trackHeight,
+	audibleTrackIds,
 	isValidTrackColor,
 	TRACK_TYPES
 } from '../trackModel';
@@ -101,5 +102,51 @@ describe('track colours', () => {
 
 	test('accepts any well-formed hex, so a custom colour is not blocked', () => {
 		expect(isValidTrackColor('#1a2b3c')).toBe(true);
+	});
+});
+
+describe('audibleTrackIds', () => {
+	const track = (id: string, extra: Partial<Track> = {}): Track => ({
+		...makeTrack('audio', 0),
+		id,
+		...extra
+	});
+
+	test('lets everything through when nothing is muted or soloed', () => {
+		const tracks = [track('a'), track('b')];
+		expect(audibleTrackIds(tracks)).toEqual(new Set(['a', 'b']));
+	});
+
+	test('silences a muted track', () => {
+		const audible = audibleTrackIds([track('a', { muted: true }), track('b')]);
+		expect(audible.has('a')).toBe(false);
+		expect(audible.has('b')).toBe(true);
+	});
+
+	test('narrows to the soloed tracks once any track is soloed', () => {
+		const audible = audibleTrackIds([track('a', { solo: true }), track('b'), track('c')]);
+		expect(audible).toEqual(new Set(['a']));
+	});
+
+	test('keeps every soloed track, not just the first', () => {
+		const audible = audibleTrackIds([track('a', { solo: true }), track('b', { solo: true }), track('c')]);
+		expect(audible).toEqual(new Set(['a', 'b']));
+	});
+
+	test('still respects mute on a soloed track: solo selects, mute silences', () => {
+		// Two independent controls, both of which must pass. Predictable beats
+		// clever here — "solo overrides mute" surprises people who muted on purpose.
+		const audible = audibleTrackIds([track('a', { solo: true, muted: true }), track('b')]);
+		expect(audible.size).toBe(0);
+	});
+
+	test('treats a project saved before solo existed as un-soloed', () => {
+		const legacy = [track('a'), track('b')];
+		for (const t of legacy) delete (t as Partial<Track>).solo;
+		expect(audibleTrackIds(legacy)).toEqual(new Set(['a', 'b']));
+	});
+
+	test('survives an empty sequence', () => {
+		expect(audibleTrackIds([])).toEqual(new Set());
 	});
 });

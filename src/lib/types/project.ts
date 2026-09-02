@@ -36,6 +36,8 @@ export interface Track {
 	name?: string;
 	locked?: boolean;
 	muted?: boolean;
+	/** Solo selects what you hear; mute silences. Both must pass. */
+	solo?: boolean;
 	hidden?: boolean;
 }
 

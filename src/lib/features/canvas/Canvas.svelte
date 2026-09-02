@@ -5,6 +5,7 @@
 	import { onDestroy, untrack } from 'svelte';
 	import type { Clip, MediaAsset } from '$lib/types/project';
 	import { audioEngine } from '$lib/core/audioEngine';
+	import { audibleTrackIds } from '$lib/utils/trackModel';
 	import { WebGLCompositor } from '$lib/core/rendering/webglCompositor';
 	import { toShaderUniforms } from '$lib/core/rendering/colorGradeUniforms';
 	// Shared with the exporter so preview and output cannot drift.
@@ -16,6 +17,9 @@
 		asset: MediaAsset;
 		sourceTime: number;
 		trackOrder: number;
+		/** False when the track is muted, or when another track is soloed. */
+		trackAudible: boolean;
+		trackHidden: boolean;
 	}
 
 	const activeSequence = derived(projectStore, ($project) => {
@@ -40,6 +44,10 @@
 
 			const time = $playback.currentTime;
 			const layers: LayerClipInfo[] = [];
+			// track.muted has been in the model and persisted since the track
+			// overhaul, and nothing has ever read it: muting a track changed
+			// the button and nothing else.
+			const audible = audibleTrackIds(sequence.tracks);
 
 			for (let i = 0; i < sequence.tracks.length; i++) {
 				const track = sequence.tracks[i];
@@ -53,7 +61,9 @@
 								clip,
 								asset,
 								sourceTime: getSourceTime(clip, time),
-								trackOrder: track.order ?? i
+								trackOrder: track.order ?? i,
+								trackAudible: audible.has(track.id),
+								trackHidden: !!track.hidden
 							});
 						}
 					}
@@ -67,7 +77,9 @@
 	);
 
 	const visualLayers = derived(activeLayers, ($layers) =>
-		$layers.filter((l) => l.asset.type === 'video' || l.asset.type === 'image')
+		$layers.filter(
+			(l) => !l.trackHidden && (l.asset.type === 'video' || l.asset.type === 'image')
+		)
 	);
 
 	const audioLayers = derived(activeLayers, ($layers) =>
@@ -117,7 +129,7 @@
 		objectUrls = currentMap;
 	});
 
-	function syncElement(el: HTMLMediaElement, clip: Clip, sourceTime: number) {
+	function syncElement(el: HTMLMediaElement, clip: Clip, sourceTime: number, trackAudible = true) {
 		if (!el) return;
 		const targetTime = sourceTime;
 		if (Math.abs(el.currentTime - targetTime) > 0.15 || !$playbackStore.isPlaying) {
@@ -126,9 +138,11 @@
 			} catch (_) {}
 		}
 		el.playbackRate = ($playbackStore.playbackSpeed || 1) * (clip.playbackRate || 1);
-		el.volume = $playbackStore.isMuted
-			? 0
-			: ($playbackStore.masterVolume ?? 1) * (clip.audioParameters?.mute ? 0 : (clip.audioParameters?.volume ?? 1));
+		el.volume =
+			$playbackStore.isMuted || !trackAudible
+				? 0
+				: ($playbackStore.masterVolume ?? 1) *
+					(clip.audioParameters?.mute ? 0 : (clip.audioParameters?.volume ?? 1));
 
 		if ($playbackStore.isPlaying && el.paused) {
 			el.play().catch(() => {});
@@ -137,9 +151,12 @@
 		}
 	}
 
-	function mediaSync(node: HTMLMediaElement, params: { clip: Clip; sourceTime: number }) {
+	function mediaSync(
+		node: HTMLMediaElement,
+		params: { clip: Clip; sourceTime: number; trackAudible?: boolean }
+	) {
 		mediaElements.set(params.clip.id, node);
-		syncElement(node, params.clip, params.sourceTime);
+		syncElement(node, params.clip, params.sourceTime, params.trackAudible ?? true);
 
 		// Register with audio engine mixing graph (initializes AudioContext on first user gesture)
 		audioEngine.init();
@@ -151,8 +168,8 @@
 		);
 
 		return {
-			update(newParams: { clip: Clip; sourceTime: number }) {
-				syncElement(node, newParams.clip, newParams.sourceTime);
+			update(newParams: { clip: Clip; sourceTime: number; trackAudible?: boolean }) {
+				syncElement(node, newParams.clip, newParams.sourceTime, newParams.trackAudible ?? true);
 			},
 			destroy() {
 				node.pause();
@@ -181,7 +198,7 @@
 		for (const layer of layers) {
 			const el = mediaElements.get(layer.clip.id);
 			if (el) {
-				syncElement(el, layer.clip, layer.sourceTime);
+				syncElement(el, layer.clip, layer.sourceTime, layer.trackAudible);
 				// If it's a video layer, update the WebGL output
 				if (layer.asset.type === 'video') {
 					renderWebgl(layer.clip.id, el as HTMLVideoElement, layer.clip);
@@ -325,7 +342,11 @@
 							<!-- Genuine fallback: no WebGL2, or the context was lost.
 							     CSS filters carry the expressible part of the grade. -->
 							<video
-								use:mediaSync={{ clip: layer.clip, sourceTime: layer.sourceTime }}
+								use:mediaSync={{
+									clip: layer.clip,
+									sourceTime: layer.sourceTime,
+									trackAudible: layer.trackAudible
+								}}
 								class="canvas-media-element"
 								src={url}
 								playsinline
@@ -338,7 +359,11 @@
 							<!-- Decodes and drives audio; the canvas above is what you see. -->
 							<video
 								style="display: none;"
-								use:mediaSync={{ clip: layer.clip, sourceTime: layer.sourceTime }}
+								use:mediaSync={{
+									clip: layer.clip,
+									sourceTime: layer.sourceTime,
+									trackAudible: layer.trackAudible
+								}}
 								use:glSource={{ clipId: layer.clip.id, clip: layer.clip }}
 								src={url}
 								playsinline
@@ -381,7 +406,11 @@
 			{@const audioUrl = objectUrls.get(audioLayer.asset.id)}
 			{#if audioUrl && audioLayer.asset.type === 'audio'}
 				<audio
-					use:mediaSync={{ clip: audioLayer.clip, sourceTime: audioLayer.sourceTime }}
+					use:mediaSync={{
+						clip: audioLayer.clip,
+						sourceTime: audioLayer.sourceTime,
+						trackAudible: audioLayer.trackAudible
+					}}
 					src={audioUrl}
 				></audio>
 			{/if}
