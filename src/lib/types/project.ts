@@ -64,8 +64,10 @@ export interface Clip {
 		volume: number; // 0 to 1
 		mute: boolean;
 	};
-	// Playback properties
-	playbackRate: number; // 1 = normal speed
+	// Playback speed is NOT stored. It is the ratio between the clip's source
+	// span and its timeline length — see utils/clipTiming.clipRate. A stored
+	// rate alongside that ratio is two representations of one fact, and they
+	// drifted apart the moment anyone changed the speed.
 	// Filter properties
 	filters: Record<string, any>; // Map of filter names to their parameters
 	// Color grading properties

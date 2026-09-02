@@ -46,8 +46,8 @@ vi.mock('$lib/core/commands/newProject', async () => {
 vi.mock('$lib/core/commands/setClipVolume', async () => {
 	return await vi.importActual('../lib/core/commands/setClipVolume.ts');
 });
-vi.mock('$lib/core/commands/setClipPlaybackRate', async () => {
-	return await vi.importActual('../lib/core/commands/setClipPlaybackRate.ts');
+vi.mock('$lib/core/commands/setClipSpeed', async () => {
+	return await vi.importActual('../lib/core/commands/setClipSpeed.ts');
 });
 vi.mock('$lib/core/commands/setClipFilter', async () => {
 	return await vi.importActual('../lib/core/commands/setClipFilter.ts');
@@ -82,7 +82,8 @@ import { DeleteClipCommand } from '../lib/core/commands/deleteClip.ts';
 import { AddTrackCommand } from '../lib/core/commands/addTrack.ts';
 import { NewProjectCommand } from '../lib/core/commands/newProject.ts';
 import { SetClipVolumeCommand } from '../lib/core/commands/setClipVolume.ts';
-import { SetClipPlaybackRateCommand } from '../lib/core/commands/setClipPlaybackRate.ts';
+import { SetClipSpeedCommand } from '../lib/core/commands/setClipSpeed.ts';
+import { clipRate } from '../lib/utils/clipTiming.ts';
 import { SetClipFilterCommand } from '../lib/core/commands/setClipFilter.ts';
 import {
 	snapToGrid,
@@ -418,7 +419,7 @@ describe('Tier 1: Feature Coverage (F1 - F10)', () => {
 			expect(get(projectStore)!.clips.get(clipId)!.audioParameters.volume).toBe(0.65);
 		});
 
-		it('F4.4: should modify clip playback rate (speed) via SetClipPlaybackRateCommand', () => {
+		it('F4.4: should modify clip playback rate (speed) via SetClipSpeedCommand', () => {
 			const addCmd = new AddClipCommand({
 				mediaAssetId: 'asset-video-1',
 				trackId: 'track-v1',
@@ -427,13 +428,13 @@ describe('Tier 1: Feature Coverage (F1 - F10)', () => {
 			commandProcessor.execute(addCmd);
 			const clipId = Array.from(get(projectStore)!.clips.keys())[0];
 
-			const setRateCmd = new SetClipPlaybackRateCommand({ clipId, playbackRate: 2.0 });
+			const setRateCmd = new SetClipSpeedCommand({ clipId, speed: 2.0 });
 			commandProcessor.execute(setRateCmd);
 
-			expect(get(projectStore)!.clips.get(clipId)!.playbackRate).toBe(2.0);
+			expect(clipRate(get(projectStore)!.clips.get(clipId)!)).toBe(2.0);
 
 			commandProcessor.undo();
-			expect(get(projectStore)!.clips.get(clipId)!.playbackRate).toBe(1.0);
+			expect(clipRate(get(projectStore)!.clips.get(clipId)!)).toBe(1.0);
 		});
 
 		it('F4.5: should modify clip visual filter parameters via SetClipFilterCommand', () => {
@@ -862,7 +863,6 @@ describe('Tier 1: Feature Coverage (F1 - F10)', () => {
 				transform: { x: 0, y: 0, scale: 1, rotation: 0 },
 				effects: [],
 				audioParameters: { volume: 1, mute: false },
-				playbackRate: 1,
 				filters: {},
 				colorGrade: {
 					exposure: 0,

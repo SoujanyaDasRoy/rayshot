@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { migrateProject, CURRENT_PROJECT_VERSION } from '../migrateProject';
+import { clipRate } from '../../../utils/clipTiming';
 
 function v1Raw(overrides: Record<string, unknown> = {}) {
 	return {
@@ -90,15 +91,58 @@ describe('migrateProject', () => {
 	test('preserves values a legacy clip already set', () => {
 		const p = migrateProject(
 			v1Raw({
+				clips: { c1: { id: 'c1', mediaAssetId: 'a1', colorGrade: { contrast: 42 } } }
+			})
+		);
+		expect(p!.clips.get('c1')!.colorGrade.contrast).toBe(42);
+	});
+
+	test('folds a stored playbackRate into the clip length, and drops the field', () => {
+		// v2 stored speed twice: as this field, and implicitly as the ratio of
+		// source span to timeline length. Only the ratio was ever rendered from,
+		// so a 2x clip stuttered rather than playing fast. The migration makes
+		// the clip say what it was always trying to.
+		const p = migrateProject(
+			v1Raw({
 				clips: {
-					c1: { id: 'c1', mediaAssetId: 'a1', colorGrade: { contrast: 42 }, playbackRate: 2 }
+					c1: {
+						id: 'c1',
+						mediaAssetId: 'a1',
+						sourceIn: 0,
+						sourceOut: 10,
+						timelineStart: 0,
+						timelineDuration: 10,
+						playbackRate: 2
+					}
 				}
 			})
 		);
 		const clip = p!.clips.get('c1')!;
 
-		expect(clip.colorGrade.contrast).toBe(42);
-		expect(clip.playbackRate).toBe(2);
+		expect(clip.timelineDuration).toBe(5);
+		expect(clipRate(clip)).toBe(2);
+		// The field must not survive the spread, or it becomes the stale second
+		// number all over again.
+		expect('playbackRate' in clip).toBe(false);
+	});
+
+	test("leaves a 1x clip's length exactly as it found it", () => {
+		const p = migrateProject(
+			v1Raw({
+				clips: {
+					c1: {
+						id: 'c1',
+						mediaAssetId: 'a1',
+						sourceIn: 2,
+						sourceOut: 9,
+						timelineStart: 4,
+						timelineDuration: 7,
+						playbackRate: 1
+					}
+				}
+			})
+		);
+		expect(p!.clips.get('c1')!.timelineDuration).toBe(7);
 	});
 
 	test('drops the phantom filters.curves that never had a writer', () => {

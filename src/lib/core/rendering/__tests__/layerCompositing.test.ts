@@ -13,7 +13,6 @@ function clip(overrides: Partial<Clip> = {}): Clip {
 		transform: { x: 0, y: 0, scale: 1, rotation: 0 },
 		effects: [],
 		audioParameters: { volume: 1, mute: false },
-		playbackRate: 1,
 		filters: {},
 		...overrides
 	} as Clip;

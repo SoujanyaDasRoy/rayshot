@@ -24,6 +24,7 @@ vi.mock('svelte/store', () => ({
 }));
 
 import { SplitClipCommand } from '../splitClip';
+import { clipRate } from '../../../utils/clipTiming';
 
 describe('SplitClipCommand', () => {
   beforeEach(() => {
@@ -87,7 +88,11 @@ describe('SplitClipCommand', () => {
     expect(firstClip).toBeDefined();
     expect(secondClip).toBeDefined();
 
-    const expectedSourceSplit = 4;
+    // This fixture is 10s of source inside an 8s box — a 1.25x clip, which
+    // nobody noticed. The old maths added the timeline offset straight onto
+    // sourceIn and got 4; four timeline seconds into a 1.25x clip is really
+    // five source seconds. The 4 was the 1:1 assumption, not the answer.
+    const expectedSourceSplit = 5;
 
     let first: any, second: any;
     if (firstClip.timelineStart === 2) {
@@ -103,12 +108,18 @@ describe('SplitClipCommand', () => {
     expect(first.sourceIn).toBe(0);
     expect(first.sourceOut).toBe(expectedSourceSplit);
     expect(first.timelineStart).toBe(2);
-    expect(first.timelineDuration).toBe(expectedSourceSplit - 0);
+    expect(first.timelineDuration).toBe(4);
 
     expect(second.sourceIn).toBe(expectedSourceSplit);
     expect(second.sourceOut).toBe(10);
     expect(second.timelineStart).toBe(splitTime);
-    expect(second.timelineDuration).toBe(10 - expectedSourceSplit);
+    expect(second.timelineDuration).toBe(4);
+
+    // The halves cover the original box exactly, and both still play at the
+    // speed the original did. Splitting must not retime anything.
+    expect(first.timelineDuration + second.timelineDuration).toBe(8);
+    expect(clipRate(first)).toBeCloseTo(1.25, 10);
+    expect(clipRate(second)).toBeCloseTo(1.25, 10);
 
     const track = updatedProject.sequences[0].tracks.find(t => t.id === 'track1');
     expect(track.clipInstances.length).toBe(2);

@@ -46,8 +46,8 @@ vi.mock('$lib/core/commands/newProject', async () => {
 vi.mock('$lib/core/commands/setClipVolume', async () => {
 	return await vi.importActual('../lib/core/commands/setClipVolume.ts');
 });
-vi.mock('$lib/core/commands/setClipPlaybackRate', async () => {
-	return await vi.importActual('../lib/core/commands/setClipPlaybackRate.ts');
+vi.mock('$lib/core/commands/setClipSpeed', async () => {
+	return await vi.importActual('../lib/core/commands/setClipSpeed.ts');
 });
 vi.mock('$lib/core/commands/setClipFilter', async () => {
 	return await vi.importActual('../lib/core/commands/setClipFilter.ts');
@@ -75,7 +75,8 @@ import { DeleteClipCommand } from '../lib/core/commands/deleteClip.ts';
 import { AddTrackCommand } from '../lib/core/commands/addTrack.ts';
 import { NewProjectCommand } from '../lib/core/commands/newProject.ts';
 import { SetClipVolumeCommand } from '../lib/core/commands/setClipVolume.ts';
-import { SetClipPlaybackRateCommand } from '../lib/core/commands/setClipPlaybackRate.ts';
+import { SetClipSpeedCommand } from '../lib/core/commands/setClipSpeed.ts';
+import { clipRate } from '../lib/utils/clipTiming.ts';
 import { SetClipFilterCommand } from '../lib/core/commands/setClipFilter.ts';
 import {
 	snapToGrid,
@@ -260,12 +261,12 @@ describe('Tier 3: Cross-Feature Combinations', () => {
 
 		// Execute inspector mutations
 		commandProcessor.execute(new SetClipVolumeCommand({ clipId, volume: 0.8 }));
-		commandProcessor.execute(new SetClipPlaybackRateCommand({ clipId, playbackRate: 1.5 }));
+		commandProcessor.execute(new SetClipSpeedCommand({ clipId, speed: 1.5 }));
 		commandProcessor.execute(new SetClipFilterCommand({ clipId, filterName: 'brightness', value: 15 }));
 
 		const updatedClip = get(projectStore)!.clips.get(clipId)!;
 		expect(updatedClip.audioParameters.volume).toBe(0.8);
-		expect(updatedClip.playbackRate).toBe(1.5);
+		expect(clipRate(updatedClip)).toBe(1.5);
 		expect(updatedClip.filters.brightness).toBe(15);
 	});
 
@@ -442,7 +443,6 @@ describe('Tier 3: Cross-Feature Combinations', () => {
 			transform: { x: 0, y: 0, scale: 1, rotation: 0 },
 			effects: [],
 			audioParameters: { volume: 1, mute: false },
-			playbackRate: 2.0,
 			filters: {},
 			colorGrade: {
 				exposure: 0,

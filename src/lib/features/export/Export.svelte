@@ -11,6 +11,7 @@
 	import { getLayerOpacity } from '$lib/utils/canvasUtils';
 	import { audibleTrackIds } from '$lib/utils/trackModel';
 	import { audioChainSpec, connectAudioChain } from '$lib/core/audioChain';
+	import { clipRate, sourceTimeAt } from '$lib/utils/clipTiming';
 	import { Dialog } from 'bits-ui';
 	import { projectStore } from '$lib/stores/project.svelte';
 	import { exportStore, exportActions } from '$lib/stores/export.svelte';
@@ -74,14 +75,6 @@
 	}
 
 	// Same source-time mapping Canvas.svelte uses for live preview.
-	function getSourceTime(clip: Clip, timelineTime: number): number {
-		const timelineOffset = timelineTime - clip.timelineStart;
-		const sourceDuration = clip.sourceOut - clip.sourceIn;
-		const timelineDuration = clip.timelineDuration;
-		if (timelineDuration <= 0) return clip.sourceIn;
-		return clip.sourceIn + (timelineOffset / timelineDuration) * sourceDuration;
-	}
-
 	async function startExport() {
 		const project = $projectStore;
 		const sequence = $activeSequence;
@@ -249,10 +242,15 @@
 							if (!info) continue;
 							activeAssetIds.add(clip.mediaAssetId);
 
-							const sourceTime = getSourceTime(clip, currentTime);
+							const sourceTime = sourceTimeAt(clip, currentTime);
 							// 150ms drift tolerance matches Canvas.svelte's live-preview sync.
 							if (info.kind === 'video' || info.kind === 'audio') {
 								const el = info.el as HTMLMediaElement;
+								// Export never set a rate at all, so a retimed clip played at 1x
+								// while sourceTime advanced faster and the 150ms guard reseeked
+								// it every few frames — the same stutter as the preview, baked
+								// into the file.
+								el.playbackRate = clipRate(clip);
 								if (Math.abs(el.currentTime - sourceTime) > 0.15) el.currentTime = sourceTime;
 								if (el.paused) el.play().catch(() => {});
 								// ponytail: elements are keyed by asset, so one asset used on

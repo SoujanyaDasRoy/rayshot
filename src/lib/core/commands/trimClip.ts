@@ -1,4 +1,5 @@
 import { Command } from './base';
+import { clipRate, timelineDurationForRate } from '../../utils/clipTiming';
 import type { Project, Sequence, Track, Clip, MediaAsset } from '$lib/types/project';
 import { projectStore } from '$lib/stores/project.svelte';
 import { get } from 'svelte/store';
@@ -45,6 +46,11 @@ export class TrimClipCommand extends Command {
 			timelineDuration: this.clip.timelineDuration
 		};
 
+		// Captured before anything moves: the trim has to hand the clip back at
+		// the speed it was already playing. Writing `newSourceOut - newSourceIn`
+		// here — which is what this did — quietly resets every retimed clip to 1x.
+		const rate = clipRate(this.clip);
+
 		// Determine which side to trim
 		let newSourceIn = this.clip.sourceIn;
 		let newSourceOut = this.clip.sourceOut;
@@ -56,8 +62,8 @@ export class TrimClipCommand extends Command {
 
 		if (this.data.side === 'start') {
 			newSourceIn = Math.max(0, Math.min(this.data.newSourceTime, newSourceOut, maxDuration));
-			const endTime = this.clip.timelineStart + (this.clip.sourceOut - this.clip.sourceIn);
-			newTimelineStart = endTime - (newSourceOut - newSourceIn);
+			const endTime = this.clip.timelineStart + this.clip.timelineDuration;
+			newTimelineStart = endTime - timelineDurationForRate(newSourceIn, newSourceOut, rate);
 		} else { // 'end'
 			newSourceOut = Math.max(newSourceIn, Math.min(this.data.newSourceTime, maxDuration));
 			newTimelineStart = this.clip.timelineStart;
@@ -69,7 +75,7 @@ export class TrimClipCommand extends Command {
 			sourceIn: newSourceIn,
 			sourceOut: newSourceOut,
 			timelineStart: newTimelineStart,
-			timelineDuration: newSourceOut - newSourceIn
+			timelineDuration: timelineDurationForRate(newSourceIn, newSourceOut, rate)
 		};
 
 		// Update the clip in the project's clips map

@@ -46,8 +46,8 @@ vi.mock('$lib/core/commands/newProject', async () => {
 vi.mock('$lib/core/commands/setClipVolume', async () => {
 	return await vi.importActual('../lib/core/commands/setClipVolume.ts');
 });
-vi.mock('$lib/core/commands/setClipPlaybackRate', async () => {
-	return await vi.importActual('../lib/core/commands/setClipPlaybackRate.ts');
+vi.mock('$lib/core/commands/setClipSpeed', async () => {
+	return await vi.importActual('../lib/core/commands/setClipSpeed.ts');
 });
 vi.mock('$lib/core/commands/setClipFilter', async () => {
 	return await vi.importActual('../lib/core/commands/setClipFilter.ts');
@@ -83,7 +83,8 @@ import { DeleteClipCommand } from '../lib/core/commands/deleteClip.ts';
 import { AddTrackCommand } from '../lib/core/commands/addTrack.ts';
 import { NewProjectCommand } from '../lib/core/commands/newProject.ts';
 import { SetClipVolumeCommand } from '../lib/core/commands/setClipVolume.ts';
-import { SetClipPlaybackRateCommand } from '../lib/core/commands/setClipPlaybackRate.ts';
+import { SetClipSpeedCommand } from '../lib/core/commands/setClipSpeed.ts';
+import { clipRate } from '../lib/utils/clipTiming.ts';
 import { SetClipFilterCommand } from '../lib/core/commands/setClipFilter.ts';
 import {
 	snapToGrid,
@@ -211,7 +212,6 @@ function createMockClip(data: {
 	filters?: Record<string, any>;
 	effects?: string[];
 	audioParameters?: { volume: number; mute: boolean };
-	playbackRate?: number;
 }): Clip {
 	return {
 		id: data.id,
@@ -224,7 +224,6 @@ function createMockClip(data: {
 		filters: data.filters ?? {},
 		effects: data.effects ?? [],
 		audioParameters: data.audioParameters ?? { volume: 1.0, mute: false },
-		playbackRate: data.playbackRate ?? 1.0,
 		colorGrade: {
 			exposure: 0,
 			contrast: 0,
@@ -1115,7 +1114,7 @@ describe('Tier 5: Adversarial Hardening Suite', () => {
 			for (let i = 0; i < 6; i++) {
 				const volCmd = new SetClipVolumeCommand({ clipId: `clip-stable-${i}`, volume: 0.75 });
 				commandProcessor.execute(volCmd);
-				const rateCmd = new SetClipPlaybackRateCommand({ clipId: `clip-stable-${i}`, playbackRate: 1.25 });
+				const rateCmd = new SetClipSpeedCommand({ clipId: `clip-stable-${i}`, speed: 1.25 });
 				commandProcessor.execute(rateCmd);
 			}
 
@@ -1143,7 +1142,7 @@ describe('Tier 5: Adversarial Hardening Suite', () => {
 			expect(initialCheck.sourceIn).toBe(0);
 			expect(initialCheck.timelineStart).toBe(0);
 			expect(initialCheck.audioParameters.volume).toBe(1.0);
-			expect(initialCheck.playbackRate).toBe(1.0);
+			expect(clipRate(initialCheck)).toBe(1.0);
 
 			// FULL REWIND: Redo all 27 commands
 			let redoCount = 0;
@@ -1160,7 +1159,7 @@ describe('Tier 5: Adversarial Hardening Suite', () => {
 			expect(redoneCheck.sourceIn).toBe(2.0);
 			expect(redoneCheck.timelineStart).toBe(2.0);
 			expect(redoneCheck.audioParameters.volume).toBe(0.75);
-			expect(redoneCheck.playbackRate).toBe(1.25);
+			expect(clipRate(redoneCheck)).toBe(1.25);
 			expect(redoneCheck.filters.brightness).toBe(30);
 		});
 

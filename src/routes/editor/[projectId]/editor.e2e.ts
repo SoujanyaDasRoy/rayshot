@@ -881,4 +881,50 @@ test.describe('editor workspace smoke test', () => {
 
 		rmSync(fixtureDir, { recursive: true, force: true });
 	});
+	test('changing speed resizes the clip and the element actually plays fast', async ({ page }) => {
+		// Speed used to be stored twice: in clip.playbackRate, and implicitly as
+		// the ratio of source span to clip length. The element got the first and
+		// the seek position came from the second, so at 2x every sync yanked the
+		// element back — stutter, not speed. Speed is derived now, so the two
+		// numbers cannot disagree; there is only one of them.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-speed-'));
+		const clipPath = path.join(fixtureDir, 'run.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'run.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		const clip = page.locator('.timeline-clip-block').first();
+		await clip.click();
+		const widthBefore = (await clip.boundingBox())!.width;
+
+		await page
+			.locator('.inspector-sidebar')
+			.getByRole('combobox', { name: 'Clip Speed' })
+			.selectOption('2');
+
+		// The clip is half as long, because that is what speed means now.
+		await expect.poll(async () => (await clip.boundingBox())!.width).toBeLessThan(
+			widthBefore * 0.6
+		);
+
+		// And the element is genuinely running at 2x rather than being reseeked.
+		await expect
+			.poll(() =>
+				page.evaluate(() => {
+					const el = document.querySelector('video, audio') as HTMLMediaElement | null;
+					return el ? el.playbackRate : -1;
+				})
+			)
+			.toBeCloseTo(2, 5);
+
+		// Undo restores the length, and with it the speed.
+		await page.keyboard.press('Control+z');
+		await expect.poll(async () => (await clip.boundingBox())!.width).toBeCloseTo(widthBefore, 0);
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
 });

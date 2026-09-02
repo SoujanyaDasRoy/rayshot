@@ -24,6 +24,7 @@ vi.mock('svelte/store', () => ({
 }));
 
 import { TrimClipCommand } from '../trimClip';
+import { clipRate } from '../../../utils/clipTiming';
 
 describe('TrimClipCommand', () => {
   beforeEach(() => {
@@ -228,5 +229,78 @@ describe('TrimClipCommand', () => {
     expect(clipped2?.sourceOut).toBe(10);
     expect(clipped2?.timelineStart).toBe(0);
     expect(clipped2?.timelineDuration).toBe(10);
+  });
+  it('keeps a retimed clip at its own speed when trimmed', () => {
+    // The trim wrote `timelineDuration = newSourceOut - newSourceIn`, which is
+    // the 1x answer. Trimming a 2x clip silently handed it back at 1x, and
+    // because speed is derived from the box there was nothing left to say it
+    // had ever been fast.
+    const mockState = {
+      assets: new Map([['asset1', { id: 'asset1', duration: 20, name: 'Test Asset' }]]),
+      sequences: [
+        { id: 'seq1', activeSequenceId: 'seq1', tracks: [{ id: 'track1', clipInstances: ['clip1'] }] }
+      ],
+      activeSequenceId: 'seq1',
+      clips: new Map([
+        ['clip1', {
+          id: 'clip1',
+          mediaAssetId: 'asset1',
+          sourceIn: 0,
+          sourceOut: 10,
+          timelineStart: 0,
+          // 10s of source in a 5s box: 2x.
+          timelineDuration: 5,
+          transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+          effects: [],
+          audioParameters: { volume: 1.0, mute: false }
+        }]
+      ]),
+      modifiedAt: 0
+    };
+
+    mockProjectStore.mockState = mockState;
+    expect(clipRate(mockState.clips.get('clip1') as never)).toBe(2);
+
+    new TrimClipCommand({ clipId: 'clip1', side: 'end', newSourceTime: 6 }).execute();
+
+    const trimmed = mockProjectStore.set.mock.calls[0][0].clips.get('clip1');
+    expect(trimmed.sourceOut).toBe(6);
+    // 6s of source at 2x needs a 3s box, not a 6s one.
+    expect(trimmed.timelineDuration).toBe(3);
+    expect(clipRate(trimmed)).toBe(2);
+  });
+
+  it('trimming the head of a retimed clip keeps its tail where it was', () => {
+    const mockState = {
+      assets: new Map([['asset1', { id: 'asset1', duration: 20, name: 'Test Asset' }]]),
+      sequences: [
+        { id: 'seq1', activeSequenceId: 'seq1', tracks: [{ id: 'track1', clipInstances: ['clip1'] }] }
+      ],
+      activeSequenceId: 'seq1',
+      clips: new Map([
+        ['clip1', {
+          id: 'clip1',
+          mediaAssetId: 'asset1',
+          sourceIn: 0,
+          sourceOut: 10,
+          timelineStart: 4,
+          timelineDuration: 5,
+          transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+          effects: [],
+          audioParameters: { volume: 1.0, mute: false }
+        }]
+      ]),
+      modifiedAt: 0
+    };
+
+    mockProjectStore.mockState = mockState;
+    new TrimClipCommand({ clipId: 'clip1', side: 'start', newSourceTime: 4 }).execute();
+
+    const trimmed = mockProjectStore.set.mock.calls[0][0].clips.get('clip1');
+    // 6s of source at 2x is a 3s box, and the clip still ends at 9.
+    expect(trimmed.timelineDuration).toBe(3);
+    expect(trimmed.timelineStart).toBe(6);
+    expect(trimmed.timelineStart + trimmed.timelineDuration).toBe(9);
+    expect(clipRate(trimmed)).toBe(2);
   });
 });

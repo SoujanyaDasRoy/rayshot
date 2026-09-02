@@ -1,4 +1,5 @@
 import type { Project, Clip } from '$lib/types/project';
+import { timelineDurationForRate } from '../../utils/clipTiming';
 
 /**
  * Project schema version gate.
@@ -12,7 +13,7 @@ import type { Project, Clip } from '$lib/types/project';
  * Vitest project.
  */
 
-export const CURRENT_PROJECT_VERSION = 2;
+export const CURRENT_PROJECT_VERSION = 3;
 
 type Curves = Clip['colorGrade']['curves'];
 
@@ -73,7 +74,12 @@ export function migrateProject(raw: unknown): Project | null {
 	};
 }
 
-/** v1 -> v2: backfill fields the renderer now dereferences unconditionally. */
+/**
+ * v1 -> v2: backfill fields the renderer now dereferences unconditionally.
+ * v2 -> v3: fold a stored playbackRate into the clip's timeline length and drop
+ * the field. Speed is derived from the box now, so a stored rate is a second
+ * representation of the same fact — which is exactly how it came to disagree.
+ */
 function migrateClip(raw: Record<string, unknown>): Clip {
 	const colorGrade = (raw.colorGrade ?? {}) as Record<string, unknown>;
 	const filters = { ...((raw.filters ?? {}) as Record<string, unknown>) };
@@ -82,11 +88,23 @@ function migrateClip(raw: Record<string, unknown>): Clip {
 	// a phantom that only ever shadowed the real colorGrade.curves.
 	delete filters.curves;
 
-	return {
+	// A v2 clip carrying a rate other than 1 was never actually playing at that
+	// speed — the seek position came from the box, so it stuttered. Folding the
+	// rate into the box is what that clip was always trying to say.
+	const storedRate = typeof raw.playbackRate === 'number' ? raw.playbackRate : 1;
+	const sourceIn = typeof raw.sourceIn === 'number' ? raw.sourceIn : 0;
+	const sourceOut = typeof raw.sourceOut === 'number' ? raw.sourceOut : 0;
+	const rawDuration = typeof raw.timelineDuration === 'number' ? raw.timelineDuration : 0;
+	const timelineDuration =
+		storedRate === 1
+			? rawDuration
+			: timelineDurationForRate(sourceIn, sourceOut, storedRate);
+
+	const clip = {
 		...(raw as unknown as Clip),
+		timelineDuration,
 		transform: (raw.transform ?? { x: 0, y: 0, scale: 1, rotation: 0 }) as Clip['transform'],
 		audioParameters: (raw.audioParameters ?? { volume: 1, mute: false }) as Clip['audioParameters'],
-		playbackRate: typeof raw.playbackRate === 'number' ? raw.playbackRate : 1,
 		effects: Array.isArray(raw.effects) ? (raw.effects as string[]) : [],
 		filters,
 		colorGrade: {
@@ -94,7 +112,13 @@ function migrateClip(raw: Record<string, unknown>): Clip {
 			...colorGrade,
 			curves: normalizeCurves(colorGrade.curves)
 		} as Clip['colorGrade']
-	};
+	} as Clip & { playbackRate?: number };
+
+	// The spread above carries every raw key through, including the one we are
+	// retiring. Left in place it would outlive the migration and become the
+	// stale second number all over again.
+	delete clip.playbackRate;
+	return clip;
 }
 
 /**

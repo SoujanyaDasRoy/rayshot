@@ -67,7 +67,6 @@ export class AddClipCommand extends Command {
 				volume: 1.0,
 				mute: false
 			},
-			playbackRate: 1,
 			filters: {},
 			// Single source of truth — this literal used to be duplicated here and
 			// in ColorGradePanel, and the two had already drifted apart.

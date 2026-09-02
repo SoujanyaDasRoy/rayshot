@@ -46,8 +46,8 @@ vi.mock('$lib/core/commands/newProject', async () => {
 vi.mock('$lib/core/commands/setClipVolume', async () => {
 	return await vi.importActual('../lib/core/commands/setClipVolume.ts');
 });
-vi.mock('$lib/core/commands/setClipPlaybackRate', async () => {
-	return await vi.importActual('../lib/core/commands/setClipPlaybackRate.ts');
+vi.mock('$lib/core/commands/setClipSpeed', async () => {
+	return await vi.importActual('../lib/core/commands/setClipSpeed.ts');
 });
 vi.mock('$lib/core/commands/setClipFilter', async () => {
 	return await vi.importActual('../lib/core/commands/setClipFilter.ts');
@@ -73,7 +73,8 @@ import { SplitClipCommand } from '../lib/core/commands/splitClip.ts';
 import { DeleteClipCommand } from '../lib/core/commands/deleteClip.ts';
 import { AddTrackCommand } from '../lib/core/commands/addTrack.ts';
 import { SetClipVolumeCommand } from '../lib/core/commands/setClipVolume.ts';
-import { SetClipPlaybackRateCommand } from '../lib/core/commands/setClipPlaybackRate.ts';
+import { SetClipSpeedCommand } from '../lib/core/commands/setClipSpeed.ts';
+import { clipRate } from '../lib/utils/clipTiming.ts';
 import { SetClipFilterCommand } from '../lib/core/commands/setClipFilter.ts';
 import {
 	snapToGrid,
@@ -645,11 +646,11 @@ describe('Tier 2: Boundary & Corner Cases', () => {
 			commandProcessor.execute(addCmd);
 			const clipId = Array.from(get(projectStore)!.clips.keys())[0];
 
-			commandProcessor.execute(new SetClipPlaybackRateCommand({ clipId, playbackRate: 0.25 }));
-			expect(get(projectStore)!.clips.get(clipId)!.playbackRate).toBe(0.25);
+			commandProcessor.execute(new SetClipSpeedCommand({ clipId, speed: 0.25 }));
+			expect(clipRate(get(projectStore)!.clips.get(clipId)!)).toBe(0.25);
 
-			commandProcessor.execute(new SetClipPlaybackRateCommand({ clipId, playbackRate: 4.0 }));
-			expect(get(projectStore)!.clips.get(clipId)!.playbackRate).toBe(4.0);
+			commandProcessor.execute(new SetClipSpeedCommand({ clipId, speed: 4.0 }));
+			expect(clipRate(get(projectStore)!.clips.get(clipId)!)).toBe(4.0);
 		});
 
 		it('B10.3: should allow setting clip brightness filter across -100 to +100', () => {

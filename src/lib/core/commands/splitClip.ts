@@ -1,4 +1,5 @@
 import { Command } from './base';
+import { sourceTimeAt } from '../../utils/clipTiming';
 import type { Project, Sequence, Track, Clip, MediaAsset } from '$lib/types/project';
 import { projectStore } from '$lib/stores/project.svelte';
 import { get } from 'svelte/store';
@@ -54,15 +55,18 @@ export class SplitClipCommand extends Command {
 		// The splitTime is in timeline coordinates.
 		// The offset within the clip is: splitTime - originalClip.timelineStart
 		const offsetInClip = this.data.splitTime - this.originalClip.timelineStart;
-		if (offsetInClip <= 0 || offsetInClip >= (this.originalClip.sourceOut - this.originalClip.sourceIn)) {
+		// Bounds are a timeline question, so they are asked in timeline units.
+		// This compared a timeline offset against a source span, which is only
+		// the same thing at 1x.
+		if (offsetInClip <= 0 || offsetInClip >= this.originalClip.timelineDuration) {
 			throw new Error('Split time is outside the clip bounds');
 		}
 
-		// Convert offsetInClip to source time:
-		// The clip's source portion is [sourceIn, sourceOut)
-		// The offsetInClip is in timeline time, which maps directly to source time because we assume a 1:1 mapping (no time stretch).
-		// So sourceSplitTime = originalClip.sourceIn + offsetInClip;
-		const sourceSplitTime = this.originalClip.sourceIn + offsetInClip;
+		// The mapping knows about speed; the old maths assumed 1:1 and said so
+		// in a comment. The two halves take their lengths from the timeline
+		// offsets, so together they still cover the original box exactly and
+		// both keep the original speed.
+		const sourceSplitTime = sourceTimeAt(this.originalClip, this.data.splitTime);
 
 		// Generate IDs for the two new clips
 		this.firstClipId = Math.random().toString(36).substr(2, 9);
@@ -75,11 +79,10 @@ export class SplitClipCommand extends Command {
 			sourceIn: this.originalClip.sourceIn,
 			sourceOut: sourceSplitTime,
 			timelineStart: this.originalClip.timelineStart,
-			timelineDuration: sourceSplitTime - this.originalClip.sourceIn,
+			timelineDuration: offsetInClip,
 			transform: { ...this.originalClip.transform },
 			effects: [...this.originalClip.effects],
 			audioParameters: { ...this.originalClip.audioParameters },
-			playbackRate: this.originalClip.playbackRate,
 			filters: { ...this.originalClip.filters },
 			colorGrade: { ...this.originalClip.colorGrade }
 		};
@@ -91,11 +94,10 @@ export class SplitClipCommand extends Command {
 			sourceIn: sourceSplitTime,
 			sourceOut: this.originalClip.sourceOut,
 			timelineStart: this.data.splitTime, // starts at the split point
-			timelineDuration: this.originalClip.sourceOut - sourceSplitTime,
+			timelineDuration: this.originalClip.timelineDuration - offsetInClip,
 			transform: { ...this.originalClip.transform },
 			effects: [...this.originalClip.effects],
 			audioParameters: { ...this.originalClip.audioParameters },
-			playbackRate: this.originalClip.playbackRate,
 			filters: { ...this.originalClip.filters },
 			colorGrade: { ...this.originalClip.colorGrade }
 		};

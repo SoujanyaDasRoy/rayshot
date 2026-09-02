@@ -7,6 +7,7 @@
 	import { audioEngine } from '$lib/core/audioEngine';
 	import { audibleTrackIds } from '$lib/utils/trackModel';
 	import { audioChainSpec } from '$lib/core/audioChain';
+	import { clipRate, sourceTimeAt } from '$lib/utils/clipTiming';
 	import { WebGLCompositor } from '$lib/core/rendering/webglCompositor';
 	import { toShaderUniforms } from '$lib/core/rendering/colorGradeUniforms';
 	// Shared with the exporter so preview and output cannot drift.
@@ -27,14 +28,6 @@
 		if (!$project || !$project.activeSequenceId) return null;
 		return $project.sequences.find((s) => s.id === $project.activeSequenceId) ?? null;
 	});
-
-	function getSourceTime(clip: Clip, timelineTime: number): number {
-		const timelineOffset = timelineTime - clip.timelineStart;
-		const sourceDuration = clip.sourceOut - clip.sourceIn;
-		const timelineDuration = clip.timelineDuration;
-		if (timelineDuration <= 0) return clip.sourceIn;
-		return clip.sourceIn + (timelineOffset / timelineDuration) * sourceDuration;
-	}
 
 	const activeLayers = derived(
 		[projectStore, playbackStore],
@@ -61,7 +54,7 @@
 							layers.push({
 								clip,
 								asset,
-								sourceTime: getSourceTime(clip, time),
+								sourceTime: sourceTimeAt(clip, time),
 								trackOrder: track.order ?? i,
 								trackAudible: audible.has(track.id),
 								trackHidden: !!track.hidden
@@ -138,7 +131,10 @@
 				el.currentTime = targetTime;
 			} catch (_) {}
 		}
-		el.playbackRate = ($playbackStore.playbackSpeed || 1) * (clip.playbackRate || 1);
+		// Derived from the same box the seek position comes from, so the element
+		// and the sync can no longer disagree. They used to, and every sync
+		// yanked the element back — which is what the stutter was.
+		el.playbackRate = ($playbackStore.playbackSpeed || 1) * clipRate(clip);
 		el.volume =
 			$playbackStore.isMuted || !trackAudible
 				? 0

@@ -7,7 +7,8 @@
 	import { TrimClipCommand } from '$lib/core/commands/trimClip';
 	import { DeleteClipCommand } from '$lib/core/commands/deleteClip';
 	import { SetClipVolumeCommand } from '$lib/core/commands/setClipVolume';
-	import { SetClipPlaybackRateCommand } from '$lib/core/commands/setClipPlaybackRate';
+	import { SetClipSpeedCommand } from '$lib/core/commands/setClipSpeed';
+	import { clipRate } from '$lib/utils/clipTiming';
 	import { SetClipFilterCommand } from '$lib/core/commands/setClipFilter';
 	import { SetTransformCommand } from '$lib/core/commands/setTransform';
 	import { ToggleClipMuteCommand } from '$lib/core/commands/toggleClipMute';
@@ -161,11 +162,8 @@
 	function handleRateChange(val: number) {
 		const clipId = $timelineStore.selectedClipId;
 		if (!clipId) return;
-		const setRateCmd = new SetClipPlaybackRateCommand({
-			clipId,
-			playbackRate: val
-		});
-		commandProcessor.execute(setRateCmd);
+		// Changing the speed resizes the clip: that is what speed now means.
+		commandProcessor.execute(new SetClipSpeedCommand({ clipId, speed: val }));
 	}
 
 	function handleFilterChange(filterName: string, val: unknown) {
@@ -390,20 +388,20 @@
 
 					<!-- Playback Speed Dropdown -->
 					<div class="select-field-row">
-						<span class="sub-label">Playback Speed</span>
+						<span class="sub-label">Clip Speed</span>
 						<div class="select-wrap">
 							<select
-								value={clip.playbackRate ?? 1}
+								value={clipRate(clip)}
 								onchange={(e) => handleRateChange(parseFloat((e.target as HTMLSelectElement).value))}
 								class="dropdown-select font-mono"
-								aria-label="Playback Speed"
+								aria-label="Clip Speed"
 							>
 								<option value={0.5}>0.5x (Slow)</option>
 								<option value={1.0}>1.0x (Normal)</option>
 								<option value={1.5}>1.5x (Fast)</option>
 								<option value={2.0}>2.0x (Double)</option>
-								{#if ![0.5, 1.0, 1.5, 2.0].includes(clip.playbackRate ?? 1)}
-									<option value={clip.playbackRate}>{(clip.playbackRate ?? 1).toFixed(2)}x (Custom)</option>
+								{#if ![0.5, 1.0, 1.5, 2.0].includes(clipRate(clip))}
+									<option value={clipRate(clip)}>{clipRate(clip).toFixed(2)}x (Custom)</option>
 								{/if}
 							</select>
 						</div>
@@ -605,20 +603,20 @@
 
 					<!-- Playback Speed -->
 					<div class="select-field-row">
-						<span class="sub-label">Playback Speed</span>
+						<span class="sub-label">Clip Speed</span>
 						<div class="select-wrap">
 							<select
-								value={clip.playbackRate ?? 1}
+								value={clipRate(clip)}
 								onchange={(e) => handleRateChange(parseFloat((e.target as HTMLSelectElement).value))}
 								class="dropdown-select font-mono"
-								aria-label="Audio Playback Speed"
+								aria-label="Audio Clip Speed"
 							>
 								<option value={0.5}>0.5x (Slow)</option>
 								<option value={1.0}>1.0x (Normal)</option>
 								<option value={1.5}>1.5x (Fast)</option>
 								<option value={2.0}>2.0x (Double)</option>
-								{#if ![0.5, 1.0, 1.5, 2.0].includes(clip.playbackRate ?? 1)}
-									<option value={clip.playbackRate}>{(clip.playbackRate ?? 1).toFixed(2)}x (Custom)</option>
+								{#if ![0.5, 1.0, 1.5, 2.0].includes(clipRate(clip))}
+									<option value={clipRate(clip)}>{clipRate(clip).toFixed(2)}x (Custom)</option>
 								{/if}
 							</select>
 						</div>

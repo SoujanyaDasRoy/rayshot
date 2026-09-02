@@ -46,8 +46,8 @@ vi.mock('$lib/core/commands/newProject', async () => {
 vi.mock('$lib/core/commands/setClipVolume', async () => {
 	return await vi.importActual('../lib/core/commands/setClipVolume.ts');
 });
-vi.mock('$lib/core/commands/setClipPlaybackRate', async () => {
-	return await vi.importActual('../lib/core/commands/setClipPlaybackRate.ts');
+vi.mock('$lib/core/commands/setClipSpeed', async () => {
+	return await vi.importActual('../lib/core/commands/setClipSpeed.ts');
 });
 vi.mock('$lib/core/commands/setClipFilter', async () => {
 	return await vi.importActual('../lib/core/commands/setClipFilter.ts');
@@ -74,7 +74,8 @@ import { SplitClipCommand } from '../lib/core/commands/splitClip.ts';
 import { DeleteClipCommand } from '../lib/core/commands/deleteClip.ts';
 import { AddTrackCommand } from '../lib/core/commands/addTrack.ts';
 import { SetClipVolumeCommand } from '../lib/core/commands/setClipVolume.ts';
-import { SetClipPlaybackRateCommand } from '../lib/core/commands/setClipPlaybackRate.ts';
+import { SetClipSpeedCommand } from '../lib/core/commands/setClipSpeed.ts';
+import { clipRate } from '../lib/utils/clipTiming.ts';
 import { SetClipFilterCommand } from '../lib/core/commands/setClipFilter.ts';
 import {
 	validateExportSettings,
@@ -354,14 +355,14 @@ describe('Tier 4: Real-World Production Scenarios', () => {
 		const allClips = Array.from(get(projectStore)!.clips.values()).sort((a, b) => a.timelineStart - b.timelineStart);
 
 		// Clip 2: 2.0x Fast Motion
-		commandProcessor.execute(new SetClipPlaybackRateCommand({ clipId: allClips[1].id, playbackRate: 2.0 }));
+		commandProcessor.execute(new SetClipSpeedCommand({ clipId: allClips[1].id, speed: 2.0 }));
 		// Clip 4: 0.5x Slow Motion
-		commandProcessor.execute(new SetClipPlaybackRateCommand({ clipId: allClips[3].id, playbackRate: 0.5 }));
+		commandProcessor.execute(new SetClipSpeedCommand({ clipId: allClips[3].id, speed: 0.5 }));
 		// Clip 3: Visual Brightness +25%
 		commandProcessor.execute(new SetClipFilterCommand({ clipId: allClips[2].id, filterName: 'brightness', value: 25 }));
 
-		expect(get(projectStore)!.clips.get(allClips[1].id)!.playbackRate).toBe(2.0);
-		expect(get(projectStore)!.clips.get(allClips[3].id)!.playbackRate).toBe(0.5);
+		expect(clipRate(get(projectStore)!.clips.get(allClips[1].id)!)).toBe(2.0);
+		expect(clipRate(get(projectStore)!.clips.get(allClips[3].id)!)).toBe(0.5);
 		expect(get(projectStore)!.clips.get(allClips[2].id)!.filters.brightness).toBe(25);
 
 		// Frame Stepping across cuts at 60fps
@@ -520,8 +521,8 @@ describe('Tier 4: Real-World Production Scenarios', () => {
 		expect(get(projectStore)!.clips.get(a1Id)!.audioParameters.volume).toBe(0.4);
 
 		// Step 8: Set playback rate of Clip 2 to 2.0x
-		commandProcessor.execute(new SetClipPlaybackRateCommand({ clipId: v2Id, playbackRate: 2.0 }));
-		expect(get(projectStore)!.clips.get(v2Id)!.playbackRate).toBe(2.0);
+		commandProcessor.execute(new SetClipSpeedCommand({ clipId: v2Id, speed: 2.0 }));
+		expect(clipRate(get(projectStore)!.clips.get(v2Id)!)).toBe(2.0);
 
 		// Step 9: Set filter brightness on Clip 2 to 30
 		commandProcessor.execute(new SetClipFilterCommand({ clipId: v2Id, filterName: 'brightness', value: 30 }));
@@ -541,7 +542,7 @@ describe('Tier 4: Real-World Production Scenarios', () => {
 		expect(get(projectStore)!.clips.get(v2Id)!.filters.brightness).toBeUndefined();
 
 		commandProcessor.undo(); // Undo 8 (Rate) -> playbackRate restored to 1.0
-		expect(get(projectStore)!.clips.get(v2Id)!.playbackRate).toBe(1.0);
+		expect(clipRate(get(projectStore)!.clips.get(v2Id)!)).toBe(1.0);
 
 		commandProcessor.undo(); // Undo 7 (Volume) -> volume restored to 1.0
 		expect(get(projectStore)!.clips.get(a1Id)!.audioParameters.volume).toBe(1.0);
@@ -569,7 +570,7 @@ describe('Tier 4: Real-World Production Scenarios', () => {
 		expect(get(projectStore)!.clips.get(a1Id)!.audioParameters.volume).toBe(0.4);
 
 		commandProcessor.redo(); // Redo 8 (Rate)
-		expect(get(projectStore)!.clips.get(v2Id)!.playbackRate).toBe(2.0);
+		expect(clipRate(get(projectStore)!.clips.get(v2Id)!)).toBe(2.0);
 
 		commandProcessor.redo(); // Redo 9 (Filter)
 		expect(get(projectStore)!.clips.get(v2Id)!.filters.brightness).toBe(30);
