@@ -72,7 +72,9 @@
 
 	const visualLayers = derived(activeLayers, ($layers) =>
 		$layers.filter(
-			(l) => !l.trackHidden && (l.asset.type === 'video' || l.asset.type === 'image')
+			(l) =>
+				!l.trackHidden &&
+				(l.asset.type === 'video' || l.asset.type === 'image' || l.asset.type === 'text')
 		)
 	);
 
@@ -339,7 +341,15 @@
 					class="canvas-layer"
 					style="transform: {getLayerTransform(layer.clip)}; filter: {getLayerFilter(layer.clip, { colorGradeInCss: gradeInCss })}; opacity: {getLayerOpacity(layer.clip)}; mix-blend-mode: {getLayerBlendMode(layer.clip)}; z-index: {layer.trackOrder};"
 				>
-					{#if !layer.asset.sourceBlob}
+					{#if layer.asset.type === 'text'}
+						<!-- Drawn, not decoded: the words are the clip. -->
+						<div
+							class="canvas-text-layer"
+							style="font-size: {(layer.clip.text?.fontSize ?? 84) / 10.8}cqw;
+							       text-align: {layer.clip.text?.align ?? 'center'};
+							       color: {layer.clip.text?.color ?? '#ffffff'};"
+						>{layer.clip.text?.content ?? ''}</div>
+					{:else if !layer.asset.sourceBlob}
 						<!-- Bytes are gone (imported on another device, or evicted from
 						     the cache). Say so instead of rendering an empty frame. -->
 						<div class="media-offline">
@@ -456,6 +466,7 @@
 	}
 
 	.stage-viewport-16-9 {
+		container-type: inline-size;
 		position: relative;
 		aspect-ratio: 16 / 9;
 		width: 100%;
@@ -553,6 +564,23 @@
 		flex-direction: column;
 		align-items: center;
 		gap: 3px;
+	}
+
+	/* Sized in container-query units so a title keeps its proportion of the
+	   frame at any preview size — 84px at 1920 wide is 4.375% of the frame. */
+	.canvas-text-layer {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+		height: 100%;
+		padding: 0 6%;
+		font-family: var(--ms-font);
+		font-weight: 700;
+		line-height: 1.15;
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		text-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
 	}
 
 	.audio-track-name {

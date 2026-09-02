@@ -11,6 +11,7 @@
 	import { getLayerOpacity } from '$lib/utils/canvasUtils';
 	import { audibleTrackIds } from '$lib/utils/trackModel';
 	import { audioChainSpec, connectAudioChain } from '$lib/core/audioChain';
+	import { drawTextClip } from '$lib/core/rendering/drawTextClip';
 	import { clipRate, sourceTimeAt } from '$lib/utils/clipTiming';
 	import { Dialog } from 'bits-ui';
 	import { projectStore } from '$lib/stores/project.svelte';
@@ -235,6 +236,15 @@
 							const clip = project!.clips.get(clipId);
 							if (!clip) continue;
 							if (currentTime < clip.timelineStart || currentTime >= clip.timelineStart + clip.timelineDuration) {
+								continue;
+							}
+
+							// Titles are drawn straight onto the frame. There is no element
+							// for them, so this has to come before the element guard —
+							// below it, every title would be skipped and the file would
+							// disagree with the preview.
+							if (clip.text) {
+								if (!track.hidden) drawTextClip(ctx, clip, width, height);
 								continue;
 							}
 

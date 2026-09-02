@@ -18,6 +18,14 @@ export class AddClipCommand extends Command {
 	private mediaAsset: MediaAsset | null = null;
 	private clipId: string = '';
 
+	/**
+	 * The clip this command created, so a caller can immediately act on it —
+	 * a title needs its words set the moment it exists. Empty before execute.
+	 */
+	getCreatedClipId(): string {
+		return this.clipId;
+	}
+
 	constructor(private data: AddClipCommandData) {
 		super();
 	}

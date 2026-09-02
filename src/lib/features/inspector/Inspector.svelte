@@ -13,10 +13,11 @@
 	import { SetTransformCommand } from '$lib/core/commands/setTransform';
 	import { ToggleClipMuteCommand } from '$lib/core/commands/toggleClipMute';
 	import { RemoveClipEffectCommand } from '$lib/core/commands/removeClipEffect';
+	import { SetClipTextCommand } from '$lib/core/commands/setClipText';
 	import { effectById, paramMeta } from '$lib/core/effects/effectRegistry';
 	import ColorGradePanel from '$lib/features/colorgrade/ColorGradePanel.svelte';
 	import { derived } from 'svelte/store';
-	import type { Clip, MediaAsset, Project } from '$lib/types/project';
+	import type { Clip, MediaAsset, Project, TextContent } from '$lib/types/project';
 
 	const selectedClipData = derived(
 		[timelineStore, projectStore],
@@ -56,6 +57,7 @@
 	// Collapsible Accordion States (Progressive Disclosure)
 	let transformOpen = $state(true);
 	let effectsOpen = $state(true);
+	let textOpen = $state(true);
 	let opacityOpen = $state(false);
 	let colorOpen = $state(false);
 	let audioFadesOpen = $state(false);
@@ -64,6 +66,20 @@
 	const appliedEffects = derived(selectedClipData, ($data) =>
 		($data?.clip.effects ?? []).map((id) => effectById(id)).filter((e) => e !== null)
 	);
+
+	/** A title is known by its words; everything else by its filename. */
+	function clipDisplayName(clip: Clip, asset: MediaAsset | undefined): string {
+		const words = clip.text?.content?.trim();
+		if (words) return words;
+		return asset?.filename ?? 'Selected clip';
+	}
+
+	function updateText(patch: Partial<TextContent>) {
+		const clipId = $timelineStore.selectedClipId;
+		if (!clipId) return;
+		// Merged by the command, so typing a sentence is one undo, not one per key.
+		commandProcessor.execute(new SetClipTextCommand({ clipId, text: patch }));
+	}
 
 	function removeEffect(effectId: string) {
 		const clipId = $timelineStore.selectedClipId;
@@ -217,6 +233,64 @@
 
 </script>
 
+{#snippet textSection(clip: Clip)}
+	{#if clip.text}
+		<div class="foldable-section">
+			<div class="section-header-row">
+				<button class="section-toggle-btn" onclick={() => (textOpen = !textOpen)}>
+					<span class="chevron">{textOpen ? '▾' : '▸'}</span>
+					<span class="section-name">Title</span>
+				</button>
+			</div>
+
+			{#if textOpen}
+				<div class="section-fields">
+					<textarea
+						class="text-content-input"
+						rows="3"
+						value={clip.text.content}
+						oninput={(e) => updateText({ content: (e.target as HTMLTextAreaElement).value })}
+						aria-label="Title text"
+						placeholder="Type the words that appear on screen"
+					></textarea>
+
+					<div class="slider-field">
+						<div class="slider-top-label">
+							<span class="field-label">Size</span>
+							<span class="slider-number font-mono">{clip.text.fontSize}px</span>
+						</div>
+						<input
+							type="range"
+							min="24"
+							max="200"
+							step="2"
+							value={clip.text.fontSize}
+							oninput={(e) =>
+								updateText({ fontSize: parseInt((e.target as HTMLInputElement).value) })}
+							class="accent-slider"
+							aria-label="Title size"
+						/>
+					</div>
+
+					<div class="field-row">
+						<span class="field-label">Align</span>
+						<select
+							value={clip.text.align}
+							onchange={(e) => updateText({ align: (e.target as HTMLSelectElement).value as TextContent['align'] })}
+							class="dropdown-select font-mono"
+							aria-label="Title alignment"
+						>
+							<option value="left">Left</option>
+							<option value="center">Center</option>
+							<option value="right">Right</option>
+						</select>
+					</div>
+				</div>
+			{/if}
+		</div>
+	{/if}
+{/snippet}
+
 {#snippet effectsSection(clip: Clip)}
 				<!-- Collapsible Accordion: Effects -->
 	<div class="foldable-section">
@@ -299,9 +373,8 @@
 		<!-- Selected Clip Subhead -->
 		<div class="clip-subhead">
 			<div class="clip-info-block">
-				<span class="clip-type-pill {$clipType}">{$clipType}</span>
-				<span class="clip-title-name" title={asset?.filename ?? (clip as any).text ?? 'Clip'}>
-					{asset?.filename ?? (clip as any).text ?? 'Selected Clip'}
+				<span class="clip-title-name" title={clipDisplayName(clip, asset)}>
+					{clipDisplayName(clip, asset)}
 				</span>
 			</div>
 			<button class="deselect-btn" title="Deselect clip" onclick={() => timelineActions.selectClip(null)}>
@@ -316,7 +389,7 @@
 			<!-- ================================================================= -->
 			<!-- 1. VIDEO / IMAGE CLIP INSPECTOR -->
 			<!-- ================================================================= -->
-			{#if $clipType === 'video' || $clipType === 'image'}
+			{#if $clipType === 'video' || $clipType === 'image' || $clipType === 'text'}
 				<!-- Primary Quick Controls Box (Always Visible) -->
 				<div class="primary-controls-card">
 					<div class="card-header-label">Primary Actions</div>
@@ -511,6 +584,7 @@
 					{/if}
 				</div>
 
+				{@render textSection(clip)}
 				{@render effectsSection(clip)}
 
 				<!-- Collapsible Accordion: Opacity & Blend -->
@@ -623,6 +697,7 @@
 					</div>
 				</div>
 
+				{@render textSection(clip)}
 				{@render effectsSection(clip)}
 			{/if}
 		</div>
@@ -700,8 +775,8 @@
 	}
 
 	.clip-info-block {
-		padding: 12px 16px;
-		border-bottom: 1px solid var(--ms-edge);
+		flex: 1;
+		min-width: 0;
 	}
 
 	.clip-title-name {
@@ -726,6 +801,24 @@
 		background: var(--ms-edge);
 		font-size: 10px;
 		color: var(--ms-text-secondary);
+	}
+
+	.text-content-input {
+		width: 100%;
+		padding: 8px 10px;
+		border: 1px solid var(--ms-edge);
+		border-radius: var(--ms-radius-sm, 8px);
+		background: var(--ms-void);
+		color: var(--ms-text);
+		font-family: var(--ms-font);
+		font-size: 12px;
+		line-height: 1.45;
+		resize: vertical;
+	}
+
+	.text-content-input:focus-visible {
+		outline: 2px solid var(--ms-text);
+		outline-offset: 1px;
 	}
 
 	.effects-empty {
@@ -776,6 +869,14 @@
 	.applied-effect-remove:hover {
 		background: var(--ms-hover);
 		color: var(--ms-text);
+	}
+
+	.clip-subhead {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 12px;
+		border-bottom: 1px solid var(--ms-edge);
 	}
 
 	.inspector-empty {

@@ -107,6 +107,8 @@ export interface PersistedAsset {
 	id: string;
 	filename: string;
 	blob: Blob;
+	// No 'text' here on purpose: this store holds bytes, and a title has none.
+	// Callers guard on sourceBlob before reaching it.
 	type: 'video' | 'audio' | 'image';
 	duration: number;
 	mimeType: string;

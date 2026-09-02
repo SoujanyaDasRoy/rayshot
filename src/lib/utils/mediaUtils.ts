@@ -389,7 +389,8 @@ export function addAsset(asset: MediaAsset): void {
 		return { ...project, assets: assetsMap, modifiedAt: Date.now() };
 	});
 
-	if (!asset.sourceBlob) return;
+	// A title has no bytes to cache, so it never reaches the blob store.
+	if (!asset.sourceBlob || asset.type === 'text') return;
 	persistAsset({
 		id: asset.id,
 		filename: asset.filename,

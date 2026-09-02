@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CANVAS_COLORS } from '$lib/utils/canvasPalette';
 	import Icon from '$lib/features/shell/Icon.svelte';
 	import { projectStore } from '$lib/stores/project.svelte';
 	import { timelineStore } from '$lib/stores/timeline.svelte';
@@ -110,15 +111,15 @@
 		ctx.fillStyle = grad;
 		ctx.fillRect(0, 0, 1920, 1080);
 
-		ctx.fillStyle = 'var(--ms-text)';
+		ctx.fillStyle = CANVAS_COLORS.text;
 		ctx.fillRect(160, 200, 8, 120);
 
 		ctx.font = 'bold 64px system-ui, sans-serif';
-		ctx.fillStyle = 'var(--ms-text)';
+		ctx.fillStyle = CANVAS_COLORS.text;
 		ctx.fillText(tmpl.name.toUpperCase(), 190, 260);
 
 		ctx.font = '32px system-ui, sans-serif';
-		ctx.fillStyle = 'var(--ms-text-secondary)';
+		ctx.fillStyle = CANVAS_COLORS.textSecondary;
 		ctx.fillText(tmpl.description.slice(0, 60) + '...', 190, 310);
 
 		const dataUrl = canvas.toDataURL('image/png');

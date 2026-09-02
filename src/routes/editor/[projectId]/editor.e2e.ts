@@ -927,4 +927,109 @@ test.describe('editor workspace smoke test', () => {
 
 		rmSync(fixtureDir, { recursive: true, force: true });
 	});
+	test('a real video draws its own frames on the clip', async ({ page }) => {
+		// Every other fixture in this file is fake bytes, which decode to nothing.
+		// That means no test here has ever exercised the decode path, and a clip
+		// that renders as an empty coloured block looks identical to one whose
+		// thumbnails never arrived. This builds an actually-decodable video in
+		// the page and asserts the frames reach the timeline.
+		await page.goto('/');
+
+		const base64 = await page.evaluate(async () => {
+			const canvas = document.createElement('canvas');
+			canvas.width = 320;
+			canvas.height = 180;
+			const ctx = canvas.getContext('2d')!;
+			const stream = canvas.captureStream(30);
+			const chunks: Blob[] = [];
+			const rec = new MediaRecorder(stream, { mimeType: 'video/webm' });
+			rec.ondataavailable = (e) => chunks.push(e.data);
+			rec.start();
+
+			// Each frame a different hue, so a captured thumbnail cannot be
+			// mistaken for a blank canvas.
+			await new Promise<void>((resolve) => {
+				let i = 0;
+				const id = setInterval(() => {
+					ctx.fillStyle = `hsl(${(i * 37) % 360}, 85%, 50%)`;
+					ctx.fillRect(0, 0, 320, 180);
+					if (++i > 60) {
+						clearInterval(id);
+						resolve();
+					}
+				}, 25);
+			});
+
+			rec.stop();
+			await new Promise((resolve) => (rec.onstop = resolve));
+			const blob = new Blob(chunks, { type: 'video/webm' });
+			return await new Promise<string>((resolve) => {
+				const reader = new FileReader();
+				reader.onload = () => resolve((reader.result as string).split(',')[1]);
+				reader.readAsDataURL(blob);
+			});
+		});
+
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-realvideo-'));
+		const clipPath = path.join(fixtureDir, 'colours.webm');
+		writeFileSync(clipPath, Buffer.from(base64, 'base64'));
+
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'colours.webm' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		const frames = page.locator('.clip-frame');
+		await expect(frames.first()).toBeVisible();
+
+		// Each frame must carry a real image, not the transparent placeholder.
+		await expect
+			.poll(
+				async () =>
+					await frames.evaluateAll((els) =>
+						els.filter((el) => {
+							const bg = getComputedStyle(el).backgroundImage;
+							return bg.startsWith('url(') && bg.length > 200;
+						}).length
+					),
+				{ timeout: 8000 }
+			)
+			.toBeGreaterThan(2);
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+	test('a title stays editable text instead of becoming a picture of text', async ({ page }) => {
+		// Titles were rasterised to a 1920x1080 PNG the moment they were added,
+		// so the words became pixels and the string that made them was thrown
+		// away. Nothing could change a typo afterwards.
+		await page.goto('/');
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await page.locator('.rail').getByRole('button', { name: 'Text' }).click();
+
+		await page.locator('.preset-row').first().click();
+
+		const clip = page.locator('.timeline-clip-block').first();
+		await expect(clip).toBeVisible();
+		await clip.click();
+
+		// The words reach the preview as text, not as an image.
+		const layer = page.locator('.canvas-text-layer').first();
+		await expect(layer).toBeVisible();
+		const original = (await layer.textContent())!.trim();
+		expect(original.length).toBeGreaterThan(0);
+
+		// And the clip on the timeline says the same thing.
+		await expect(clip).toContainText(original);
+
+		// Now change them, which was the whole impossibility before.
+		const field = page.locator('.inspector-sidebar').getByRole('textbox', { name: 'Title text' });
+		await field.fill('Rewritten on the timeline');
+
+		await expect(layer).toHaveText('Rewritten on the timeline');
+		await expect(clip).toContainText('Rewritten on the timeline');
+
+		// One undo, not one per keystroke.
+		await page.keyboard.press('Control+z');
+		await expect(layer).toHaveText(original);
+	});
 });

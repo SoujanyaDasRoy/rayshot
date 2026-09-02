@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { CANVAS_COLORS } from '$lib/utils/canvasPalette';
+	import { SetClipTextCommand } from '$lib/core/commands/setClipText';
 	import Icon from '$lib/features/shell/Icon.svelte';
 	import { VIDEO_EFFECTS, AUDIO_EFFECTS, effectById } from '$lib/core/effects/effectRegistry';
 	import { onDestroy } from 'svelte';
@@ -528,7 +530,7 @@
 		canvas.height = 90;
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return placeholderThumbnail;
-		ctx.fillStyle = 'var(--ms-void)';
+		ctx.fillStyle = CANVAS_COLORS.void;
 		ctx.fillRect(0, 0, 160, 90);
 		ctx.strokeStyle = color;
 		ctx.lineWidth = 2;
@@ -633,175 +635,65 @@
 		}
 	}
 
-	// Text Presets Rendering
-	async function createTextPresetBlob(preset: TextPreset): Promise<{ blob: Blob; dataUrl: string }> {
-		const canvas = document.createElement('canvas');
-		canvas.width = 1920;
-		canvas.height = 1080;
-		const ctx = canvas.getContext('2d');
-		if (!ctx) throw new Error('Canvas context not available');
-
-		ctx.clearRect(0, 0, 1920, 1080);
-
-		switch (preset.id) {
-			case 'title-card': {
-				const grad = ctx.createRadialGradient(960, 540, 200, 960, 540, 950);
-				grad.addColorStop(0, 'rgba(15, 23, 42, 0.75)');
-				grad.addColorStop(1, 'rgba(2, 6, 23, 0.96)');
-				ctx.fillStyle = grad;
-				ctx.fillRect(0, 0, 1920, 1080);
-
-				ctx.fillStyle = 'var(--ms-text)';
-				ctx.fillRect(860, 430, 200, 4);
-
-				ctx.font = 'bold 82px system-ui, sans-serif';
-				ctx.fillStyle = 'var(--ms-text)';
-				ctx.textAlign = 'center';
-				ctx.textBaseline = 'middle';
-				ctx.fillText('CINEMATIC TITLE', 960, 520);
-
-				ctx.font = '500 32px system-ui, sans-serif';
-				ctx.fillStyle = 'var(--ms-text-secondary)';
-				ctx.fillText('CREATIVE STORYLINE & VISION', 960, 600);
-				break;
-			}
-			case 'lower-third': {
-				const boxX = 140;
-				const boxY = 820;
-				const boxW = 760;
-				const boxH = 140;
-
-				ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
-				ctx.beginPath();
-				ctx.roundRect(boxX, boxY, boxW, boxH, 12);
-				ctx.fill();
-
-				ctx.fillStyle = 'var(--ms-text)';
-				ctx.beginPath();
-				ctx.roundRect(boxX, boxY, 8, boxH, [12, 0, 0, 12]);
-				ctx.fill();
-
-				ctx.font = 'bold 44px system-ui, sans-serif';
-				ctx.fillStyle = 'var(--ms-text)';
-				ctx.textAlign = 'left';
-				ctx.textBaseline = 'top';
-				ctx.fillText('ALEX MORGAN', boxX + 36, boxY + 28);
-
-				ctx.font = '500 26px system-ui, sans-serif';
-				ctx.fillStyle = 'var(--ms-text)';
-				ctx.fillText('Director of Photography', boxX + 36, boxY + 84);
-				break;
-			}
-			case 'subtitles': {
-				const text = 'Exploring the frontier of modern visual storytelling.';
-				ctx.font = '600 38px system-ui, sans-serif';
-				const textMetrics = ctx.measureText(text);
-				const padX = 36;
-				const badgeW = textMetrics.width + padX * 2;
-				const badgeH = 68;
-				const badgeX = (1920 - badgeW) / 2;
-				const badgeY = 920;
-
-				ctx.fillStyle = 'rgba(0, 0, 0, 0.88)';
-				ctx.beginPath();
-				ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
-				ctx.fill();
-
-				ctx.fillStyle = 'var(--ms-text)';
-				ctx.textAlign = 'center';
-				ctx.textBaseline = 'middle';
-				ctx.fillText(text, 960, badgeY + badgeH / 2);
-				break;
-			}
-			case 'callout': {
-				const cX = 200;
-				const cY = 240;
-				const cW = 440;
-				const cH = 110;
-
-				ctx.fillStyle = 'rgba(56, 189, 248, 0.18)';
-				ctx.beginPath();
-				ctx.roundRect(cX, cY, cW, cH, 10);
-				ctx.fill();
-
-				ctx.strokeStyle = 'var(--ms-text)';
-				ctx.lineWidth = 3;
-				ctx.stroke();
-
-				ctx.font = 'bold 34px system-ui, sans-serif';
-				ctx.fillStyle = 'var(--ms-text)';
-				ctx.textAlign = 'left';
-				ctx.textBaseline = 'top';
-				ctx.fillText('★ PRO TIP', cX + 24, cY + 20);
-
-				ctx.font = '500 24px system-ui, sans-serif';
-				ctx.fillStyle = 'var(--ms-text)';
-				ctx.fillText('High Dynamic Range 4K', cX + 24, cY + 62);
-				break;
-			}
-			case 'minimal-heading': {
-				ctx.font = '300 56px system-ui, sans-serif';
-				ctx.fillStyle = 'var(--ms-text)';
-				ctx.textAlign = 'left';
-				ctx.textBaseline = 'top';
-				ctx.fillText('CHAPTER ONE', 160, 160);
-
-				ctx.fillStyle = 'var(--ms-text)';
-				ctx.fillRect(160, 236, 120, 3);
-				break;
-			}
-		}
-
-		const dataUrl = canvas.toDataURL('image/png');
-		const blob = await new Promise<Blob>((resolve) => {
-			canvas.toBlob((b) => resolve(b || new Blob()), 'image/png');
-		});
-
-		return { blob, dataUrl };
-	}
-
 	async function handleAddTextPreset(preset: TextPreset) {
 		try {
-			const { blob, dataUrl } = await createTextPresetBlob(preset);
 			const assetId = crypto.randomUUID();
-			const filename = `${preset.name.replace(/\s+/g, '_')}.png`;
 
+			// A title carries no bytes. It used to be flattened to a 1920x1080
+			// PNG here, which made it uneditable the moment it existed — the
+			// words became pixels and the string that produced them was dropped.
 			const mediaAsset: MediaAsset = {
 				id: assetId,
-				filename,
-				sourceBlob: blob,
-				type: 'image',
+				filename: preset.name,
+				type: 'text',
 				duration: preset.duration,
 				width: 1920,
 				height: 1080,
-				mimeType: 'image/png',
 				createdAt: Date.now(),
 				modifiedAt: Date.now()
 			};
 
 			addAsset(mediaAsset);
 
-			thumbnailCache.set(assetId, dataUrl);
-
 			const project = get(projectStore);
 			if (project && project.activeSequenceId) {
 				const sequence = project.sequences.find((s) => s.id === project.activeSequenceId);
 				if (sequence) {
+					// A title belongs on a caption track when there is one; that is
+					// what the track type is for.
+					const subtitleTrack = sequence.tracks.find((t) => t.type === 'subtitle');
 					const videoTracks = sequence.tracks.filter((t) => t.type === 'video');
-					const targetTrack = videoTracks.length > 1 ? videoTracks[1] : (videoTracks[0] ?? sequence.tracks[0]);
+					const targetTrack =
+						subtitleTrack ??
+						(videoTracks.length > 1 ? videoTracks[1] : (videoTracks[0] ?? sequence.tracks[0]));
+
 					if (targetTrack) {
-						const playheadTime = get(playbackStore).currentTime;
 						const addCmd = new AddClipCommand({
 							mediaAssetId: assetId,
 							trackId: targetTrack.id,
-							position: playheadTime
+							position: get(playbackStore).currentTime
 						});
 						commandProcessor.execute(addCmd);
+
+						const newClipId = addCmd.getCreatedClipId();
+						if (newClipId) {
+							commandProcessor.execute(
+								new SetClipTextCommand({
+									clipId: newClipId,
+									text: {
+										content: preset.previewText,
+										fontSize: preset.id === 'lower-third' ? 56 : 84,
+										align: preset.id === 'lower-third' ? 'left' : 'center',
+										color: CANVAS_COLORS.text
+									}
+								})
+							);
+						}
 					}
 				}
 			}
 
-			showToast(`Added text preset "${preset.name}" to timeline`);
+			showToast(`Added "${preset.name}" — edit the words in the Inspector`);
 		} catch (err) {
 			console.error('Failed to add text preset:', err);
 		}
@@ -1566,13 +1458,18 @@
 		border-color: var(--ms-text);
 	}
 
+	/* Anchored to the bottom, and actually opaque. It sat at the top over
+	   --ms-material, which is rgba(255,255,255,0.032) — so a confirmation
+	   printed itself across the very row you had just clicked. */
 	.drawer-toast {
 		position: absolute;
-		top: 42px;
+		bottom: 12px;
 		left: 12px;
 		right: 12px;
 		z-index: 100;
-		background: var(--ms-material);
+		background: var(--ms-raised);
+		backdrop-filter: blur(24px) saturate(0%);
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
 		border: 1px solid var(--ms-text);
 		color: var(--ms-text);
 		font-size: 0.68rem;

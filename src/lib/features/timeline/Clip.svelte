@@ -69,11 +69,8 @@
 	const showName = $derived(width > 88);
 	const showDuration = $derived(width > 168);
 
-	const captionText = $derived(
-		typeof clip.filters?.text === 'string' && clip.filters.text.trim()
-			? (clip.filters.text as string)
-			: $assetName
-	);
+	const captionText = $derived(clip.text?.content?.trim() || $assetName);
+	const isTextClip = $derived(!!clip.text || $assetType === 'text');
 
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Enter' || event.key === ' ') {
@@ -164,7 +161,7 @@
 					{/each}
 				</div>
 			{/if}
-		{:else if trackType === 'subtitle'}
+		{:else if isTextClip || trackType === 'subtitle'}
 			<!-- A caption clip should read as its own words. Falls back to the
 			     filename, because real text clips do not exist yet — titles are
 			     rasterised at insert. -->
@@ -323,7 +320,9 @@
 		background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.72));
 	}
 
-	.timeline-clip-block.subtitle .clip-meta {
+	/* A title's words are the label; a filename underneath it would be noise. */
+	.timeline-clip-block.subtitle .clip-meta,
+	.timeline-clip-block.text .clip-meta {
 		display: none;
 	}
 

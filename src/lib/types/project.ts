@@ -7,7 +7,9 @@ export interface MediaAsset {
 	// IndexedDB, or when the media is genuinely gone (imported on another
 	// device). Callers must guard — see rehydrateAssetBlobs.
 	sourceBlob?: Blob;
-	type: 'video' | 'audio' | 'image';
+	// 'text' assets carry no bytes: a title is a string plus a duration, and
+	// the string lives on the clip. See Clip.text.
+	type: 'video' | 'audio' | 'image' | 'text';
 	duration: number; // in seconds
 	width?: number;
 	height?: number;
@@ -41,6 +43,21 @@ export interface Track {
 	hidden?: boolean;
 }
 
+/**
+ * A title, as text rather than as a picture of text.
+ *
+ * Titles used to be rasterised to a 1920x1080 PNG at insert, which made them
+ * uneditable the instant they existed: the words were pixels, and the string
+ * that produced them was thrown away.
+ */
+export interface TextContent {
+	content: string;
+	/** Pixels at the sequence's own resolution, so it scales with the frame. */
+	fontSize: number;
+	align: 'left' | 'center' | 'right';
+	color: string;
+}
+
 export interface Clip {
 	id: string;
 	mediaAssetId: string;
@@ -64,6 +81,8 @@ export interface Clip {
 		volume: number; // 0 to 1
 		mute: boolean;
 	};
+	/** Present on title clips. The words, not a picture of them. */
+	text?: TextContent;
 	// Playback speed is NOT stored. It is the ratio between the clip's source
 	// span and its timeline length — see utils/clipTiming.clipRate. A stored
 	// rate alongside that ratio is two representations of one fact, and they
