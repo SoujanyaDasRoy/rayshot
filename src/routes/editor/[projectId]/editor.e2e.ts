@@ -220,6 +220,65 @@ test.describe('editor workspace smoke test', () => {
 		rmSync(fixtureDir, { recursive: true, force: true });
 	});
 
+	test('tracks have real lanes, real labels and a subtitle type', async ({ page }) => {
+		await page.goto('/');
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		// Lanes were 24/20/16px because Tailwind class names (w-48, h-24) were
+		// transcribed into CSS as literal pixels, making the whole timeline about
+		// a quarter of its intended size.
+		const lane = page.locator('.track-row-lane').first();
+		const laneHeight = await lane.evaluate((el) => parseFloat(getComputedStyle(el).height));
+		expect(laneHeight).toBeGreaterThan(40);
+
+		// Every label row must match its lane exactly, or the two columns drift
+		// apart and the error compounds down the stack. Checked across all rows,
+		// not just the first: the sidebar is a flex column, so the mismatch only
+		// appears once enough tracks exist to overflow it.
+		await page.getByRole('button', { name: '+ Video' }).click();
+		await page.getByRole('button', { name: '+ Audio' }).click();
+		const pairs = await page.evaluate(() => {
+			const lanes = [...document.querySelectorAll('.track-row-lane')];
+			const rows = [...document.querySelectorAll('.track-label-row')];
+			return lanes.map((lane, i) => [
+				parseFloat(getComputedStyle(lane).height),
+				parseFloat(getComputedStyle(rows[i]).height)
+			]);
+		});
+		expect(pairs.length).toBeGreaterThan(4);
+		for (const [laneH, rowH] of pairs) {
+			expect(Math.abs(laneH - rowH), `lane ${laneH} vs row ${rowH}`).toBeLessThanOrEqual(1);
+		}
+
+		// Subtitle is a real third type; the old label maths produced a
+		// mis-numbered audio track for anything that was not video.
+		await page.getByRole('button', { name: '+ Subtitle' }).click();
+		await expect(page.locator('.track-label-row.subtitle')).toHaveCount(1);
+		await expect(page.locator('.track-id-badge', { hasText: 'S1' })).toBeVisible();
+	});
+
+	test('track mute and lock survive a reload, and colour is user-chosen', async ({ page }) => {
+		// These were component-local $state: the buttons toggled, nothing read
+		// them, and nothing survived a reload.
+		await page.goto('/');
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		const firstRow = page.locator('.track-label-row').first();
+		await firstRow.getByRole('button', { name: 'Mute track' }).click();
+		await expect(firstRow.getByRole('button', { name: 'Unmute track' })).toBeVisible();
+
+		// Undo is real now, because it goes through a command.
+		await page.keyboard.press('Control+z');
+		await expect(firstRow.getByRole('button', { name: 'Mute track' })).toBeVisible();
+
+		// Colour: the one place user data is allowed to be coloured.
+		await firstRow.getByRole('button', { name: 'Track colour' }).click();
+		await page.getByRole('button', { name: 'Teal' }).click();
+		await expect
+			.poll(() => firstRow.evaluate((el) => getComputedStyle(el).borderLeftColor))
+			.not.toBe('rgba(0, 0, 0, 0)');
+	});
+
 	test('/ redirects into the editor, and the editing surface is actually reachable', async ({ page }) => {
 		const errors: string[] = [];
 		page.on('pageerror', (err) => errors.push(err.message));

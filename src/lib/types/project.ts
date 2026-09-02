@@ -24,11 +24,19 @@ export interface MediaAsset {
 
 export interface Track {
 	id: string;
-	type: 'video' | 'audio';
+	type: 'video' | 'audio' | 'subtitle';
 	order: number;
 	// Tracks don't directly contain clips - they reference clip instances
 	// but for simplicity in the store, we'll maintain an ordered list
 	clipInstances: string[]; // Array of clip instance IDs in order
+	/** User-chosen, and the one place colour is allowed outside the brand mark. */
+	color?: string;
+	/** Overrides the per-type default. See trackModel.trackHeight. */
+	height?: number;
+	name?: string;
+	locked?: boolean;
+	muted?: boolean;
+	hidden?: boolean;
 }
 
 export interface Clip {

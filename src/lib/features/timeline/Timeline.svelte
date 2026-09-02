@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { trackLabels, trackHeight, TRACK_COLORS, DEFAULT_TRACK_COLOR } from '$lib/utils/trackModel';
+	import { SetTrackPropertyCommand } from '$lib/core/commands/setTrackProperty';
+	import { DeleteTrackCommand } from '$lib/core/commands/deleteTrack';
 	import { onMount } from 'svelte';
 	import { timelineStore, timelineActions } from '$lib/stores/timeline.svelte';
 	import { projectStore } from '$lib/stores/project.svelte';
@@ -46,6 +49,23 @@
 	let dragStartClipStartTime = 0;
 	let dragOffsetX = 0;
 	let draggedTime = 0;
+	// Which lane the pointer is currently over, for cross-track drops.
+	let dragOverTrackId = $state<string | null>(null);
+	let colorMenuTrackId = $state<string | null>(null);
+
+	// Each type numbers independently, so a subtitle track is S1 and not a
+	// mis-numbered audio track.
+	const labels = $derived(trackLabels($tracks));
+
+	function setTrackProp(trackId: string, property: 'color' | 'locked' | 'muted' | 'hidden', value: unknown) {
+		commandProcessor.execute(
+			new SetTrackPropertyCommand({ trackId, property, value: value as never })
+		);
+	}
+
+	function removeTrack(trackId: string) {
+		commandProcessor.execute(new DeleteTrackCommand({ trackId }));
+	}
 
 	let isTrimming = $state(false);
 	let trimSide = $state<'start' | 'end' | null>(null);
@@ -113,7 +133,10 @@
 		if (!clip || !tracksAreaRef) return;
 
 		const rect = tracksAreaRef.getBoundingClientRect();
-		const mouseX = event.clientX - rect.left + (timelineScrollContainer?.scrollLeft ?? 0);
+		// .tracks-stage-canvas already translates with the scroll, so its rect is
+		// scroll-relative. Adding scrollLeft here double-counted it and threw every
+		// grab, trim, drop and scrub off once the timeline was scrolled.
+		const mouseX = event.clientX - rect.left;
 		const zoom = $timelineStore.zoomLevel;
 
 		const clipStartPx = timeToPixels(clip.timelineStart, zoom);
@@ -155,7 +178,10 @@
 	function handleRulerScrub(event: MouseEvent) {
 		if (!tracksAreaRef) return;
 		const rect = tracksAreaRef.getBoundingClientRect();
-		const mouseX = event.clientX - rect.left + (timelineScrollContainer?.scrollLeft ?? 0);
+		// .tracks-stage-canvas already translates with the scroll, so its rect is
+		// scroll-relative. Adding scrollLeft here double-counted it and threw every
+		// grab, trim, drop and scrub off once the timeline was scrolled.
+		const mouseX = event.clientX - rect.left;
 		const targetTime = Math.max(0, pixelsToTime(mouseX, $timelineStore.zoomLevel));
 
 		const snapTarget = findSnapTarget(targetTime, calculateSnappingTargets());
@@ -165,7 +191,10 @@
 	function handleWindowMousemove(event: MouseEvent) {
 		if (!tracksAreaRef) return;
 		const rect = tracksAreaRef.getBoundingClientRect();
-		const mouseX = event.clientX - rect.left + (timelineScrollContainer?.scrollLeft ?? 0);
+		// .tracks-stage-canvas already translates with the scroll, so its rect is
+		// scroll-relative. Adding scrollLeft here double-counted it and threw every
+		// grab, trim, drop and scrub off once the timeline was scrolled.
+		const mouseX = event.clientX - rect.left;
 		const zoom = $timelineStore.zoomLevel;
 
 		if (isScrubbing) {
@@ -256,6 +285,10 @@
 					}
 				}
 			}
+			// Vertical drag: MoveClipCommand always supported a different track,
+			// only the UI could not express it. A locked lane refuses the drop.
+			const target = active?.tracks.find((t) => t.id === dragOverTrackId);
+			if (target && !target.locked) currentTrackId = target.id;
 			if (currentTrackId) {
 				const moveCmd = new MoveClipCommand({
 					clipId: draggingClipId,
@@ -357,7 +390,7 @@
 		};
 	});
 
-	function handleAddTrack(type: 'video' | 'audio') {
+	function handleAddTrack(type: 'video' | 'audio' | 'subtitle') {
 		const addTrackCmd = new AddTrackCommand({
 			type,
 			index: $tracks.length
@@ -439,6 +472,14 @@
 					</svg>
 					<span>+ Audio</span>
 				</button>
+				<button class="t-btn add-track-btn" title="Add Subtitle Track" onclick={() => handleAddTrack('subtitle')}>
+					<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="3" y="5" width="18" height="14" rx="2" />
+						<path d="M7 14h5" />
+						<path d="M15 14h2" />
+					</svg>
+					<span>+ Subtitle</span>
+				</button>
 			</div>
 		</div>
 
@@ -481,9 +522,12 @@
 				<span class="tracks-header-label">TRACKS</span>
 			</div>
 			{#each $tracks as track, index}
-				{@const videoTracks = $tracks.filter((t) => t.type === 'video')}
-				{@const trackLabel = track.type === 'video' ? `V${index + 1}` : `A${index + 1 - videoTracks.length}`}
-				<div class="track-label-row {track.type}">
+				{@const trackLabel = labels[index]}
+				<div
+					class="track-label-row {track.type}"
+					style="height: {trackHeight(track)}px; --track-color: {track.color ?? DEFAULT_TRACK_COLOR};"
+					class:locked={track.locked}
+				>
 					<div class="track-id-badge {track.type}">
 						{#if track.type === 'video'}
 							<svg
@@ -520,80 +564,64 @@
 					</div>
 
 					<div class="track-state-icons">
+						<!-- Colour is user data, and the one place colour is allowed:
+						     it is how an editor tells dialogue from music at a glance. -->
 						<button
-							class="track-icon-btn mute"
-							class:active={trackMutes[track.id]}
-							onclick={() => (trackMutes[track.id] = !trackMutes[track.id])}
-							title={trackMutes[track.id] ? 'Unmute Track' : 'Mute Track'}
-							aria-label={trackMutes[track.id] ? 'Unmute Track' : 'Mute Track'}
+							class="track-swatch"
+							style="background: {track.color ?? DEFAULT_TRACK_COLOR};"
+							onclick={() => (colorMenuTrackId = colorMenuTrackId === track.id ? null : track.id)}
+							title="Track colour"
+							aria-label="Track colour"
+							aria-expanded={colorMenuTrackId === track.id}
+						></button>
+
+						{#if colorMenuTrackId === track.id}
+							<div class="swatch-menu" role="menu">
+								{#each TRACK_COLORS as swatch (swatch.value)}
+									<button
+										class="swatch-option"
+										class:selected={(track.color ?? DEFAULT_TRACK_COLOR) === swatch.value}
+										style="background: {swatch.value};"
+										title={swatch.name}
+										aria-label={swatch.name}
+										onclick={() => {
+											setTrackProp(track.id, 'color', swatch.value);
+											colorMenuTrackId = null;
+										}}
+									></button>
+								{/each}
+							</div>
+						{/if}
+
+						<button
+							class="track-icon-btn"
+							class:active={track.muted}
+							onclick={() => setTrackProp(track.id, 'muted', !track.muted)}
+							title={track.muted ? 'Unmute track' : 'Mute track'}
+							aria-label={track.muted ? 'Unmute track' : 'Mute track'}
+							aria-pressed={!!track.muted}
 						>
-							{#if trackMutes[track.id]}
-								<svg
-									width="12"
-									height="12"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-								>
-									<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-									<line x1="22" y1="9" x2="16" y2="15" />
-									<line x1="16" y1="9" x2="22" y2="15" />
-								</svg>
-							{:else}
-								<svg
-									width="12"
-									height="12"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-								>
-									<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-									<path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-								</svg>
-							{/if}
+							<span class="state-glyph">{track.muted ? 'M' : 'm'}</span>
 						</button>
+
 						<button
-							class="track-icon-btn lock"
-							class:active={trackLocks[track.id]}
-							onclick={() => (trackLocks[track.id] = !trackLocks[track.id])}
-							title={trackLocks[track.id] ? 'Unlock Track' : 'Lock Track'}
-							aria-label={trackLocks[track.id] ? 'Unlock Track' : 'Lock Track'}
+							class="track-icon-btn"
+							class:active={track.locked}
+							onclick={() => setTrackProp(track.id, 'locked', !track.locked)}
+							title={track.locked ? 'Unlock track' : 'Lock track'}
+							aria-label={track.locked ? 'Unlock track' : 'Lock track'}
+							aria-pressed={!!track.locked}
 						>
-							{#if trackLocks[track.id]}
-								<svg
-									width="12"
-									height="12"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-								>
-									<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-									<path d="M7 11V7a5 5 0 0 1 10 0v4" />
-								</svg>
-							{:else}
-								<svg
-									width="12"
-									height="12"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-								>
-									<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-									<path d="M7 11V7a5 5 0 0 1 9.9-1" />
-								</svg>
-							{/if}
+							<span class="state-glyph">{track.locked ? 'L' : 'l'}</span>
+						</button>
+
+						<button
+							class="track-icon-btn"
+							onclick={() => removeTrack(track.id)}
+							title="Delete track"
+							aria-label="Delete {trackLabel} track"
+						>
+							<span class="state-glyph">×</span>
 						</button>
 					</div>
 				</div>
@@ -634,14 +662,18 @@
 
 				<!-- Track Lanes Layer -->
 				<div class="track-lanes-stack">
-					{#each $tracks as track}
+					{#each $tracks as track, laneIndex}
 						<div
 							class="track-row-lane {track.type}"
+							class:drop-target={dragOverTrackId === track.id}
+							class:hidden-track={track.hidden}
+							style="height: {trackHeight(track)}px; --track-color: {track.color ?? DEFAULT_TRACK_COLOR};"
 							data-track-id={track.id}
+							onmouseenter={() => { if (draggingClipId) dragOverTrackId = track.id; }}
 							ondragover={(e) => e.preventDefault()}
 							ondrop={(e) => handleTrackDrop(e, track.id)}
 							role="group"
-							aria-label="{track.type} Track"
+							aria-label="{labels[laneIndex]} track"
 						>
 							{#each track.clipInstances as clipId}
 								{#if $clips.has(clipId)}
@@ -840,20 +872,25 @@
 	}
 
 	/* Track Header Column */
+	/* The old value transcribed Tailwind's `w-48` as 48px; w-48 is 12rem.
+	   Every sizing rule in this file had the same bug, which is why the whole
+	   timeline was roughly a quarter of its intended size. */
 	.track-labels-sidebar {
-		width: 48px; /* w-48 */
-		background: #201f1f; /* surface-container */
-		border-right: 1px solid #494454; /* outline-variant */
+		width: 176px;
+		background: var(--ms-material);
+		border-right: 1px solid var(--ms-edge);
 		display: flex;
 		flex-direction: column;
 		flex-shrink: 0;
 		z-index: 15;
 	}
 
+	/* Must match .timecode-ruler exactly or every label row sits off by the
+	   difference, compounding down the stack. */
 	.ruler-corner-cell {
-		height: 28px;
-		background: #201f1f; /* surface-container */
-		border-bottom: 1px solid #1a1d28;
+		height: 26px;
+		background: var(--ms-material);
+		border-bottom: 1px solid var(--ms-edge);
 		display: flex;
 		align-items: center;
 		padding: 0 10px;
@@ -866,9 +903,15 @@
 		letter-spacing: 0.06em;
 	}
 
+	/* Height comes from the track itself now (see trackModel.trackHeight), so
+	   a label row and its lane cannot drift apart. */
 	.track-label-row {
-		height: 48px;
+		position: relative;
 		display: flex;
+		/* The sidebar is a flex column: without this, rows are compressed once
+		   the stack overflows and drift out of step with their lanes. */
+		flex-shrink: 0;
+		box-sizing: border-box;
 		align-items: center;
 		padding: 0 8px;
 		gap: 6px;
@@ -967,9 +1010,9 @@
 
 	/* Timecode Ruler */
 	.timecode-ruler {
-		height: 8px; /* h-8 */
-		background: #353534; /* surface-container-highest */
-		border-bottom: 1px solid #1a1d28; /* border-border-surface-container-low */
+		height: 26px;
+		background: var(--ms-material);
+		border-bottom: 1px solid var(--ms-edge);
 		position: relative;
 		cursor: pointer;
 		flex-shrink: 0;
@@ -1007,6 +1050,8 @@
 
 	.track-row-lane {
 		position: relative;
+		flex-shrink: 0;
+		box-sizing: border-box;
 		border-bottom: 1px solid #1a1d28;
 		background: repeating-linear-gradient(
 			90deg,
@@ -1017,19 +1062,78 @@
 		);
 	}
 
-	.track-row-lane.video {
-		background-color: rgba(56, 189, 248, 0.015);
-		height: 24px; /* h-24 for main video track */
+	/* Lane heights are data, not CSS — see the style attribute in the markup. */
+	.track-row-lane.drop-target {
+		background-color: rgba(255, 255, 255, 0.05);
+		box-shadow: inset 0 0 0 1px var(--ms-edge-lit);
 	}
 
-	.track-row-lane.audio {
-		background-color: rgba(6, 182, 212, 0.015);
-		height: 20px; /* h-20 for audio track */
+	.track-row-lane.hidden-track {
+		opacity: 0.35;
 	}
 
-	/* Text/Graphics track gets default height */
-	.track-row-lane:not(.video):not(.audio) {
-		height: 16px; /* h-16 for text/graphics track */
+	/* The track's own colour, as a spine down the left of its lane. */
+	.track-row-lane::before {
+		content: '';
+		position: absolute;
+		inset: 0 auto 0 0;
+		width: 2px;
+		background: var(--track-color, transparent);
+		opacity: 0.9;
+		pointer-events: none;
+	}
+
+	.track-label-row {
+		border-left: 3px solid var(--track-color, transparent);
+	}
+
+	.track-label-row.locked .track-id-badge {
+		opacity: 0.5;
+	}
+
+	.track-swatch {
+		width: 12px;
+		height: 12px;
+		flex-shrink: 0;
+		border: 1px solid var(--ms-edge-strong);
+		border-radius: 50%;
+		cursor: pointer;
+		padding: 0;
+	}
+
+	.swatch-menu {
+		position: absolute;
+		left: 8px;
+		top: 100%;
+		z-index: 60;
+		display: grid;
+		grid-template-columns: repeat(4, 16px);
+		gap: 6px;
+		padding: 8px;
+		border: 1px solid var(--ms-edge-strong);
+		border-radius: var(--ms-radius);
+		background: var(--ms-raised);
+		box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
+	}
+
+	.swatch-option {
+		width: 16px;
+		height: 16px;
+		border: 1px solid transparent;
+		border-radius: 50%;
+		cursor: pointer;
+		padding: 0;
+	}
+
+	.swatch-option.selected {
+		border-color: var(--ms-text);
+		box-shadow: 0 0 0 2px var(--ms-void);
+	}
+
+	.state-glyph {
+		font-family: var(--ms-font-mono);
+		font-size: 10px;
+		line-height: 1;
 	}
 
 	/* Snapping Guide Line */

@@ -2,9 +2,11 @@ import { Command } from './base';
 import { projectStore } from '$lib/stores/project.svelte';
 import { get } from 'svelte/store';
 import type { Project, Track, Sequence } from '$lib/types/project';
+// Relative, not $lib: the node Vitest project cannot resolve bare $lib.
+import { makeTrack, type TrackType } from '../../utils/trackModel';
 
 interface AddTrackCommandData {
-	type: 'video' | 'audio';
+	type: TrackType;
 	index: number;
 }
 
@@ -14,12 +16,8 @@ export class AddTrackCommand extends Command {
 
 	constructor(private data: AddTrackCommandData) {
 		super();
-		this.track = {
-			id: `track-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-			type: data.type,
-			order: data.index,
-			clipInstances: []
-		};
+		// One place builds a track, so defaults (colour, lock, mute) cannot drift.
+		this.track = makeTrack(data.type, data.index);
 	}
 
 	execute(): void {

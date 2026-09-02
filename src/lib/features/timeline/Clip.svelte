@@ -21,7 +21,7 @@
 		onTouchstart
 	} = $props<{
 		clip: Clip;
-		trackType?: 'video' | 'audio';
+		trackType?: 'video' | 'audio' | 'subtitle';
 		left: number;
 		width: number;
 		onMousedown: (event: MouseEvent) => void;
