@@ -328,6 +328,37 @@ test.describe('editor workspace smoke test', () => {
 		rmSync(fixtureDir, { recursive: true, force: true });
 	});
 
+	test('the Color page has working curves, which did not exist at all', async ({ page }) => {
+		// The shader has sampled u_curves since it was written and the LUT
+		// flattener already existed; there was simply no way to draw a curve.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-curves-'));
+		const clipPath = path.join(fixtureDir, 'graded.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'graded.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+
+		await page.getByRole('button', { name: 'Color', exact: true }).click();
+		await page.locator('.timeline-clip-block').first().click();
+
+		await page.getByRole('tab', { name: 'Curves' }).click();
+		const surface = page.getByRole('button', { name: /Tone curve/ });
+		await expect(surface).toBeVisible();
+
+		// Identity curve is two points; clicking the plot adds a third.
+		await expect(page.locator('.curve-point')).toHaveCount(2);
+		await surface.click({ position: { x: 60, y: 60 } });
+		await expect(page.locator('.curve-point')).toHaveCount(3);
+
+		// And it is a real edit, so it undoes.
+		await page.keyboard.press('Control+z');
+		await expect(page.locator('.curve-point')).toHaveCount(2);
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
 	test('/ redirects into the editor, and the editing surface is actually reachable', async ({ page }) => {
 		const errors: string[] = [];
 		page.on('pageerror', (err) => errors.push(err.message));

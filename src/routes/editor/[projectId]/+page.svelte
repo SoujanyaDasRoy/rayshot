@@ -20,7 +20,7 @@
 	import Export from '$lib/features/export/Export.svelte';
 	import Sidebar from '$lib/features/shell/Sidebar.svelte';
 	import TopBar from '$lib/features/shell/TopBar.svelte';
-	import ColorGradePanel from '$lib/features/colorgrade/ColorGradePanel.svelte';
+	import ColorPanel from '$lib/features/colorgrade/ColorPanel.svelte';
 	import { pageById, type PageId, type ToolId } from '$lib/features/shell/pages';
 
 	let { data }: { data: { projectId: string } } = $props();
@@ -251,7 +251,7 @@
 							<aside class="right-inspector-col">
 								{#if activePage === 'color'}
 									{#if selectedClip}
-										<ColorGradePanel clip={selectedClip} onChange={() => {}} />
+										<ColorPanel clip={selectedClip} />
 									{:else}
 										<div class="panel-empty">
 											<span class="panel-empty-title">No clip selected</span>
