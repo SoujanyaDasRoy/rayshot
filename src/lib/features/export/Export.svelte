@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { WebGLCompositor } from '$lib/core/rendering/webglCompositor';
+	import { toShaderUniforms } from '$lib/core/rendering/colorGradeUniforms';
 	import { getLayerFilter, getLayerDrawRect } from '$lib/core/rendering/layerCompositing';
 	import { getLayerOpacity } from '$lib/utils/canvasUtils';
 	import { Dialog } from 'bits-ui';
@@ -169,6 +171,16 @@
 			});
 
 			exportStatusText = 'Recording...';
+			// Sized to the export preset: a 1920x1080 default would mean scaling
+			// every frame of a smaller render, and per-frame cost here is baked
+			// into the file as stutter, not just a slower export.
+			let exportCompositor: WebGLCompositor | null = null;
+			try {
+				exportCompositor = new WebGLCompositor(width, height);
+			} catch {
+				exportCompositor = null;
+			}
+
 			recorder.start();
 
 			// Export plays the sequence in real time (like the live preview) so the
@@ -218,16 +230,33 @@
 								// encoded. This was a bare drawImage: no transform, opacity,
 								// filter or colour grade reached the exported file at all.
 								const rect = getLayerDrawRect(clip, width, height);
-								const cssFilter = getLayerFilter(clip);
+								// Video goes through the shader so curves, vignette, grain and
+								// per-channel white balance are baked in, not just the CSS subset.
+								let source = info.el as CanvasImageSource;
+								let gradeInCss = true;
+								if (info.kind === 'video' && exportCompositor) {
+									try {
+										exportCompositor.renderFrame(
+											info.el as HTMLVideoElement,
+											toShaderUniforms(clip.colorGrade)
+										);
+										source = exportCompositor.getCanvas() as CanvasImageSource;
+										gradeInCss = false;
+									} catch {
+										// Fall back to the CSS subset rather than dropping the frame.
+										exportCompositor = null;
+									}
+								}
+								const cssFilter = getLayerFilter(clip, { colorGradeInCss: gradeInCss });
 								ctx.save();
 								ctx.globalAlpha = getLayerOpacity(clip);
 								ctx.filter = cssFilter;
 								if (rect.rotationRad !== 0) {
 									ctx.translate(rect.dx + rect.dw / 2, rect.dy + rect.dh / 2);
 									ctx.rotate(rect.rotationRad);
-									ctx.drawImage(info.el as CanvasImageSource, -rect.dw / 2, -rect.dh / 2, rect.dw, rect.dh);
+									ctx.drawImage(source, -rect.dw / 2, -rect.dh / 2, rect.dw, rect.dh);
 								} else {
-									ctx.drawImage(info.el as CanvasImageSource, rect.dx, rect.dy, rect.dw, rect.dh);
+									ctx.drawImage(source, rect.dx, rect.dy, rect.dw, rect.dh);
 								}
 								ctx.restore();
 							}
@@ -244,6 +273,9 @@
 				}
 				requestAnimationFrame(tick);
 			});
+
+			exportCompositor?.destroy();
+			exportCompositor = null;
 
 			exportStatusText = 'Finalizing video file...';
 			recorder.stop();

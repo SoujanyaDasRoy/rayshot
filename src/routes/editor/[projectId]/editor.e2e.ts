@@ -188,6 +188,38 @@ test.describe('editor workspace smoke test', () => {
 		rmSync(fixtureDir, { recursive: true, force: true });
 	});
 
+	test('the WebGL path renders to a canvas without exhausting GL contexts', async ({ page }) => {
+		// Two things this guards. The old path built a full-resolution PNG per
+		// layer per frame into a $state(new Map()), which Svelte 5 does not proxy,
+		// so it never displayed at all. And it created one compositor per clip —
+		// one live WebGL context each, against a browser cap around 16.
+		const errors: string[] = [];
+		page.on('pageerror', (e) => errors.push(e.message));
+
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-webgl-'));
+		const clipPath = path.join(fixtureDir, 'gl.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[type="file"]:not([webkitdirectory])').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'gl.mp4' }).click();
+
+		// Stack up many clips; one context per clip would blow the cap here.
+		for (let i = 0; i < 20; i++) {
+			await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		}
+		await page.getByRole('button', { name: 'Effects' }).click();
+
+		const lost = await page.evaluate(() => {
+			const probe = document.createElement('canvas');
+			return probe.getContext('webgl2') === null;
+		});
+		expect(lost, 'no WebGL2 context available - earlier contexts were leaked').toBe(false);
+
+		expect(errors.join('; ')).not.toContain('context');
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
 	test('/ redirects into the editor, and the editing surface is actually reachable', async ({ page }) => {
 		const errors: string[] = [];
 		page.on('pageerror', (err) => errors.push(err.message));

@@ -78,10 +78,16 @@
 	let objectUrls = $state<Map<string, string>>(new Map());
 	const mediaElements = new Map<string, HTMLMediaElement>();
 
-	// WebGL compositors for video layers: keyed by clip ID
-	const compositors = new Map<string, WebGLCompositor>();
-	// Object URLs for WebGL output images
-	const webglUrls = $state<Map<string, string>>(new Map());
+	// One compositor for the whole component, not one per clip: each is a live
+	// WebGL context and browsers cap those around 16. Canvas elements are
+	// registered per clip and the compositor renders into whichever is active.
+	let compositor: WebGLCompositor | null = null;
+	let webglUnavailable = $state(false);
+	const glCanvases = new Map<string, HTMLCanvasElement>();
+	// Clips the shader has actually painted at least once. Until then CSS keeps
+	// carrying the grade, so there is never a frame where neither path applies
+	// it — which is what happens for media that never decodes.
+	let glRendered = $state<Set<string>>(new Set());
 
 	$effect(() => {
 		const layers = $activeLayers;
@@ -178,11 +184,7 @@
 				syncElement(el, layer.clip, layer.sourceTime);
 				// If it's a video layer, update the WebGL output
 				if (layer.asset.type === 'video') {
-					updateWebglOutput(
-						layer.clip.id,
-						el as HTMLVideoElement,
-						toShaderUniforms(layer.clip.colorGrade)
-					);
+					renderWebgl(layer.clip.id, el as HTMLVideoElement, layer.clip);
 				}
 			}
 		}
@@ -192,12 +194,10 @@
 		for (const url of objectUrls.values()) {
 			URL.revokeObjectURL(url);
 		}
-		for (const url of webglUrls.values()) {
-			URL.revokeObjectURL(url);
-		}
 		mediaElements.clear();
-		compositors.forEach(comp => comp.destroy());
-		compositors.clear();
+		compositor?.destroy();
+		compositor = null;
+		glCanvases.clear();
 	});
 
 	function getLayerTransform(clip: Clip): string {
@@ -209,36 +209,92 @@
 	}
 
 
-	// Function to create or get a WebGL compositor for a video clip
-	function getVideoCompositor(clipId: string): WebGLCompositor {
-		if (!compositors.has(clipId)) {
-			// Create a new compositor with default size (will be resized later)
-			const compositor = new WebGLCompositor();
-			compositors.set(clipId, compositor);
-		}
-		return compositors.get(clipId)!;
+	/**
+	 * Register the visible <canvas> a clip renders into. The compositor draws
+	 * straight to it — the old path went OffscreenCanvas -> convertToBlob ->
+	 * object URL -> <img>, i.e. a full-resolution PNG encode per layer per
+	 * frame, into a $state(new Map()) that Svelte 5 does not proxy, so the
+	 * result never displayed anyway.
+	 */
+	function glCanvas(node: HTMLCanvasElement, clipId: string) {
+		glCanvases.set(clipId, node);
+		return {
+			destroy() {
+					glCanvases.delete(clipId);
+				if (glRendered.has(clipId)) {
+					const next = new Set(glRendered);
+					next.delete(clipId);
+					glRendered = next;
+				}
+			}
+		};
 	}
 
-	// Function to update the WebGL output URL for a video clip
-	async function updateWebglOutput(clipId: string, videoEl: HTMLVideoElement, colorGrade: any): Promise<void> {
-		// Revoke the previous URL for this clipId if exists
-		const oldUrl = webglUrls.get(clipId);
-		if (oldUrl) {
-			URL.revokeObjectURL(oldUrl);
+	/**
+	 * Drive GL renders from the decoder, not from the store.
+	 *
+	 * Setting video.currentTime and rendering in the same tick paints the
+	 * *previous* frame, because the decoder has not produced the new one yet.
+	 * That is invisible while a <video> paints itself, but very visible once
+	 * we are copying its texture. requestVideoFrameCallback fires exactly when
+	 * a new frame is ready; 'seeked' covers paused scrubbing.
+	 */
+	function glSource(node: HTMLVideoElement, params: { clipId: string; clip: Clip }) {
+		let current = params;
+		let handle = 0;
+		type RVFC = HTMLVideoElement & {
+			requestVideoFrameCallback?: (cb: () => void) => number;
+			cancelVideoFrameCallback?: (h: number) => void;
+		};
+		const v = node as RVFC;
+
+		const draw = () => renderWebgl(current.clipId, node, current.clip);
+
+		const pump = () => {
+			draw();
+			if (v.requestVideoFrameCallback) handle = v.requestVideoFrameCallback(pump);
+		};
+
+		if (v.requestVideoFrameCallback) {
+			handle = v.requestVideoFrameCallback(pump);
 		}
+		node.addEventListener('seeked', draw);
+		node.addEventListener('loadeddata', draw);
+
+		return {
+			update(next: { clipId: string; clip: Clip }) {
+				current = next;
+				draw();
+			},
+			destroy() {
+				if (handle && v.cancelVideoFrameCallback) v.cancelVideoFrameCallback(handle);
+				node.removeEventListener('seeked', draw);
+				node.removeEventListener('loadeddata', draw);
+			}
+		};
+	}
+
+	function renderWebgl(clipId: string, videoEl: HTMLVideoElement, clip: Clip): void {
+		if (webglUnavailable) return;
+		const target = glCanvases.get(clipId);
+		if (!target || videoEl.readyState < 2) return;
 
 		try {
-			const compositor = getVideoCompositor(clipId);
-			compositor.renderFrame(videoEl, colorGrade);
-			const offscreen = compositor.getCanvas() as OffscreenCanvas;
-			// Convert OffscreenCanvas to Blob and create object URL
-			const blob: Blob = await offscreen.convertToBlob({ type: 'image/png' });
-			const url = URL.createObjectURL(blob);
-			// Update the reactive map
-			webglUrls.set(clipId, url);
-		} catch (err) {
-			// If WebGL2 is not available, fallback will be used
-			console.warn('WebGL2 not available or failed, falling back to CSS filters:', err);
+			if (!compositor) {
+				const res = $activeSequence?.resolution;
+				compositor = new WebGLCompositor(res?.width ?? 1920, res?.height ?? 1080, target);
+			}
+			compositor.renderFrame(videoEl, toShaderUniforms(clip.colorGrade));
+			if (!glRendered.has(clipId)) {
+				glRendered = new Set(glRendered).add(clipId);
+			}
+		} catch (e) {
+			// No WebGL2, or the context was lost: fall back to the CSS path,
+			// which is a real path in its own right (it serves image layers too).
+			console.warn('WebGL compositing unavailable, using CSS filters', e);
+			webglUnavailable = true;
+			compositor = null;
+			glRendered = new Set();
 		}
 	}
 </script>
@@ -249,10 +305,13 @@
 		{#if $visualLayers.length > 0}
 			{#each $visualLayers as layer (layer.clip.id)}
 				{@const url = objectUrls.get(layer.asset.id)}
-				{@const webglUrl = webglUrls.get(layer.clip.id)}
+				{@const gradeInCss =
+					webglUnavailable ||
+					layer.asset.type !== 'video' ||
+					!glRendered.has(layer.clip.id)}
 				<div
 					class="canvas-layer"
-					style="transform: {getLayerTransform(layer.clip)}; filter: {getLayerFilter(layer.clip)}; opacity: {getLayerOpacity(layer.clip)}; z-index: {layer.trackOrder};"
+					style="transform: {getLayerTransform(layer.clip)}; filter: {getLayerFilter(layer.clip, { colorGradeInCss: gradeInCss })}; opacity: {getLayerOpacity(layer.clip)}; z-index: {layer.trackOrder};"
 				>
 					{#if !layer.asset.sourceBlob}
 						<!-- Bytes are gone (imported on another device, or evicted from
@@ -262,16 +321,10 @@
 							<span class="media-offline-name">{layer.asset.filename}</span>
 						</div>
 					{:else if layer.asset.type === 'video'}
-						{#if webglUrl}
-							<!-- Use WebGL output -->
-							<img
-								class="canvas-media-element"
-								src={webglUrl}
-								alt={layer.asset.filename}
-							/>
-							<!-- Hidden video element for playback and texture source -->
+						{#if webglUnavailable}
+							<!-- Genuine fallback: no WebGL2, or the context was lost.
+							     CSS filters carry the expressible part of the grade. -->
 							<video
-								style="display: none;"
 								use:mediaSync={{ clip: layer.clip, sourceTime: layer.sourceTime }}
 								class="canvas-media-element"
 								src={url}
@@ -281,10 +334,12 @@
 								<track kind="captions" />
 							</video>
 						{:else}
-							<!-- Fallback to video element with CSS filters -->
+							<canvas class="canvas-media-element" use:glCanvas={layer.clip.id}></canvas>
+							<!-- Decodes and drives audio; the canvas above is what you see. -->
 							<video
+								style="display: none;"
 								use:mediaSync={{ clip: layer.clip, sourceTime: layer.sourceTime }}
-								class="canvas-media-element"
+								use:glSource={{ clipId: layer.clip.id, clip: layer.clip }}
 								src={url}
 								playsinline
 								muted={$playbackStore.isMuted || layer.clip.audioParameters?.mute}

@@ -15,6 +15,8 @@ uniform float u_exposure;      // -10 to 10 (stops)
 uniform float u_contrast;      // -1 to 1
 uniform float u_highlights;    // -1 to 1
 uniform float u_shadows;       // -1 to 1
+uniform float u_whites;        // -1 to 1
+uniform float u_blacks;        // -1 to 1
 uniform float u_temperature;   // -1 to 1
 uniform float u_tint;          // -1 to 1
 uniform float u_saturation;    // -1 to 1
@@ -24,45 +26,41 @@ uniform float u_grain;         // 0 to 1
 
 // Helper functions
 
-// Convert temperature to Kelvin
-float tempToKelvin(float temp) {
-  // Map -1 to 1 to 2000K to 15000K
-  return mix(2000.0, 15000.0, (temp + 1.0) * 0.5);
-}
-
-// Simple white balance using temperature and tint
-vec3 whiteBalance(vec3 color, float temp, float tint) {
-  float kelvin = tempToKelvin(temp);
-
-  // Approximate black body RGB for given kelvin
+// Blackbody colour for a colour temperature, as linear-ish RGB.
+vec3 kelvinRGB(float kelvin) {
   float t = kelvin / 100.0;
   float r, g, b;
 
   if (t <= 66.0) {
     r = 255.0;
-    g = t;
-    g = 99.4708025861 * log(g) - 161.1195681661;
-    if (t <= 19.0) {
-      b = 0.0;
-    } else {
-      b = t - 10.0;
-      b = 138.5177312231 * log(b) - 305.0447927307;
-    }
+    g = 99.4708025861 * log(max(t, 1.0)) - 161.1195681661;
+    b = t <= 19.0 ? 0.0 : 138.5177312231 * log(max(t - 10.0, 1.0)) - 305.0447927307;
   } else {
-    r = t - 60.0;
-    r = 329.698727446 * pow(r, -0.1332047592);
-    g = t - 60.0;
-    g = 288.1221695283 * pow(g, -0.0755148492);
+    r = 329.698727446 * pow(t - 60.0, -0.1332047592);
+    g = 288.1221695283 * pow(t - 60.0, -0.0755148492);
     b = 255.0;
   }
 
-  vec3 whiteBalanceColor = vec3(r/255.0, g/255.0, b/255.0);
+  return clamp(vec3(r, g, b) / 255.0, vec3(0.0), vec3(1.0));
+}
 
-  // Apply tint (green-magenta)
-  float tintAdjust = mix(0.0, 0.2, (tint + 1.0) * 0.5); // -1 to 1 -> 0 to 0.2
-  vec3 tintColor = vec3(1.0 - tintAdjust, 1.0, 1.0 - tintAdjust);
+// Map -1..1 onto 2000K..15000K with 0 anchored at the 6500K neutral point.
+// It used to map 0 to 8500K, so an ungraded clip was permanently cooled.
+float tempToKelvin(float temp) {
+  return temp < 0.0 ? mix(2000.0, 6500.0, temp + 1.0) : mix(6500.0, 15000.0, temp);
+}
 
-  return color * whiteBalanceColor * tintColor;
+// White balance, normalised so temp = 0 and tint = 0 are exactly identity.
+vec3 whiteBalance(vec3 color, float temp, float tint) {
+  vec3 target = kelvinRGB(tempToKelvin(temp));
+  vec3 neutral = kelvinRGB(6500.0);
+  vec3 balance = target / max(neutral, vec3(0.0001));
+
+  // Green <-> magenta. Zero means zero; this previously biased by 0.1 at rest.
+  float g = 1.0 - tint * 0.1;
+  vec3 tintColor = vec3(1.0 + tint * 0.05, g, 1.0 + tint * 0.05);
+
+  return color * balance * tintColor;
 }
 
 // S-curve contrast
@@ -72,16 +70,17 @@ float contrastAdjust(float value, float contrast) {
   return 0.5 + (value - 0.5) * (1.0 + contrast * 2.0);
 }
 
-// Vibrance (saturation that protects skin tones)
+// Vibrance: saturation weighted towards already-muted colours.
 vec3 vibranceAdjust(vec3 color, float vibrance) {
   float avg = dot(color, vec3(1.0/3.0));
-  float max = max(color.r, max(color.g, color.b));
-  float saturation = max - avg;
+  float mx = max(color.r, max(color.g, color.b));
+  float sat = clamp((mx - avg) * 2.0, 0.0, 1.0);
 
-  // Less saturation means more vibrance effect
-  float vibranceFactor = clamp(saturation * vibrance, 0.0, 1.0);
-
-  return mix(color, vec3(avg), 1.0 - vibranceFactor);
+  // Muted pixels move more than saturated ones. At vibrance = 0 this is
+  // exactly identity — it used to collapse every pixel to its own average,
+  // i.e. the shader greyed the picture at its default setting.
+  float amount = vibrance * (1.0 - sat);
+  return mix(vec3(avg), color, 1.0 + amount);
 }
 
 // Vignette effect
@@ -130,6 +129,14 @@ void main() {
   lifted.r -= u_shadows * contrasted.r * (1.0 - contrasted.r); // Lift shadows
   lifted.g -= u_shadows * contrasted.g * (1.0 - contrasted.g);
   lifted.b -= u_shadows * contrasted.b * (1.0 - contrasted.b);
+
+  // Whites and blacks act on the extremes rather than the mid-tones. These
+  // uniforms were declared in the Clip type and written by the panel, but
+  // did not exist in the shader at all.
+  vec3 c2 = contrasted * contrasted;
+  vec3 inv = 1.0 - contrasted;
+  lifted += u_whites * c2;
+  lifted -= u_blacks * inv * inv;
 
   // Apply saturation
   float saturation = clamp(u_saturation, -1.0, 1.0);
