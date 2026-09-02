@@ -2,7 +2,12 @@
 	import Icon from '$lib/features/shell/Icon.svelte';
 	import { WebGLCompositor } from '$lib/core/rendering/webglCompositor';
 	import { toShaderUniforms } from '$lib/core/rendering/colorGradeUniforms';
-	import { getLayerFilter, getLayerDrawRect } from '$lib/core/rendering/layerCompositing';
+	import {
+		getLayerFilter,
+		getLayerDrawRect,
+		getLayerBlendMode,
+		blendModeToComposite
+	} from '$lib/core/rendering/layerCompositing';
 	import { getLayerOpacity } from '$lib/utils/canvasUtils';
 	import { audibleTrackIds } from '$lib/utils/trackModel';
 	import { Dialog } from 'bits-ui';
@@ -263,6 +268,8 @@
 								ctx.save();
 								ctx.globalAlpha = getLayerOpacity(clip);
 								ctx.filter = cssFilter;
+								// The 2D equivalent of the preview's mix-blend-mode.
+								ctx.globalCompositeOperation = blendModeToComposite(getLayerBlendMode(clip));
 								if (rect.rotationRad !== 0) {
 									ctx.translate(rect.dx + rect.dw / 2, rect.dy + rect.dh / 2);
 									ctx.rotate(rect.rotationRad);

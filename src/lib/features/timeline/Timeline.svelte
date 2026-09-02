@@ -16,6 +16,8 @@
 	import { SplitClipCommand } from '$lib/core/commands/splitClip';
 	import { DeleteClipCommand } from '$lib/core/commands/deleteClip';
 	import { AddTrackCommand } from '$lib/core/commands/addTrack';
+	import { AddClipEffectCommand } from '$lib/core/commands/addClipEffect';
+	import { effectById } from '$lib/core/effects/effectRegistry';
 	import {
 		PX_PER_SECOND,
 		MIN_ZOOM,
@@ -421,6 +423,14 @@
 		isPanning = true;
 		panStartX = event.clientX;
 		panStartScroll = timelineScrollContainer.scrollLeft;
+	}
+
+	// Dropping an effect on a clip applies it to that clip and selects it, so
+	// the Inspector is already showing the thing you just changed.
+	function handleClipEffectDrop(clipId: string, effectId: string) {
+		if (!effectById(effectId)) return;
+		timelineActions.selectClip(clipId);
+		commandProcessor.execute(new AddClipEffectCommand({ clipId, effectId }));
 	}
 
 	function handleSplit() {
@@ -845,6 +855,7 @@
 										width={widthPx}
 										onMousedown={(e) => handleClipMousedown(e, clip.id)}
 										onTouchstart={(e) => handleClipMousedown(e as unknown as MouseEvent, clip.id)}
+										onEffectDrop={(effectId) => handleClipEffectDrop(clip.id, effectId)}
 									/>
 								{/if}
 							{/each}

@@ -3,6 +3,8 @@ import {
 	VIDEO_EFFECTS,
 	AUDIO_EFFECTS,
 	effectById,
+	paramMeta,
+	PARAM_META,
 	effectsToCssFilter,
 	applyEffectDefaults
 } from '../effectRegistry';
@@ -67,5 +69,44 @@ describe('applyEffectDefaults', () => {
 	test('does not clobber values the user already set', () => {
 		const existing = { blur: 12 };
 		expect(applyEffectDefaults(existing, 'lens-blur').blur).toBe(12);
+	});
+});
+
+describe('paramMeta', () => {
+	// The one that matters: an effect whose parameter has no metadata renders
+	// as a slider with a guessed range, which is worse than no slider at all.
+	// This fails the moment someone adds an effect and forgets the table.
+	test('every parameter of every registered effect has a range', () => {
+		const missing: string[] = [];
+		for (const effect of [...VIDEO_EFFECTS, ...AUDIO_EFFECTS]) {
+			for (const name of Object.keys(effect.params)) {
+				if (!(name in PARAM_META)) missing.push(`${effect.id}.${name}`);
+			}
+		}
+		expect(missing).toEqual([]);
+	});
+
+	test('every default value sits inside its own range', () => {
+		const outOfRange: string[] = [];
+		for (const effect of [...VIDEO_EFFECTS, ...AUDIO_EFFECTS]) {
+			for (const [name, value] of Object.entries(effect.params)) {
+				const meta = paramMeta(name);
+				if (value < meta.min || value > meta.max) {
+					outOfRange.push(`${effect.id}.${name}=${value} not in ${meta.min}..${meta.max}`);
+				}
+			}
+		}
+		expect(outOfRange).toEqual([]);
+	});
+
+	test('falls back to a usable range for an unknown parameter', () => {
+		const meta = paramMeta('somethingNobodyDefined');
+		expect(meta.max).toBeGreaterThan(meta.min);
+		expect(meta.step).toBeGreaterThan(0);
+	});
+
+	test("labels a parameter in the user's terms, not the code's", () => {
+		expect(paramMeta('highPassHz').label).toBe('High-pass');
+		expect(paramMeta('highPassHz').unit).toBe('Hz');
 	});
 });

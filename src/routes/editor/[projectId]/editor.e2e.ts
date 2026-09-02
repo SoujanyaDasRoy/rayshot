@@ -164,6 +164,9 @@ test.describe('editor workspace smoke test', () => {
 		expect(before === 'none' || before === '').toBe(true);
 
 		await page.locator('.timeline-clip-block').first().click();
+		// The Inspector opens short now: grading is a click away rather than
+		// unfolded by default.
+		await page.getByRole('button', { name: 'Color Grading' }).click();
 		const saturation = page.locator('#cg-saturation');
 		await expect(saturation).toBeVisible();
 		await saturation.fill('-100');
@@ -728,5 +731,111 @@ test.describe('editor workspace smoke test', () => {
 			viewport.evaluate((el) => el.getBoundingClientRect().top)
 		]);
 		expect(Math.abs(rulerTop - viewportTop)).toBeLessThanOrEqual(2);
+	});
+	test('an effect can be dragged onto a clip, and the Inspector then edits it', async ({
+		page
+	}) => {
+		// Effects could only be applied by selecting a clip and clicking a card,
+		// and once applied they were invisible: the Inspector had no effects
+		// section at all, so nothing could be adjusted or removed afterwards.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-fxdrag-'));
+		const clipPath = path.join(fixtureDir, 'scene.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'scene.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		const inspector = page.locator('.inspector-sidebar');
+		const clip = page.locator('.timeline-clip-block').first();
+		// The Inspector only has sections once there is a clip to inspect.
+		await clip.click();
+		await expect(inspector.getByText('Drag an effect from the library')).toBeVisible();
+
+		const card = page.locator('.effect-card', { hasText: 'Lens Blur' });
+		await card.dragTo(clip);
+
+		// The effect is on the clip, and its own parameter is editable — the
+		// registry's range, not a guessed 0..100.
+		const slider = inspector.getByRole('slider', { name: 'Lens Blur Blur' });
+		await expect(slider).toBeVisible();
+		expect(await slider.getAttribute('max')).toBe('20');
+		expect(await slider.inputValue()).toBe('6');
+
+		// And it reaches the picture.
+		await expect
+			.poll(() =>
+				page.locator('.canvas-layer').first().evaluate((el) => getComputedStyle(el).filter)
+			)
+			.toContain('blur');
+
+		// One gesture, one undo. Applying used to fire AddClipEffect plus one
+		// SetClipFilter per parameter, so taking it back took four presses.
+		await page.keyboard.press('Control+z');
+		await expect(slider).toHaveCount(0);
+		await expect(inspector.getByText('Drag an effect from the library')).toBeVisible();
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
+	test('an applied effect can be adjusted and removed from the Inspector', async ({ page }) => {
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-fxedit-'));
+		const clipPath = path.join(fixtureDir, 'take.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'take.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		await page.locator('.timeline-clip-block').first().click();
+		await page.locator('.effect-card', { hasText: 'Noir' }).click();
+
+		const inspector = page.locator('.inspector-sidebar');
+		const contrast = inspector.getByRole('slider', { name: 'Noir Contrast' });
+		await expect(contrast).toBeVisible();
+
+		// The slider drives the real filter, not just its own readout.
+		await contrast.fill('80');
+		await expect
+			.poll(() =>
+				page.locator('.canvas-layer').first().evaluate((el) => getComputedStyle(el).filter)
+			)
+			.toContain('contrast(1.8)');
+
+		await inspector.getByRole('button', { name: 'Remove Noir' }).click();
+		await expect(contrast).toHaveCount(0);
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
+	test('blend mode reaches the picture instead of only the dropdown', async ({ page }) => {
+		// The dropdown wrote filters.blendMode and nothing read it: picking
+		// Multiply changed the select and nothing else, in preview or export.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-blend-'));
+		const clipPath = path.join(fixtureDir, 'plate.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'plate.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await page.locator('.timeline-clip-block').first().click();
+
+		const layerBlend = () =>
+			page.locator('.canvas-layer').first().evaluate((el) => getComputedStyle(el).mixBlendMode);
+		await expect.poll(layerBlend).toBe('normal');
+
+		// Opacity & Blend now starts closed: the Inspector opens short.
+		await page.getByRole('button', { name: 'Opacity & Blend' }).click();
+		await page.getByRole('combobox', { name: 'Blend Mode' }).selectOption('multiply');
+
+		await expect.poll(layerBlend).toBe('multiply');
+
+		rmSync(fixtureDir, { recursive: true, force: true });
 	});
 });

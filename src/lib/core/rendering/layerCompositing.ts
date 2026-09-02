@@ -107,3 +107,23 @@ const LUT_FILTERS: Record<string, string> = {
 	golden_hour: 'sepia(0.2) saturate(1.3) hue-rotate(-5deg) brightness(1.05)',
 	cyber_matrix: 'saturate(1.6) hue-rotate(18deg) contrast(1.22)'
 };
+
+/**
+ * How a layer composites against what is under it.
+ *
+ * The Inspector has offered a Blend Mode dropdown since before the design
+ * pass. It wrote `filters.blendMode` and nothing read it, so picking Multiply
+ * changed the select and nothing else.
+ */
+const BLEND_MODES = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten'] as const;
+export type BlendMode = (typeof BLEND_MODES)[number];
+
+export function getLayerBlendMode(clip: Clip): BlendMode {
+	const raw = clip.filters?.blendMode;
+	return BLEND_MODES.includes(raw as BlendMode) ? (raw as BlendMode) : 'normal';
+}
+
+/** The canvas-2D name for the same mode, for the export path. */
+export function blendModeToComposite(mode: BlendMode): GlobalCompositeOperation {
+	return mode === 'normal' ? 'source-over' : (mode as GlobalCompositeOperation);
+}

@@ -18,7 +18,8 @@
 		left,
 		width,
 		onMousedown,
-		onTouchstart
+		onTouchstart,
+		onEffectDrop
 	} = $props<{
 		clip: Clip;
 		trackType?: 'video' | 'audio' | 'subtitle';
@@ -26,7 +27,36 @@
 		width: number;
 		onMousedown: (event: MouseEvent) => void;
 		onTouchstart: (event: TouchEvent) => void;
+		onEffectDrop?: (effectId: string) => void;
 	}>();
+
+	/** Set by the effects drawer; anything else dragged over a clip is not ours. */
+	const EFFECT_MIME = 'application/x-rayshot-effect';
+	let effectDragOver = $state(false);
+
+	function carriesEffect(event: DragEvent): boolean {
+		return !!event.dataTransfer?.types.includes(EFFECT_MIME);
+	}
+
+	function handleEffectDragOver(event: DragEvent) {
+		if (!onEffectDrop || !carriesEffect(event)) return;
+		// Both calls matter: preventDefault marks the clip a valid drop target,
+		// stopPropagation keeps the lane underneath from treating it as an
+		// import of media at this position.
+		event.preventDefault();
+		event.stopPropagation();
+		if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+		effectDragOver = true;
+	}
+
+	function handleEffectDrop(event: DragEvent) {
+		effectDragOver = false;
+		if (!onEffectDrop || !carriesEffect(event)) return;
+		event.preventDefault();
+		event.stopPropagation();
+		const effectId = event.dataTransfer?.getData(EFFECT_MIME);
+		if (effectId) onEffectDrop(effectId);
+	}
 
 	const assets = derived(projectStore, ($project) => $project?.assets ?? new Map());
 	const asset = derived([assets], ([$assets]) => $assets.get(clip.mediaAssetId));
@@ -80,6 +110,7 @@
 <div
 	class="timeline-clip-block {trackType} {$assetType}"
 	class:selected={$isSelected}
+	class:effect-drag-over={effectDragOver}
 	data-clip-id={clip.id}
 	role="button"
 	aria-label={$assetName}
@@ -88,6 +119,9 @@
 	onmousedown={onMousedown}
 	ontouchstart={onTouchstart}
 	onkeydown={handleKeydown}
+	ondragover={handleEffectDragOver}
+	ondragleave={() => (effectDragOver = false)}
+	ondrop={handleEffectDrop}
 	onfocus={($event) => $event.currentTarget.classList.add('focus-visible')}
 	onblur={($event) => $event.currentTarget.classList.remove('focus-visible')}
 	tabindex="0"
@@ -361,6 +395,11 @@
 	}
 
 	/* Trim handles (positioned absolutely by parent) */
+	.timeline-clip-block.effect-drag-over {
+		outline: 2px dashed var(--ms-text);
+		outline-offset: -2px;
+	}
+
 	.trim-handle {
 		position: absolute;
 		top: 0;

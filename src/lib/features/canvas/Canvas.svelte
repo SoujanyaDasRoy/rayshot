@@ -9,7 +9,7 @@
 	import { WebGLCompositor } from '$lib/core/rendering/webglCompositor';
 	import { toShaderUniforms } from '$lib/core/rendering/colorGradeUniforms';
 	// Shared with the exporter so preview and output cannot drift.
-	import { getLayerFilter } from '$lib/core/rendering/layerCompositing';
+	import { getLayerFilter, getLayerBlendMode } from '$lib/core/rendering/layerCompositing';
 	import { getLayerOpacity } from '$lib/utils/canvasUtils';
 
 	interface LayerClipInfo {
@@ -328,7 +328,7 @@
 					!glRendered.has(layer.clip.id)}
 				<div
 					class="canvas-layer"
-					style="transform: {getLayerTransform(layer.clip)}; filter: {getLayerFilter(layer.clip, { colorGradeInCss: gradeInCss })}; opacity: {getLayerOpacity(layer.clip)}; z-index: {layer.trackOrder};"
+					style="transform: {getLayerTransform(layer.clip)}; filter: {getLayerFilter(layer.clip, { colorGradeInCss: gradeInCss })}; opacity: {getLayerOpacity(layer.clip)}; mix-blend-mode: {getLayerBlendMode(layer.clip)}; z-index: {layer.trackOrder};"
 				>
 					{#if !layer.asset.sourceBlob}
 						<!-- Bytes are gone (imported on another device, or evicted from

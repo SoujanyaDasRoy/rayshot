@@ -149,3 +149,46 @@ export function applyEffectDefaults(
 	if (!def) return existing;
 	return { ...def.params, ...existing };
 }
+
+export interface ParamMeta {
+	/** What to call it in the Inspector — the user's word, not the code's. */
+	label: string;
+	min: number;
+	max: number;
+	step: number;
+	unit?: string;
+}
+
+/**
+ * Ranges for effect parameters, keyed by parameter name rather than by effect.
+ *
+ * Names repeat across effects — `contrast` means the same thing in Noir as in
+ * VHS Retro — so one table beats a range block on every effect. A test asserts
+ * every registered parameter appears here, which is what stops a new effect
+ * quietly rendering with a guessed range.
+ */
+export const PARAM_META: Record<string, ParamMeta> = {
+	blur: { label: 'Blur', min: 0, max: 20, step: 0.5, unit: 'px' },
+	sepia: { label: 'Sepia', min: 0, max: 100, step: 1, unit: '%' },
+	contrast: { label: 'Contrast', min: -100, max: 100, step: 1, unit: '%' },
+	saturate: { label: 'Saturation', min: -100, max: 100, step: 1, unit: '%' },
+	hueRotate: { label: 'Hue', min: -180, max: 180, step: 1, unit: '°' },
+	grayscale: { label: 'Desaturate', min: 0, max: 100, step: 1, unit: '%' },
+	brightness: { label: 'Brightness', min: -100, max: 100, step: 1, unit: '%' },
+	amount: { label: 'Amount', min: 0, max: 100, step: 1, unit: '%' },
+	speed: { label: 'Speed', min: 0, max: 100, step: 1, unit: '%' },
+	mix: { label: 'Mix', min: 0, max: 100, step: 1, unit: '%' },
+	highPassHz: { label: 'High-pass', min: 20, max: 500, step: 5, unit: 'Hz' },
+	lowShelfHz: { label: 'Low shelf', min: 60, max: 800, step: 10, unit: 'Hz' },
+	centerHz: { label: 'Centre', min: 2000, max: 12000, step: 100, unit: 'Hz' },
+	presenceDb: { label: 'Presence', min: -12, max: 12, step: 0.5, unit: 'dB' },
+	gainDb: { label: 'Gain', min: -12, max: 12, step: 0.5, unit: 'dB' },
+	reductionDb: { label: 'Reduction', min: -24, max: 0, step: 0.5, unit: 'dB' },
+	decaySec: { label: 'Decay', min: 0.1, max: 3, step: 0.1, unit: 's' }
+};
+
+const FALLBACK_META: ParamMeta = { label: 'Amount', min: 0, max: 100, step: 1 };
+
+export function paramMeta(name: string): ParamMeta {
+	return PARAM_META[name] ?? { ...FALLBACK_META, label: name };
+}

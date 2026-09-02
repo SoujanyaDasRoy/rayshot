@@ -807,6 +807,15 @@
 		}
 	}
 
+	/** Its own MIME type, so a lane cannot mistake an effect for a media import. */
+	const EFFECT_MIME = 'application/x-rayshot-effect';
+
+	function startEffectDrag(event: DragEvent, effectId: string) {
+		if (!event.dataTransfer) return;
+		event.dataTransfer.setData(EFFECT_MIME, effectId);
+		event.dataTransfer.effectAllowed = 'copy';
+	}
+
 	// Effects & Transitions Actions
 	// Applies the real effect, not a brightness nudge wearing its name.
 	function applyEffect(effectId: string) {
@@ -818,16 +827,11 @@
 		const def = effectById(effectId);
 		if (!def) return;
 
+		// One command: the parameters are seeded inside it, so applying an
+		// effect costs one undo instead of one per parameter.
 		commandProcessor.execute(
 			new AddClipEffectCommand({ clipId: timeline.selectedClipId, effectId })
 		);
-		// Seed this effect's own parameters so it renders at a sensible
-		// strength immediately.
-		for (const [name, value] of Object.entries(def.params)) {
-			commandProcessor.execute(
-				new SetClipFilterCommand({ clipId: timeline.selectedClipId, filterName: name, value })
-			);
-		}
 		showToast(`Applied ${def.name}`);
 	}
 
@@ -1196,7 +1200,13 @@
 				<h3 class="drawer-section-title">Video</h3>
 				<div class="effect-grid">
 					{#each VIDEO_EFFECTS as effect (effect.id)}
-						<button class="effect-card" onclick={() => applyEffect(effect.id)} title={effect.description}>
+						<button
+							class="effect-card"
+							draggable="true"
+							ondragstart={(e) => startEffectDrag(e, effect.id)}
+							onclick={() => applyEffect(effect.id)}
+							title="{effect.description} — drag onto a clip, or click to apply to the selected clip"
+						>
 							<span class="effect-name">{effect.name}</span>
 							<span class="effect-desc">{effect.description}</span>
 						</button>
@@ -1206,7 +1216,13 @@
 				<h3 class="drawer-section-title">Voice</h3>
 				<div class="effect-grid">
 					{#each AUDIO_EFFECTS as effect (effect.id)}
-						<button class="effect-card" onclick={() => applyEffect(effect.id)} title={effect.description}>
+						<button
+							class="effect-card"
+							draggable="true"
+							ondragstart={(e) => startEffectDrag(e, effect.id)}
+							onclick={() => applyEffect(effect.id)}
+							title="{effect.description} — drag onto a clip, or click to apply to the selected clip"
+						>
 							<span class="effect-name">{effect.name}</span>
 							<span class="effect-desc">{effect.description}</span>
 						</button>

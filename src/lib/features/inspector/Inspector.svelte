@@ -11,6 +11,8 @@
 	import { SetClipFilterCommand } from '$lib/core/commands/setClipFilter';
 	import { SetTransformCommand } from '$lib/core/commands/setTransform';
 	import { ToggleClipMuteCommand } from '$lib/core/commands/toggleClipMute';
+	import { RemoveClipEffectCommand } from '$lib/core/commands/removeClipEffect';
+	import { effectById, paramMeta } from '$lib/core/effects/effectRegistry';
 	import ColorGradePanel from '$lib/features/colorgrade/ColorGradePanel.svelte';
 	import { derived } from 'svelte/store';
 	import type { Clip, MediaAsset, Project } from '$lib/types/project';
@@ -52,9 +54,21 @@
 
 	// Collapsible Accordion States (Progressive Disclosure)
 	let transformOpen = $state(true);
-	let opacityOpen = $state(true);
-	let colorOpen = $state(true);
-	let audioFadesOpen = $state(true);
+	let effectsOpen = $state(true);
+	let opacityOpen = $state(false);
+	let colorOpen = $state(false);
+	let audioFadesOpen = $state(false);
+
+	/** Applied effects, resolved against the registry so unknown ids just vanish. */
+	const appliedEffects = derived(selectedClipData, ($data) =>
+		($data?.clip.effects ?? []).map((id) => effectById(id)).filter((e) => e !== null)
+	);
+
+	function removeEffect(effectId: string) {
+		const clipId = $timelineStore.selectedClipId;
+		if (!clipId) return;
+		commandProcessor.execute(new RemoveClipEffectCommand({ clipId, effectId }));
+	}
 
 	function handleSplit() {
 		const clipId = $timelineStore.selectedClipId;
@@ -437,6 +451,66 @@
 					{/if}
 				</div>
 
+				<!-- Collapsible Accordion: Effects -->
+				<div class="foldable-section">
+					<div class="section-header-row">
+						<button class="section-toggle-btn" onclick={() => (effectsOpen = !effectsOpen)}>
+							<span class="chevron">{effectsOpen ? '▾' : '▸'}</span>
+							<span class="section-name">Effects</span>
+						</button>
+						{#if $appliedEffects.length > 0}
+							<span class="section-count font-mono">{$appliedEffects.length}</span>
+						{/if}
+					</div>
+
+					{#if effectsOpen}
+						<div class="section-fields">
+							{#if $appliedEffects.length === 0}
+								<!-- An empty panel is an instruction, not a shrug. -->
+								<p class="effects-empty">
+									Drag an effect from the library onto this clip to add one.
+								</p>
+							{:else}
+								{#each $appliedEffects as effect (effect.id)}
+									<div class="applied-effect">
+										<div class="applied-effect-head">
+											<span class="applied-effect-name">{effect.name}</span>
+											<button
+												class="applied-effect-remove"
+												onclick={() => removeEffect(effect.id)}
+												title="Remove {effect.name}"
+												aria-label="Remove {effect.name}"
+											>&times;</button>
+										</div>
+
+										{#each Object.keys(effect.params) as param (param)}
+											{@const meta = paramMeta(param)}
+											{@const value = (clip.filters?.[param] ?? effect.params[param]) as number}
+											<div class="slider-field">
+												<div class="slider-top-label">
+													<span class="field-label">{meta.label}</span>
+													<span class="slider-number font-mono">{value}{meta.unit ?? ''}</span>
+												</div>
+												<input
+													type="range"
+													min={meta.min}
+													max={meta.max}
+													step={meta.step}
+													{value}
+													oninput={(e) =>
+														handleFilterChange(param, parseFloat((e.target as HTMLInputElement).value))}
+													class="accent-slider"
+													aria-label="{effect.name} {meta.label}"
+												/>
+											</div>
+										{/each}
+									</div>
+								{/each}
+							{/if}
+						</div>
+					{/if}
+				</div>
+
 				<!-- Collapsible Accordion: Opacity & Blend -->
 				<div class="foldable-section">
 					<div class="section-header-row">
@@ -630,6 +704,65 @@
 	.dim-label {
 		font-size: 11px;
 		color: var(--ms-text-tertiary);
+	}
+
+	.section-count {
+		margin-left: auto;
+		padding: 1px 6px;
+		border-radius: 999px;
+		background: var(--ms-edge);
+		font-size: 10px;
+		color: var(--ms-text-secondary);
+	}
+
+	.effects-empty {
+		margin: 0;
+		padding: 4px 2px;
+		font-size: 11.5px;
+		line-height: 1.5;
+		color: var(--ms-text-tertiary);
+	}
+
+	.applied-effect {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 10px;
+		border: 1px solid var(--ms-edge);
+		border-radius: var(--ms-radius-sm, 8px);
+		background: var(--ms-raised);
+	}
+
+	.applied-effect-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.applied-effect-name {
+		font-size: 12px;
+		font-weight: 590;
+		color: var(--ms-text);
+	}
+
+	.applied-effect-remove {
+		width: 20px;
+		height: 20px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: none;
+		border-radius: 4px;
+		background: transparent;
+		color: var(--ms-text-tertiary);
+		font-size: 14px;
+		line-height: 1;
+		cursor: pointer;
+	}
+
+	.applied-effect-remove:hover {
+		background: var(--ms-hover);
+		color: var(--ms-text);
 	}
 
 	.inspector-sections-scroll {
