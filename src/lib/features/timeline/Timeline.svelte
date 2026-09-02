@@ -13,6 +13,17 @@
 	import { SplitClipCommand } from '$lib/core/commands/splitClip';
 	import { DeleteClipCommand } from '$lib/core/commands/deleteClip';
 	import { AddTrackCommand } from '$lib/core/commands/addTrack';
+	import {
+		PX_PER_SECOND,
+		MIN_ZOOM,
+		MAX_ZOOM,
+		timeToPx as timeToPixels,
+		pxToTime as pixelsToTime,
+		clampZoom,
+		zoomAtAnchor,
+		fitZoom,
+		rulerTicks
+	} from '$lib/utils/timelineRuler';
 	import Clip from './Clip.svelte';
 	import { type Clip as ClipType } from '$lib/types/project';
 	import { derived } from 'svelte/store';
@@ -48,7 +59,7 @@
 	let dragStartMouseX = 0;
 	let dragStartClipStartTime = 0;
 	let dragOffsetX = 0;
-	let draggedTime = 0;
+	let draggedTime = $state(0);
 	// Which lane the pointer is currently over, for cross-track drops.
 	let dragOverTrackId = $state<string | null>(null);
 	let colorMenuTrackId = $state<string | null>(null);
@@ -56,6 +67,9 @@
 	// Each type numbers independently, so a subtitle track is S1 and not a
 	// mis-numbered audio track.
 	const labels = $derived(trackLabels($tracks));
+
+	// The ruler decides its own density: labels never crowd and never vanish.
+	const ticks = $derived(rulerTicks($sequenceDuration, $timelineStore.zoomLevel));
 
 	function setTrackProp(trackId: string, property: 'color' | 'locked' | 'muted' | 'hidden', value: unknown) {
 		commandProcessor.execute(
@@ -82,14 +96,6 @@
 	let trackMutes = $state<Record<string, boolean>>({});
 	let trackLocks = $state<Record<string, boolean>>({});
 
-	function timeToPixels(time: number, zoomLevel: number): number {
-		return time * (80 * zoomLevel);
-	}
-
-	function pixelsToTime(pixels: number, zoomLevel: number): number {
-		return pixels / (80 * zoomLevel);
-	}
-
 	function calculateSnappingTargets(excludeClipId: string | null = null): number[] {
 		if (!$timelineStore.snapToGrid) return [];
 		const targets: number[] = [0, $playbackStore.currentTime];
@@ -113,7 +119,7 @@
 		if (!$timelineStore.snapToGrid || targets.length === 0) return null;
 		let closest: number | null = null;
 		let closestDist = Infinity;
-		const thresholdSec = SNAP_THRESHOLD_PX / (80 * $timelineStore.zoomLevel);
+		const thresholdSec = SNAP_THRESHOLD_PX / (PX_PER_SECOND * $timelineStore.zoomLevel);
 
 		for (const target of targets) {
 			const dist = Math.abs(positionTime - target);
@@ -189,6 +195,10 @@
 	}
 
 	function handleWindowMousemove(event: MouseEvent) {
+		if (isPanning && timelineScrollContainer) {
+			timelineScrollContainer.scrollLeft = panStartScroll - (event.clientX - panStartX);
+			return;
+		}
 		if (!tracksAreaRef) return;
 		const rect = tracksAreaRef.getBoundingClientRect();
 		// .tracks-stage-canvas already translates with the scroll, so its rect is
@@ -204,7 +214,7 @@
 
 		if (isTrimming && trimSide && originalClipForTrim) {
 			const deltaX = mouseX - trimStartMouseX;
-			const deltaTime = deltaX / (80 * zoom);
+			const deltaTime = deltaX / (PX_PER_SECOND * zoom);
 			let newValue = trimStartClipValue + deltaTime;
 			const mediaAsset = $assets.get(originalClipForTrim.mediaAssetId);
 			const maxDuration = mediaAsset ? mediaAsset.duration : 1000;
@@ -258,6 +268,11 @@
 	}
 
 	function handleWindowMouseup() {
+		if (isPanning) {
+			isPanning = false;
+			return;
+		}
+
 		if (isScrubbing) {
 			isScrubbing = false;
 		}
@@ -319,7 +334,7 @@
 		if (!mediaAssetId || !tracksAreaRef) return;
 
 		const rect = tracksAreaRef.getBoundingClientRect();
-		const dropX = event.clientX - rect.left + (timelineScrollContainer?.scrollLeft ?? 0);
+		const dropX = event.clientX - rect.left;
 		const dropTime = Math.max(0, pixelsToTime(dropX, $timelineStore.zoomLevel));
 
 		const addClipCmd = new AddClipCommand({
@@ -328,6 +343,72 @@
 			position: dropTime
 		});
 		commandProcessor.execute(addClipCmd);
+	}
+
+	// ── Navigation ────────────────────────────────────────────────────────────
+	// Zoom anchors on the pointer, so the frame you are looking at stays where
+	// you are looking. The scroll has to be reapplied after the canvas has
+	// re-measured at the new width, hence the frame delay.
+	function applyZoom(nextZoomRaw: number, anchorX?: number) {
+		const current = $timelineStore.zoomLevel;
+		const next = clampZoom(nextZoomRaw);
+		if (next === current) return;
+
+		const viewport = timelineScrollContainer;
+		if (!viewport) {
+			timelineActions.setZoomLevel(next);
+			return;
+		}
+
+		const anchor = anchorX ?? viewport.clientWidth / 2;
+		const nextScroll = zoomAtAnchor(next, current, viewport.scrollLeft, anchor);
+		timelineActions.setZoomLevel(next);
+		requestAnimationFrame(() => {
+			viewport.scrollLeft = nextScroll;
+		});
+	}
+
+	function zoomToFit() {
+		const viewport = timelineScrollContainer;
+		if (!viewport) return;
+		timelineActions.setZoomLevel(fitZoom($sequenceDuration, viewport.clientWidth));
+		requestAnimationFrame(() => {
+			viewport.scrollLeft = 0;
+		});
+	}
+
+	function handleWheel(event: WheelEvent) {
+		const viewport = timelineScrollContainer;
+		if (!viewport) return;
+
+		// Trackpad pinch arrives as a wheel event with ctrlKey set, so this one
+		// branch covers both pinch-to-zoom and Ctrl/Cmd + wheel.
+		if (event.ctrlKey || event.metaKey) {
+			event.preventDefault();
+			const rect = viewport.getBoundingClientRect();
+			const factor = Math.exp(-event.deltaY * 0.002);
+			applyZoom($timelineStore.zoomLevel * factor, event.clientX - rect.left);
+			return;
+		}
+
+		if (event.shiftKey) {
+			event.preventDefault();
+			viewport.scrollLeft += event.deltaY || event.deltaX;
+		}
+	}
+
+	// Middle-drag pans. Space is already play/pause, and an editor that stops
+	// playing when you try to pan is worse than one you pan with the wheel.
+	let isPanning = $state(false);
+	let panStartX = 0;
+	let panStartScroll = 0;
+
+	function handleViewportMousedown(event: MouseEvent) {
+		if (event.button !== 1 || !timelineScrollContainer) return;
+		event.preventDefault();
+		isPanning = true;
+		panStartX = event.clientX;
+		panStartScroll = timelineScrollContainer.scrollLeft;
 	}
 
 	function handleSplit() {
@@ -350,6 +431,25 @@
 			if (event.code === 'Space') {
 				event.preventDefault();
 				playbackActions.togglePlayback();
+			}
+
+			// Shift+Z fits the whole sequence; plain Z is left free.
+			if ((event.key === 'z' || event.key === 'Z') && event.shiftKey && !event.ctrlKey && !event.metaKey) {
+				event.preventDefault();
+				zoomToFit();
+				return;
+			}
+
+			if (event.key === '+' || event.key === '=') {
+				event.preventDefault();
+				applyZoom($timelineStore.zoomLevel + 0.2);
+				return;
+			}
+
+			if (event.key === '-' || event.key === '_') {
+				event.preventDefault();
+				applyZoom($timelineStore.zoomLevel - 0.2);
+				return;
 			}
 
 			if (event.key === 's' || event.key === 'S') {
@@ -382,11 +482,16 @@
 		window.addEventListener('keydown', handleKeyDown);
 		window.addEventListener('mousemove', handleWindowMousemove);
 		window.addEventListener('mouseup', handleWindowMouseup);
+		const viewport = timelineScrollContainer;
+		viewport?.addEventListener('wheel', handleWheel, { passive: false });
+		viewport?.addEventListener('mousedown', handleViewportMousedown);
 
 		return () => {
 			window.removeEventListener('keydown', handleKeyDown);
 			window.removeEventListener('mousemove', handleWindowMousemove);
 			window.removeEventListener('mouseup', handleWindowMouseup);
+			viewport?.removeEventListener('wheel', handleWheel);
+			viewport?.removeEventListener('mousedown', handleViewportMousedown);
 		};
 	});
 
@@ -409,13 +514,6 @@
 		return `${pad(hrs)}:${pad(mins)}:${pad(secs)}:${pad(frames)}`;
 	}
 
-	function formatRulerTime(seconds: number): string {
-		const totalSecs = Math.max(0, seconds);
-		const mins = Math.floor(totalSecs / 60);
-		const secs = Math.floor(totalSecs % 60);
-		const pad = (n: number) => n.toString().padStart(2, '0');
-		return `${pad(mins)}:${pad(secs)}`;
-	}
 </script>
 
 <div class="multitrack-timeline-root" role="region" aria-label="Timeline">
@@ -488,28 +586,33 @@
 				<button
 					class="zoom-btn"
 					title="Zoom Out"
-					onclick={() => timelineActions.setZoomLevel(Math.max(0.2, $timelineStore.zoomLevel - 0.2))}
+					aria-label="Zoom out"
+					onclick={() => applyZoom($timelineStore.zoomLevel - 0.2)}
 				>
 					−
 				</button>
 				<input
 					type="range"
-					min="0.2"
-					max="3.0"
+					min={MIN_ZOOM}
+					max={MAX_ZOOM}
 					step="0.1"
 					value={$timelineStore.zoomLevel}
-					oninput={(e) => timelineActions.setZoomLevel(parseFloat((e.target as HTMLInputElement).value))}
+					oninput={(e) => applyZoom(parseFloat((e.target as HTMLInputElement).value))}
 					aria-label="Timeline zoom level"
 					class="zoom-slider-range"
 				/>
 				<button
 					class="zoom-btn"
 					title="Zoom In"
-					onclick={() => timelineActions.setZoomLevel(Math.min(3.0, $timelineStore.zoomLevel + 0.2))}
+					aria-label="Zoom in"
+					onclick={() => applyZoom($timelineStore.zoomLevel + 0.2)}
 				>
 					+
 				</button>
 				<span class="zoom-percentage-badge font-mono">{Math.round($timelineStore.zoomLevel * 100)}%</span>
+				<button class="zoom-btn fit-btn" title="Fit sequence to window (Shift+Z)" onclick={zoomToFit}>
+					Fit
+				</button>
 			</div>
 		</div>
 	</div>
@@ -629,7 +732,11 @@
 		</div>
 
 		<!-- Right Scrollable Tracks Area -->
-		<div class="tracks-scroll-viewport" bind:this={timelineScrollContainer}>
+		<div
+			class="tracks-scroll-viewport"
+			class:panning={isPanning}
+			bind:this={timelineScrollContainer}
+		>
 			<div
 				class="tracks-stage-canvas"
 				bind:this={tracksAreaRef}
@@ -646,16 +753,13 @@
 					aria-label="Time Ruler"
 					onmousedown={handleRulerMousedown}
 				>
-					{#each Array.from({ length: Math.ceil($sequenceDuration) + 1 }) as _, i}
-						{@const leftPx = timeToPixels(i, $timelineStore.zoomLevel)}
-						<div class="ruler-mark-major" style="left: {leftPx}px;">
-							<span class="ruler-timecode font-mono">{formatRulerTime(i)}</span>
-						</div>
-						{#if $timelineStore.zoomLevel >= 0.6}
-							<div
-								class="ruler-mark-minor"
-								style="left: {leftPx + timeToPixels(0.5, $timelineStore.zoomLevel)}px;"
-							></div>
+					{#each ticks as tick (tick.time)}
+						{#if tick.label !== null}
+							<div class="ruler-mark-major" style="left: {tick.px}px;">
+								<span class="ruler-timecode font-mono">{tick.label}</span>
+							</div>
+						{:else}
+							<div class="ruler-mark-minor" style="left: {tick.px}px;"></div>
 						{/if}
 					{/each}
 				</div>
@@ -678,7 +782,9 @@
 							{#each track.clipInstances as clipId}
 								{#if $clips.has(clipId)}
 									{@const clip = $clips.get(clipId)!}
-									{@const leftPx = timeToPixels(clip.timelineStart, $timelineStore.zoomLevel)}
+									{@const clipStart =
+										clip.id === draggingClipId ? draggedTime : clip.timelineStart}
+									{@const leftPx = timeToPixels(clipStart, $timelineStore.zoomLevel)}
 									{@const widthPx = timeToPixels(clip.timelineDuration, $timelineStore.zoomLevel)}
 									<Clip
 										{clip}
@@ -1009,6 +1115,17 @@
 	}
 
 	/* Timecode Ruler */
+	.tracks-scroll-viewport.panning {
+		cursor: grabbing;
+	}
+
+	.fit-btn {
+		width: auto;
+		padding: 0 8px;
+		font-size: 10.5px;
+		letter-spacing: 0.02em;
+	}
+
 	.timecode-ruler {
 		height: 26px;
 		background: var(--ms-material);

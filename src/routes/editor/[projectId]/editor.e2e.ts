@@ -499,4 +499,112 @@ test.describe('editor workspace smoke test', () => {
 
 		rmSync(fixtureDir, { recursive: true, force: true });
 	});
+	test('the ruler changes density with zoom instead of labelling every second', async ({
+		page
+	}) => {
+		// The old ruler drew a major tick per second at every zoom, so zooming out
+		// produced hundreds of overlapping labels and zooming in produced a ruler
+		// with nothing between the seconds. Density is the whole feature, and only
+		// a computed-position check can see it.
+		await page.goto('/');
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		const gaps = async () =>
+			page.locator('.ruler-mark-major').evaluateAll((els) => {
+				const lefts = els.map((el) => parseFloat(getComputedStyle(el).left)).sort((a, b) => a - b);
+				return lefts.slice(1).map((left, i) => left - lefts[i]);
+			});
+
+		const zoomOut = page.getByRole('button', { name: 'Zoom Out' });
+		const zoomIn = page.getByRole('button', { name: 'Zoom In' });
+
+		for (let i = 0; i < 15; i++) await zoomOut.click();
+		const wide = await gaps();
+		expect(wide.length).toBeGreaterThan(0);
+		// Labels never crowd, at any zoom.
+		expect(Math.min(...wide)).toBeGreaterThanOrEqual(60);
+
+		for (let i = 0; i < 30; i++) await zoomIn.click();
+		const tight = await gaps();
+		expect(Math.min(...tight)).toBeGreaterThanOrEqual(60);
+
+		// Zoomed in, the ruler resolves time more finely than it did zoomed out.
+		const labels = await page
+			.locator('.ruler-mark-major .ruler-timecode')
+			.evaluateAll((els) => els.slice(0, 2).map((el) => el.textContent?.trim() ?? ''));
+		expect(labels[0]).not.toBe(labels[1]);
+	});
+
+	test('the wheel zooms at the pointer and pans, rather than doing nothing', async ({ page }) => {
+		// There were no wheel handlers at all: the scrollbar was the only way to
+		// navigate. A passive listener would also silently fail to preventDefault,
+		// which is invisible except in a real browser.
+		await page.goto('/');
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		const viewport = page.locator('.tracks-scroll-viewport');
+		const box = (await viewport.boundingBox())!;
+		const anchorX = 240;
+
+		const readZoom = () =>
+			page.locator('.zoom-percentage-badge').evaluate((el) => parseFloat(el.textContent!) / 100);
+		const readScroll = () => viewport.evaluate((el) => el.scrollLeft);
+
+		await page.mouse.move(box.x + anchorX, box.y + box.height / 2);
+
+		const zoomBefore = await readZoom();
+		const scrollBefore = await readScroll();
+		const timeBefore = (scrollBefore + anchorX) / (80 * zoomBefore);
+
+		await page.keyboard.down('Control');
+		await page.mouse.wheel(0, -240);
+		await page.keyboard.up('Control');
+
+		const zoomAfter = await readZoom();
+		expect(zoomAfter).toBeGreaterThan(zoomBefore);
+
+		// The moment under the cursor is still under the cursor. Tolerance is in
+		// seconds, and generous enough for the rounded badge reading.
+		const timeAfter = ((await readScroll()) + anchorX) / (80 * zoomAfter);
+		expect(Math.abs(timeAfter - timeBefore)).toBeLessThan(0.35);
+
+		// Shift+wheel pans sideways.
+		const beforePan = await readScroll();
+		await page.keyboard.down('Shift');
+		await page.mouse.wheel(0, 300);
+		await page.keyboard.up('Shift');
+		expect(await readScroll()).toBeGreaterThan(beforePan);
+	});
+
+	test('a dragged clip follows the pointer instead of jumping on release', async ({ page }) => {
+		// draggedTime was computed on every mousemove and read only at commit, so
+		// the clip sat still through the whole gesture and teleported on mouseup.
+		// The assertion has to happen mid-drag, before the mouse is released.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-dragghost-'));
+		const clipPath = path.join(fixtureDir, 'shot.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[accept="video/*,audio/*,image/*"]').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'shot.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+		const clip = page.locator('.timeline-clip-block').first();
+		await expect(clip).toBeVisible();
+		const start = (await clip.boundingBox())!;
+
+		// Grab the middle: within 8px of either edge is a trim, not a move.
+		await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(start.x + start.width / 2 + 180, start.y + start.height / 2, {
+			steps: 12
+		});
+
+		const during = (await clip.boundingBox())!;
+		expect(during.x - start.x).toBeGreaterThan(100);
+
+		await page.mouse.up();
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
 });
