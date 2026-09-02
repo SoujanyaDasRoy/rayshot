@@ -1,4 +1,6 @@
 import { Command } from './base';
+// Relative, not $lib: the node Vitest project cannot resolve bare $lib.
+import { DEFAULT_COLOR_GRADE } from '../rendering/colorGradeUniforms';
 import type { Project, Sequence, Track, Clip, MediaAsset } from '$lib/types/project';
 import { projectStore } from '$lib/stores/project.svelte';
 import { get } from 'svelte/store';
@@ -67,27 +69,9 @@ export class AddClipCommand extends Command {
 			},
 			playbackRate: 1,
 			filters: {},
-			colorGrade: {
-				exposure: 0,
-				contrast: 0,
-				highlights: 0,
-				shadows: 0,
-				whites: 0,
-				blacks: 0,
-				temperature: 0,
-				tint: 0,
-				saturation: 0,
-				vibrance: 0,
-				vignette: 0,
-				grain: 0,
-				lutUrl: undefined,
-				curves: {
-					r: [[0, 0], [0.5, 0.5], [1, 1]],
-					g: [[0, 0], [0.5, 0.5], [1, 1]],
-					b: [[0, 0], [0.5, 0.5], [1, 1]],
-					lum: [[0, 0], [0.5, 0.5], [1, 1]]
-				}
-			}
+			// Single source of truth — this literal used to be duplicated here and
+			// in ColorGradePanel, and the two had already drifted apart.
+			colorGrade: structuredClone(DEFAULT_COLOR_GRADE)
 		};
 
 		// Add clip to track's clipInstances

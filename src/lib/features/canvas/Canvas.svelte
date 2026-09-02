@@ -6,6 +6,7 @@
 	import type { Clip, MediaAsset } from '$lib/types/project';
 	import { audioEngine } from '$lib/core/audioEngine';
 	import { WebGLCompositor } from '$lib/core/rendering/webglCompositor';
+	import { toShaderUniforms, colorGradeToCssFilter } from '$lib/core/rendering/colorGradeUniforms';
 	import { getLayerOpacity } from '$lib/utils/canvasUtils';
 
 	interface LayerClipInfo {
@@ -175,21 +176,11 @@
 				syncElement(el, layer.clip, layer.sourceTime);
 				// If it's a video layer, update the WebGL output
 				if (layer.asset.type === 'video') {
-					const colorGrade = {
-						exposure: 0,
-						contrast: ((layer.clip.filters?.contrast ?? 0) / 100.0) - 1.0,
-						highlights: 0,
-						shadows: 0,
-						temperature: 0,
-						tint: 0,
-						saturation: ((layer.clip.filters?.saturate ?? 0) / 100.0) - 1.0,
-						vibrance: 0,
-						vignette: 0,
-						grain: 0,
-						curves: layer.clip.filters?.curves ?? [[0, 0], [0.5, 0.5], [1, 1]],
-						lutTexture: null
-					};
-					updateWebglOutput(layer.clip.id, el as HTMLVideoElement, colorGrade);
+					updateWebglOutput(
+						layer.clip.id,
+						el as HTMLVideoElement,
+						toShaderUniforms(layer.clip.colorGrade)
+					);
 				}
 			}
 		}
@@ -253,6 +244,14 @@
 				filterParts.push(`hue-rotate(${Number(clip.filters.hueRotate)}deg)`);
 			}
 		}
+
+		// The colour grade rides the same CSS path. Its 12 sliders wrote to
+		// clip.colorGrade for a long time while nothing read it; this is the
+		// read. Only the CSS-expressible subset lands here - curves, LUTs,
+		// vignette, grain and per-channel white balance need the shader (W7).
+		const grade = colorGradeToCssFilter(clip.colorGrade);
+		if (grade) filterParts.push(grade);
+
 		return filterParts.length > 0 ? filterParts.join(' ') : 'none';
 	}
 

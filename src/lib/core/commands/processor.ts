@@ -32,7 +32,17 @@ class CommandProcessor {
 	public execute(command: Command): void {
 		// Execute the command
 		command.run();
-		
+
+		// Let the top of the stack absorb this one if they're the same
+		// continuous gesture (see Command.mergeWith).
+		const top = this.undoStack[this.undoStack.length - 1];
+		if (top && top.mergeWith?.(command)) {
+			this.redoStack = [];
+			this.updateHistoryState();
+			this.scheduleAutoSave();
+			return;
+		}
+
 		// Add to undo stack and clear redo stack
 		this.undoStack.push(command);
 		this.redoStack = [];

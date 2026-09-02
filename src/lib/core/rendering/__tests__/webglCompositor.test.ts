@@ -1,136 +1,111 @@
-import type { ColorGrade } from '../webglCompositor';
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WebGLCompositor } from '../webglCompositor';
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { DEFAULT_COLOR_GRADE, toShaderUniforms } from '../colorGradeUniforms';
 
-// Mock OffscreenCanvas and WebGL2RenderingContext
-const mockCanvas = {
-  width: 0,
-  height: 0,
-  getContext: () => mockGL,
-} as any;
+/**
+ * The previous version of this file asserted only that a writable store
+ * echoed the object handed to it, which proved nothing about rendering.
+ * These assert the uniform values that actually reach the GPU.
+ */
 
-const mockGL = {
-  clearColor: () => {},
-  enable: () => {},
-  blendFunc: () => {},
-  viewport: () => {},
-  createShader: () => mockShader,
-  shaderSource: () => {},
-  compileShader: () => {},
-  getShaderParameter: () => true,
-  getShaderInfoLog: () => '',
-  createProgram: () => mockProgram,
-  attachShader: () => {},
-  linkProgram: () => {},
-  getProgramParameter: () => true,
-  getProgramInfoLog: () => '',
-  deleteShader: () => {},
-  getAttribLocation: () => 0,
-  enableVertexAttribArray: () => {},
-  vertexAttribPointer: () => {},
-  createBuffer: () => {},
-  bindBuffer: () => {},
-  bufferData: () => {},
-  createTexture: () => ({}),
-  bindTexture: () => {},
-  texParameteri: () => {},
-  texImage2D: () => {},
-  clear: () => {},
-  useProgram: () => {},
-  getUniformLocation: () => 0,
-  uniform1i: () => {},
-  uniform1f: () => {},
-  drawArrays: () => {},
-  bindVertexArray: () => {},
-  createVertexArray: () => ({}),
-  deleteProgram: () => {},
-  deleteTexture: () => {},
-  deleteVertexArray: () => {},
-} as any;
+/** Records every uniform1f(name, value) so tests can assert on them. */
+function makeMockGl() {
+	const uniforms: Record<string, number> = {};
+	let nextLoc = 0;
+	const locNames = new Map<number, string>();
 
-const mockShader = {} as WebGLShader;
-const mockProgram = {} as WebGLProgram;
+	const gl: Record<string, unknown> = {
+		TEXTURE_2D: 1, RGBA: 2, UNSIGNED_BYTE: 3, COLOR_BUFFER_BIT: 4, TRIANGLE_STRIP: 5,
+		clearColor: vi.fn(), enable: vi.fn(), blendFunc: vi.fn(), viewport: vi.fn(),
+		createShader: vi.fn(() => ({})), shaderSource: vi.fn(), compileShader: vi.fn(),
+		getShaderParameter: vi.fn(() => true), getShaderInfoLog: vi.fn(() => ''),
+		createProgram: vi.fn(() => ({})), attachShader: vi.fn(), linkProgram: vi.fn(),
+		getProgramParameter: vi.fn(() => true), getProgramInfoLog: vi.fn(() => ''),
+		deleteShader: vi.fn(), getAttribLocation: vi.fn(() => 0),
+		enableVertexAttribArray: vi.fn(), vertexAttribPointer: vi.fn(),
+		createBuffer: vi.fn(() => ({})), bindBuffer: vi.fn(), bufferData: vi.fn(),
+		createTexture: vi.fn(() => ({})), bindTexture: vi.fn(), texParameteri: vi.fn(),
+		texImage2D: vi.fn(), clear: vi.fn(), useProgram: vi.fn(),
+		createVertexArray: vi.fn(() => ({})), bindVertexArray: vi.fn(),
+		drawArrays: vi.fn(), deleteProgram: vi.fn(), deleteTexture: vi.fn(),
+		deleteVertexArray: vi.fn(), activeTexture: vi.fn(),
+		getUniformLocation: vi.fn((_p: unknown, name: string) => {
+			const loc = nextLoc++;
+			locNames.set(loc, name);
+			return loc;
+		}),
+		uniform1i: vi.fn(),
+		uniform1f: vi.fn((loc: number, value: number) => {
+			uniforms[locNames.get(loc) ?? String(loc)] = value;
+		})
+	};
 
-// Mock the canvas.getContext to return our mockGL
-Object.defineProperty(mockCanvas, 'getContext', {
-  value: () => mockGL,
-  writable: true,
+	return { gl, uniforms };
+}
+
+let mock: ReturnType<typeof makeMockGl>;
+
+beforeEach(() => {
+	mock = makeMockGl();
+	// @ts-expect-error - mocking the global
+	global.OffscreenCanvas = class {
+		width: number;
+		height: number;
+		constructor(width: number, height: number) {
+			this.width = width;
+			this.height = height;
+		}
+		getContext() {
+			return mock.gl;
+		}
+	};
 });
 
+afterEach(() => {
+	// @ts-expect-error - cleanup
+	delete global.OffscreenCanvas;
+	vi.restoreAllMocks();
+});
+
+const fakeVideo = {} as HTMLVideoElement;
+
 describe('WebGLCompositor', () => {
-  let compositor: WebGLCompositor;
+	test('constructs at the requested size', () => {
+		const c = new WebGLCompositor(1280, 720);
 
-  beforeEach(() => {
-    // @ts-expect-error - we are mocking the global OffscreenCanvas
-    global.OffscreenCanvas = class {
-      width: number;
-      height: number;
-      constructor(width: number, height: number) {
-        this.width = width;
-        this.height = height;
-      }
-      getContext() {
-        return mockGL;
-      }
-    };
-  });
+		expect(c).toBeInstanceOf(WebGLCompositor);
+	});
 
-  afterEach(() => {
-    // @ts-expect-error - cleaning up
-    delete global.OffscreenCanvas;
-  });
+	test('a neutral grade sends all-zero uniforms to the shader', () => {
+		// Guards the bug this work exists to fix: Canvas used to send
+		// contrast: -1.0 for an ungraded clip.
+		const c = new WebGLCompositor(64, 64);
 
-  test('should initialize with default values', () => {
-    compositor = new WebGLCompositor(1920, 1080);
-    expect(compositor).toBeInstanceOf(WebGLCompositor);
-    // Check that the colorGradeStore is writable and has initial values
-    // We can subscribe to the store to check its value
-    let currentValue: ColorGrade | null = null;
-    const unsub = compositor.colorGradeStore.subscribe((value) => {
-      currentValue = value;
-    });
-    expect(currentValue).toEqual({
-      exposure: 0,
-      contrast: 0,
-      highlights: 0,
-      shadows: 0,
-      temperature: 0,
-      tint: 0,
-      saturation: 0,
-      vibrance: 0,
-      vignette: 0,
-      grain: 0,
-      curves: [[0, 0], [0.5, 0.5], [1, 1]],
-      lutTexture: null,
-    });
-    unsub();
-  });
+		c.renderFrame(fakeVideo, toShaderUniforms(DEFAULT_COLOR_GRADE));
 
-  test('should update color grade store when renderFrame is called', () => {
-    compositor = new WebGLCompositor(1920, 1080);
-    const newGrade: ColorGrade = {
-      exposure: 1.0,
-      contrast: 0.5,
-      highlights: 0.2,
-      shadows: -0.2,
-      temperature: 0.1,
-      tint: 0.0,
-      saturation: 0.1,
-      vibrance: 0.0,
-      vignette: 0.2,
-      grain: 0.1,
-      curves: [[0, 0], [0.5, 0.5], [1, 1]],
-      lutTexture: null,
-    };
-    // We don't have a real video element, but we can call renderFrame and check the store
-    // @ts-expect-error - we are passing a mock video element
-    compositor.renderFrame({}, newGrade);
-    let currentValue: ColorGrade | null = null;
-    const unsub = compositor.colorGradeStore.subscribe((value) => {
-      currentValue = value;
-    });
-    // Note: the renderFrame method sets the store, so we expect the newGrade
-    expect(currentValue).toEqual(newGrade);
-    unsub();
-  });
+		expect(mock.uniforms.u_contrast).toBe(0);
+		expect(mock.uniforms.u_saturation).toBe(0);
+		expect(mock.uniforms.u_exposure).toBe(0);
+		expect(mock.uniforms.u_temperature).toBe(0);
+	});
+
+	test('slider values arrive at the shader already converted to -1..1', () => {
+		const c = new WebGLCompositor(64, 64);
+
+		c.renderFrame(
+			fakeVideo,
+			toShaderUniforms({ ...DEFAULT_COLOR_GRADE, contrast: 100, saturation: -50 })
+		);
+
+		expect(mock.uniforms.u_contrast).toBe(1);
+		expect(mock.uniforms.u_saturation).toBe(-0.5);
+	});
+
+	test('actually draws', () => {
+		const c = new WebGLCompositor(64, 64);
+
+		c.renderFrame(fakeVideo, toShaderUniforms(DEFAULT_COLOR_GRADE));
+
+		expect(mock.gl.drawArrays).toHaveBeenCalled();
+	});
 });

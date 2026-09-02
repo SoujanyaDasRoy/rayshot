@@ -1,20 +1,5 @@
-import { writable } from 'svelte/store';
 import { colorGradeShader } from './colorGradeShader.glsl.ts';
-
-export interface ColorGrade {
-  exposure: number;
-  contrast: number;
-  highlights: number;
-  shadows: number;
-  temperature: number;
-  tint: number;
-  saturation: number;
-  vibrance: number;
-  vignette: number;
-  grain: number;
-  curves: Array<[number, number]>; // control points for curves
-  lutTexture: WebGLTexture | null;
-}
+import type { ShaderUniforms } from './colorGradeUniforms';
 
 export class WebGLCompositor {
   private canvas: OffscreenCanvas;
@@ -24,20 +9,6 @@ export class WebGLCompositor {
   private texture!: WebGLTexture;
   private width: number;
   private height: number;
-  public colorGradeStore = writable<ColorGrade>({
-    exposure: 0,
-    contrast: 0,
-    highlights: 0,
-    shadows: 0,
-    temperature: 0,
-    tint: 0,
-    saturation: 0,
-    vibrance: 0,
-    vignette: 0,
-    grain: 0,
-    curves: [[0, 0], [0.5, 0.5], [1, 1]],
-    lutTexture: null
-  });
 
   constructor(width: number = 1920, height: number = 1080) {
     this.width = width;
@@ -145,11 +116,8 @@ export class WebGLCompositor {
     gl.bindVertexArray(null);
   }
 
-  public renderFrame(videoEl: HTMLVideoElement, colorGrade: ColorGrade): void {
+  public renderFrame(videoEl: HTMLVideoElement, colorGrade: ShaderUniforms): void {
     const gl = this.gl;
-
-    // Update color grade store
-    this.colorGradeStore.set(colorGrade);
 
     // Update video texture
     gl.bindTexture(gl.TEXTURE_2D, this.texture);

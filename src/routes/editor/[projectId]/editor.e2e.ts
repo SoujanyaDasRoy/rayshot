@@ -141,6 +141,53 @@ test.describe('editor workspace smoke test', () => {
 		rmSync(fixtureDir, { recursive: true, force: true });
 	});
 
+	test('the colour grade sliders actually change the picture', async ({ page }) => {
+		// For a long time all 12 sliders wrote to clip.colorGrade and nothing
+		// read it — Canvas fabricated its own object and read clip.filters
+		// instead. The panel looked completely functional and did nothing.
+		const fixtureDir = mkdtempSync(path.join(tmpdir(), 'rayshot-grade-'));
+		const clipPath = path.join(fixtureDir, 'graded.mp4');
+		writeFileSync(clipPath, 'fake-mp4-bytes');
+
+		await page.goto('/');
+		await page.locator('.rail input[type="file"]:not([webkitdirectory])').setInputFiles(clipPath);
+		await page.locator('.filename-pill', { hasText: 'graded.mp4' }).click();
+		await page.getByRole('button', { name: 'Add to Timeline' }).click();
+		await page.getByRole('button', { name: 'Effects' }).click();
+
+		const layer = page.locator('.canvas-layer').first();
+		await expect(layer).toBeVisible();
+
+		// Ungraded: no filter. This is also the regression guard for the old
+		// contrast: (0/100)-1 = -1.0 bug, which crushed an untouched clip.
+		const before = await layer.evaluate((el) => getComputedStyle(el).filter);
+		expect(before === 'none' || before === '').toBe(true);
+
+		await page.locator('.timeline-clip-block').first().click();
+		const saturation = page.locator('#cg-saturation');
+		await expect(saturation).toBeVisible();
+		await saturation.fill('-100');
+		await saturation.dispatchEvent('input');
+
+		await expect
+			.poll(() => layer.evaluate((el) => getComputedStyle(el).filter))
+			.toContain('saturate');
+
+		// A drag fires one command per input event. Without merging, those ~100
+		// entries bury a 50-deep undo stack and evict all real history, so one
+		// undo must return the clip to its pre-drag state, not one tick back.
+		for (const v of ['-80', '-60', '-40']) {
+			await saturation.fill(v);
+			await saturation.dispatchEvent('input');
+		}
+		await page.getByRole('button', { name: 'Undo' }).click();
+		await expect
+			.poll(() => layer.evaluate((el) => getComputedStyle(el).filter))
+			.toBe('none');
+
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
 	test('/ redirects into the editor, and the editing surface is actually reachable', async ({ page }) => {
 		const errors: string[] = [];
 		page.on('pageerror', (err) => errors.push(err.message));
