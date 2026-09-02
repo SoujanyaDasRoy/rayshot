@@ -170,10 +170,25 @@
 
 		{#if showName}
 			<div class="clip-meta">
+				<span class="clip-kind-glyph" aria-hidden="true">
+					{#if $assetType === 'audio'}
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+							<path d="M9 18V6l10-2v12" />
+							<circle cx="6.5" cy="18" r="2.5" />
+							<circle cx="16.5" cy="16" r="2.5" />
+						</svg>
+					{:else if isTextClip}
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+							<path d="M5 6h14M12 6v13" />
+						</svg>
+					{:else}
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+							<rect x="2" y="5" width="20" height="14" rx="2" />
+							<path d="M7 5v14M17 5v14" />
+						</svg>
+					{/if}
+				</span>
 				<span class="clip-name">{$assetName}</span>
-				{#if showDuration}
-					<span class="clip-dur font-mono">{clip.timelineDuration.toFixed(1)}s</span>
-				{/if}
 			</div>
 		{/if}
 	</div>
@@ -307,6 +322,9 @@
 
 	/* One name, in one place. It used to appear in a bar at the top, again in a
 	   pill at the bottom, and a third time in the title attribute. */
+	/* A solid bar along the foot of the clip, icon then name — the NLE
+	   convention, and legible over any frame beneath it. A gradient wash left
+	   the name fighting whatever the footage happened to be doing. */
 	.clip-meta {
 		position: absolute;
 		left: 0;
@@ -314,10 +332,25 @@
 		bottom: 0;
 		display: flex;
 		align-items: center;
-		gap: 6px;
-		padding: 2px 7px 3px;
+		gap: 5px;
+		height: 15px;
+		padding: 0 6px;
 		pointer-events: none;
-		background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.72));
+		background: color-mix(in srgb, var(--track-color) 55%, rgba(0, 0, 0, 0.82));
+	}
+
+	.clip-kind-glyph {
+		display: flex;
+		flex-shrink: 0;
+		width: 10px;
+		height: 10px;
+		color: var(--ms-text);
+		opacity: 0.85;
+	}
+
+	.clip-kind-glyph svg {
+		width: 100%;
+		height: 100%;
 	}
 
 	/* A title's words are the label; a filename underneath it would be noise. */
@@ -329,7 +362,7 @@
 	.clip-name {
 		flex: 1;
 		min-width: 0;
-		font-size: 10.5px;
+		font-size: 10px;
 		font-weight: 590;
 		color: var(--ms-text);
 		white-space: nowrap;

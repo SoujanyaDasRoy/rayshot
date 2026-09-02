@@ -266,7 +266,9 @@ test.describe('editor workspace smoke test', () => {
 		await page.goto('/');
 		await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
-		const firstRow = page.locator('.track-label-row').first();
+		const firstRow = page
+			.locator('.track-label-row')
+			.filter({ has: page.locator('.track-name', { hasText: 'Video 1' }) });
 		await firstRow.getByRole('button', { name: 'Mute track' }).click();
 		await expect(firstRow.getByRole('button', { name: 'Unmute track' })).toBeVisible();
 
@@ -657,29 +659,40 @@ test.describe('editor workspace smoke test', () => {
 		rmSync(fixtureDir, { recursive: true, force: true });
 	});
 
-	test('track controls stay out of the way until hover or keyboard focus', async ({ page }) => {
-		// Hover-only controls do not exist for a keyboard, so focus has to reveal
-		// them too. That is the half a hover test would quietly miss.
+	test('a track header states its own settings without being hovered', async ({ page }) => {
+		// This replaces a test for the opposite behaviour. The controls used to
+		// hide until hover, which reads as tidy and means a track's state is
+		// invisible: you could not tell a locked track from an unlocked one
+		// without pointing at it.
 		await page.goto('/');
 		await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
-		const row = page.locator('.track-label-row').first();
-		const controls = row.locator('.track-controls');
-		const opacity = () => controls.evaluate((el) => getComputedStyle(el).opacity);
+		const row = page
+			.locator('.track-label-row')
+			.filter({ has: page.locator('.track-name', { hasText: 'Video 1' }) });
 
-		// The dot is the one control that never hides: it reads the track's
-		// on/off state and its colour at a glance.
-		await expect(row.locator('.track-enable-dot')).toBeVisible();
-		await expect.poll(opacity).toBe('0');
+		const switches = row.locator('.track-switch');
+		await expect(switches.first()).toBeVisible();
+		await expect
+			.poll(() =>
+				switches.evaluateAll((els) =>
+					els.every((el) => parseFloat(getComputedStyle(el).opacity) === 1)
+				)
+			)
+			.toBe(true);
 
-		await row.hover();
-		await expect.poll(opacity).toBe('1');
+		// Index, name and clip count all read without interaction.
+		await expect(row.locator('.track-index-badge')).toHaveText('V1');
+		await expect(row.locator('.track-clip-count')).toContainText('Clip');
 
-		// Move away, then arrive by keyboard instead.
-		await page.mouse.move(0, 0);
-		await expect.poll(opacity).toBe('0');
-		await row.getByRole('button', { name: 'Mute track' }).focus();
-		await expect.poll(opacity).toBe('1');
+		// And the switches show their state rather than merely accepting clicks.
+		const lock = row.getByRole('button', { name: 'Lock track' });
+		await expect(lock).toHaveAttribute('aria-pressed', 'false');
+		await lock.click();
+		await expect(row.getByRole('button', { name: 'Unlock track' })).toHaveAttribute(
+			'aria-pressed',
+			'true'
+		);
 	});
 
 	test('the timeline can be resized, and remembers it across a reload', async ({ page }) => {

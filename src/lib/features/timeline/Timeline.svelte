@@ -573,6 +573,9 @@
 	<div class="timeline-top-toolbar">
 		<div class="toolbar-left-group">
 			<span class="timeline-title">Timeline</span>
+		</div>
+
+		<div class="toolbar-centre-group">
 			<div class="timeline-tools">
 				<button
 					class="t-btn split-action-btn"
@@ -588,7 +591,6 @@
 						<line x1="14.47" y1="14.48" x2="20" y2="20" />
 						<line x1="8.12" y1="8.12" x2="12" y2="12" />
 					</svg>
-					<span>Split</span>
 				</button>
 
 				<button
@@ -602,7 +604,6 @@
 						<path d="M4 3h4" />
 						<path d="M16 3h4" />
 					</svg>
-					<span>Snap</span>
 				</button>
 
 				<div class="toolbar-divider"></div>
@@ -681,114 +682,120 @@
 			</div>
 			<div class="track-label-rows" bind:this={labelRowsEl}>
 				{#each rows as { track, label: trackLabel } (track.id)}
-				<div
-					class="track-label-row {track.type}"
-					style="height: {trackHeight(track)}px; --track-color: {trackColor(track)};"
-					class:locked={track.locked}
-				>
-					<button
-						class="track-enable-dot"
-						class:off={track.hidden}
-						onclick={() => setTrackProp(track.id, 'hidden', !track.hidden)}
-						title={track.hidden ? 'Show track' : 'Hide track'}
-						aria-label={track.hidden ? 'Show track' : 'Hide track'}
-						aria-pressed={!track.hidden}
-					></button>
+					{@const height = trackHeight(track)}
+					{@const clipCount = track.clipInstances.length}
+					<div
+						class="track-label-row {track.type}"
+						style="height: {height}px; --track-color: {trackColor(track)};"
+						class:locked={track.locked}
+						class:compact={height < 48}
+					>
+						<!-- Row 1: index, name, and for audio the channel format. -->
+						<div class="track-head-row">
+							<span class="track-index-badge {track.type}">{trackLabel}</span>
+							<span class="track-name">{TRACK_WORD[track.type]} {trackLabel.slice(1)}</span>
+							{#if track.type === 'audio'}
+								<span class="track-channels font-mono">2.0</span>
+							{/if}
+						</div>
 
-					<span class="track-glyph {track.type}" aria-hidden="true">
-						{#if track.type === 'video'}
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-								<rect x="2" y="5" width="20" height="14" rx="2" />
-								<path d="M7 5v14M17 5v14M2 12h20" />
-							</svg>
-						{:else if track.type === 'subtitle'}
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-								<rect x="3" y="5" width="18" height="14" rx="2" />
-								<path d="M7 14h5M15 14h2" />
-							</svg>
-						{:else}
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M9 18V6l10-2v12" />
-								<circle cx="6.5" cy="18" r="2.5" />
-								<circle cx="16.5" cy="16" r="2.5" />
-							</svg>
-						{/if}
-					</span>
+						<!-- Row 2: the track's own switches, always visible. -->
+						{#if height >= 48}
+							<div class="track-switch-row">
+								<button
+									class="track-switch"
+									class:on={track.locked}
+									onclick={() => setTrackProp(track.id, 'locked', !track.locked)}
+									title={track.locked ? 'Unlock track' : 'Lock track'}
+									aria-label={track.locked ? 'Unlock track' : 'Lock track'}
+									aria-pressed={!!track.locked}
+								>
+									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+										<rect x="5" y="11" width="14" height="10" rx="2" />
+										<path d="M8 11V7a4 4 0 0 1 8 0v4" />
+									</svg>
+								</button>
 
-					<span class="track-name">{TRACK_WORD[track.type]} <span class="track-index font-mono">{trackLabel.slice(1)}</span></span>
+								<button
+									class="track-switch"
+									class:on={!track.hidden}
+									onclick={() => setTrackProp(track.id, 'hidden', !track.hidden)}
+									title={track.hidden ? 'Enable track' : 'Disable track'}
+									aria-label={track.hidden ? 'Enable track' : 'Disable track'}
+									aria-pressed={!track.hidden}
+								>
+									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M9 7 5 12l4 5M15 7l4 5-4 5" />
+									</svg>
+								</button>
 
-					<div class="track-controls" class:menu-open={colorMenuTrackId === track.id}>
-						<!-- Colour is user data, and the one place colour is allowed:
-						     it is how an editor tells dialogue from music at a glance. -->
-						<button
-							class="track-swatch"
-							style="background: {trackColor(track)};"
-							onclick={() => (colorMenuTrackId = colorMenuTrackId === track.id ? null : track.id)}
-							title="Track colour"
-							aria-label="Track colour"
-							aria-expanded={colorMenuTrackId === track.id}
-						></button>
+								<!-- Resolve keeps S and M on audio tracks only, because it splits
+								     audio onto its own track at import. RayShot's video clips carry
+								     their own sound, so a video track without a mute would lose a
+								     capability the model already has. -->
+								<button
+									class="track-switch letter"
+									class:on={track.solo}
+									onclick={() => setTrackProp(track.id, 'solo', !track.solo)}
+									title={track.solo ? 'Unsolo track' : 'Solo track'}
+									aria-label={track.solo ? 'Unsolo track' : 'Solo track'}
+									aria-pressed={!!track.solo}
+								>S</button>
 
-						{#if colorMenuTrackId === track.id}
-							<div class="swatch-menu" role="menu">
-								{#each TRACK_COLORS as swatch (swatch.value)}
-									<button
-										class="swatch-option"
-										class:selected={(trackColor(track)) === swatch.value}
-										style="background: {swatch.value};"
-										title={swatch.name}
-										aria-label={swatch.name}
-										onclick={() => {
-											setTrackProp(track.id, 'color', swatch.value);
-											colorMenuTrackId = null;
-										}}
-									></button>
-								{/each}
+								<button
+									class="track-switch letter"
+									class:on={track.muted}
+									onclick={() => setTrackProp(track.id, 'muted', !track.muted)}
+									title={track.muted ? 'Unmute track' : 'Mute track'}
+									aria-label={track.muted ? 'Unmute track' : 'Mute track'}
+									aria-pressed={!!track.muted}
+								>M</button>
+															<button
+									class="track-switch swatch"
+									style="background: {trackColor(track)};"
+									onclick={() => (colorMenuTrackId = colorMenuTrackId === track.id ? null : track.id)}
+									title="Track colour"
+									aria-label="Track colour"
+									aria-expanded={colorMenuTrackId === track.id}
+								></button>
+
+								<button
+									class="track-switch"
+									onclick={() => removeTrack(track.id)}
+									title="Delete track"
+									aria-label="Delete {trackLabel} track"
+								>
+									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+										<path d="M6 6l12 12M18 6L6 18" />
+									</svg>
+								</button>
+
+								{#if colorMenuTrackId === track.id}
+									<div class="swatch-menu" role="menu">
+										{#each TRACK_COLORS as swatch (swatch.value)}
+											<button
+												class="swatch-option"
+												class:selected={trackColor(track) === swatch.value}
+												style="background: {swatch.value};"
+												title={swatch.name}
+												aria-label={swatch.name}
+												onclick={() => {
+													setTrackProp(track.id, 'color', swatch.value);
+													colorMenuTrackId = null;
+												}}
+											></button>
+										{/each}
+									</div>
+								{/if}
 							</div>
 						{/if}
 
-						<button
-							class="track-icon-btn"
-							class:active={track.muted}
-							onclick={() => setTrackProp(track.id, 'muted', !track.muted)}
-							title={track.muted ? 'Unmute track' : 'Mute track'}
-							aria-label={track.muted ? 'Unmute track' : 'Mute track'}
-							aria-pressed={!!track.muted}
-						>
-							<span class="state-glyph">{track.muted ? 'M' : 'm'}</span>
-						</button>
-
-						<button
-							class="track-icon-btn"
-							class:active={track.solo}
-							onclick={() => setTrackProp(track.id, 'solo', !track.solo)}
-							title={track.solo ? 'Unsolo track' : 'Solo track'}
-							aria-label={track.solo ? 'Unsolo track' : 'Solo track'}
-							aria-pressed={!!track.solo}
-						>
-							<span class="state-glyph">{track.solo ? 'S' : 's'}</span>
-						</button>
-
-						<button
-							class="track-icon-btn"
-							class:active={track.locked}
-							onclick={() => setTrackProp(track.id, 'locked', !track.locked)}
-							title={track.locked ? 'Unlock track' : 'Lock track'}
-							aria-label={track.locked ? 'Unlock track' : 'Lock track'}
-							aria-pressed={!!track.locked}
-						>
-							<span class="state-glyph">{track.locked ? 'L' : 'l'}</span>
-						</button>
-
-						<button
-							class="track-icon-btn"
-							onclick={() => removeTrack(track.id)}
-							title="Delete track"
-							aria-label="Delete {trackLabel} track"
-						>
-							<span class="state-glyph">×</span>
-						</button>
-					</div>
+						<!-- Row 3: what is actually on the track. -->
+						{#if height >= 66}
+							<span class="track-clip-count">
+								{clipCount} {clipCount === 1 ? 'Clip' : 'Clips'}
+							</span>
+						{/if}
 					</div>
 				{/each}
 			</div>
@@ -922,6 +929,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		gap: 12px;
 		padding: 0 12px;
 		background: var(--ms-material); /* surface-container-low */
 		border-bottom: 1px solid var(--ms-edge);
@@ -992,6 +1000,16 @@
 		background: rgba(56, 189, 248, 0.15);
 		border-color: var(--ms-text);
 		color: var(--ms-text);
+	}
+
+	/* The tools sit in the middle of the timeline they act on, the way every
+	   NLE arranges them, rather than trailing off the left edge. */
+	.toolbar-centre-group {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex: 1;
+		min-width: 0;
 	}
 
 	.zoom-controls-cluster {
@@ -1077,6 +1095,98 @@
 		padding: 0 10px;
 	}
 
+	/* ── Track header ────────────────────────────────────────────────────────
+	   Index, name and switches, stacked — the arrangement every NLE uses, and
+	   the one this column had been abbreviating away. Switches stay visible;
+	   they are the track's state, not a menu. */
+	.track-head-row {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		min-width: 0;
+	}
+
+	.track-index-badge {
+		flex-shrink: 0;
+		padding: 0 4px;
+		min-width: 20px;
+		text-align: center;
+		border: 1px solid var(--track-color);
+		border-radius: 3px;
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 9.5px;
+		font-weight: 700;
+		line-height: 15px;
+		color: var(--track-color);
+	}
+
+	.track-channels {
+		margin-left: auto;
+		flex-shrink: 0;
+		font-size: 9.5px;
+		color: var(--ms-text-tertiary);
+	}
+
+	.track-switch-row {
+		display: flex;
+		align-items: center;
+		gap: 3px;
+	}
+
+	.track-switch {
+		width: 17px;
+		height: 15px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		border: 1px solid var(--ms-edge);
+		border-radius: 3px;
+		background: transparent;
+		color: var(--ms-text-tertiary);
+		cursor: pointer;
+		transition:
+			background var(--ms-fast) var(--ms-ease),
+			color var(--ms-fast) var(--ms-ease);
+	}
+
+	.track-switch svg {
+		width: 10px;
+		height: 10px;
+	}
+
+	.track-switch.letter {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 9px;
+		font-weight: 700;
+		line-height: 1;
+	}
+
+	.track-switch:hover {
+		background: var(--ms-hover);
+		color: var(--ms-text);
+	}
+
+	.track-switch.on {
+		background: var(--ms-text);
+		border-color: var(--ms-text);
+		color: var(--ms-void);
+	}
+
+	.track-switch.swatch {
+		border-color: var(--ms-edge-strong);
+	}
+
+	.track-clip-count {
+		font-size: 9.5px;
+		color: var(--ms-text-tertiary);
+	}
+
+	.track-label-row.compact .track-head-row {
+		gap: 6px;
+	}
+
 	.playhead-readout {
 		font-size: 12px;
 		font-weight: 500;
@@ -1101,27 +1211,14 @@
 		   the stack overflows and drift out of step with their lanes. */
 		flex-shrink: 0;
 		box-sizing: border-box;
-		align-items: center;
+		flex-direction: column;
+		align-items: stretch;
+		justify-content: center;
+		gap: 4px;
 		padding: 0 8px;
 		gap: 6px;
 		border-bottom: 1px solid var(--ms-edge);
 		background: var(--ms-void); /* surface-container-lowest */
-	}
-
-	/* The glyph carries the track's colour; the word carries its meaning. */
-	.track-glyph {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 15px;
-		height: 15px;
-		flex-shrink: 0;
-		color: var(--track-color);
-	}
-
-	.track-glyph svg {
-		width: 100%;
-		height: 100%;
 	}
 
 	.track-name {
@@ -1134,95 +1231,6 @@
 		text-overflow: ellipsis;
 	}
 
-	.track-index {
-		color: var(--ms-text-tertiary);
-	}
-
-	/* The row shows what you need to read it — name, colour, on/off — and
-	   reveals what you need to change it only when you reach for it. Focus
-	   counts as reaching: hover-only controls do not exist for a keyboard. */
-	/* Overlaid, not in flow: while hidden they were still reserving room and
-	   squeezing "Video 1" down to "Vi...". The name gets the whole row; the
-	   controls arrive on top of its tail when you reach for them. */
-	.track-controls {
-		position: absolute;
-		right: 8px;
-		top: 50%;
-		transform: translateY(-50%);
-		display: flex;
-		gap: 3px;
-		padding-left: 12px;
-		background: linear-gradient(90deg, transparent, var(--ms-material) 12px);
-		opacity: 0;
-		transition: opacity var(--ms-fast) var(--ms-ease);
-	}
-
-	.track-label-row:hover .track-controls,
-	.track-label-row:focus-within .track-controls,
-	.track-controls.menu-open {
-		opacity: 1;
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.track-controls {
-			transition: none;
-		}
-	}
-
-	/* Filled with the track's own colour when the track is on, hollow when it
-	   is off: one mark, two readings. */
-	.track-enable-dot {
-		width: 10px;
-		height: 10px;
-		flex-shrink: 0;
-		margin-right: 8px;
-		padding: 0;
-		border-radius: 50%;
-		border: 1px solid var(--track-color);
-		background: var(--track-color);
-		cursor: pointer;
-		transition: background var(--ms-fast) var(--ms-ease);
-	}
-
-	.track-enable-dot.off {
-		background: transparent;
-	}
-
-	.track-enable-dot:focus-visible {
-		outline: 2px solid var(--ms-text);
-		outline-offset: 2px;
-	}
-
-	.track-icon-btn {
-		background: var(--ms-edge);
-		border: 1px solid var(--ms-edge);
-		font-size: 0.65rem;
-		color: var(--ms-text-tertiary);
-		cursor: pointer;
-		padding: 3px;
-		border-radius: 3px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		transition: all 0.15s ease;
-	}
-
-	.track-icon-btn:hover {
-		color: var(--ms-text-secondary);
-		background: var(--ms-edge);
-	}
-
-	.track-icon-btn.active {
-		color: var(--ms-text);
-		border-color: rgba(239, 68, 68, 0.4);
-		background: rgba(239, 68, 68, 0.1);
-	}
-
-	.track-icon-btn.lock.active {
-		color: var(--ms-text-secondary);
-		border-color: rgba(245, 158, 11, 0.4);
-		background: rgba(245, 158, 11, 0.1);
-	}
 
 	/* Scrollable Viewport with Custom Dark Scrollbars */
 	.tracks-scroll-viewport {
@@ -1360,16 +1368,6 @@
 		opacity: 0.5;
 	}
 
-	.track-swatch {
-		width: 12px;
-		height: 12px;
-		flex-shrink: 0;
-		border: 1px solid var(--ms-edge-strong);
-		border-radius: 50%;
-		cursor: pointer;
-		padding: 0;
-	}
-
 	.swatch-menu {
 		position: absolute;
 		left: 8px;
@@ -1397,12 +1395,6 @@
 	.swatch-option.selected {
 		border-color: var(--ms-text);
 		box-shadow: 0 0 0 2px var(--ms-void);
-	}
-
-	.state-glyph {
-		font-family: var(--ms-font-mono);
-		font-size: 10px;
-		line-height: 1;
 	}
 
 	/* Snapping Guide Line */

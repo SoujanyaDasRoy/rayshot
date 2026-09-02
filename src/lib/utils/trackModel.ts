@@ -58,9 +58,11 @@ export function trackColor(track: Pick<Track, 'type' | 'color'>): string {
 
 /** Per-type fallbacks. Subtitles need less room than a filmstrip. */
 const DEFAULT_HEIGHTS: Record<TrackType, number> = {
-	video: 64,
-	audio: 52,
-	subtitle: 34
+	// Room for the three header rows — index and name, switches, clip count —
+	// with picture given the most, the way an NLE weights them.
+	video: 78,
+	audio: 66,
+	subtitle: 44
 };
 
 const MIN_HEIGHT = 24;
